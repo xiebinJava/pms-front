@@ -1,0 +1,127 @@
+<script setup lang="ts">
+import { onMounted, reactive, ref } from 'vue'
+import { PlusOutlined } from '@ant-design/icons-vue'
+import { Modal, message } from 'ant-design-vue'
+import { addMember, getMembers, removeMember } from '/@/api/member'
+import { searchUsers } from '/@/api/user'
+import { MemberRole, statusTagColor } from '/@/enums'
+import { formatDateTime } from '/@/utils/format'
+import type { ProjectMember } from '/@/types/domain'
+
+const props = defineProps<{ projectId: number }>()
+
+const list = ref<ProjectMember[]>([])
+const loading = ref(false)
+
+const modalState = reactive({ open: false })
+const formRef = ref()
+const form = reactive({ userId: undefined as number | undefined, role: 2 })
+const rules = { userId: [{ required: true, message: '请选择用户' }] }
+const userOptions = ref<{ value: number; label: string }[]>([])
+
+async function loadData() {
+  loading.value = true
+  try {
+    list.value = await getMembers(props.projectId)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function onUserSearch(keyword: string) {
+  const users = await searchUsers(keyword)
+  userOptions.value = users.map((u) => ({ value: u.id, label: `${u.nickname} (${u.username})` }))
+}
+
+function openAdd() {
+  form.userId = undefined
+  form.role = 2
+  userOptions.value = []
+  modalState.open = true
+  onUserSearch('')
+}
+
+async function onSave() {
+  await formRef.value.validate()
+  await addMember(props.projectId, { userId: form.userId as number, role: form.role })
+  message.success('添加成功')
+  modalState.open = false
+  loadData()
+}
+
+function onRemove(record: ProjectMember) {
+  Modal.confirm({
+    title: '移除成员',
+    content: `确定将「${record.nickname || record.username}」移出项目吗？`,
+    okText: '移除',
+    okType: 'danger',
+    cancelText: '取消',
+    onOk: async () => {
+      await removeMember(props.projectId, record.id)
+      message.success('移除成功')
+      loadData()
+    },
+  })
+}
+
+onMounted(loadData)
+</script>
+
+<template>
+  <div class="flex items-center justify-between mb-4">
+    <span class="text-[14px] text-[#5d6b7e]">共 {{ list.length }} 名成员</span>
+    <a-button type="primary" size="small" @click="openAdd"><PlusOutlined /> 添加成员</a-button>
+  </div>
+
+  <a-table :data-source="list" :columns="columns" :loading="loading" row-key="id" :pagination="false">
+    <template #bodyCell="{ column, record }">
+      <template v-if="column.key === 'member'">
+        <a-avatar :size="28" style="background-color: #378eef">{{ (record.nickname || record.username || '?').charAt(0) }}</a-avatar>
+        <span class="ml-2 font-medium text-[#18212e]">{{ record.nickname || '-' }}</span>
+        <span class="ml-1 text-[12px] text-[#8895a7]">@{{ record.username }}</span>
+      </template>
+      <template v-else-if="column.key === 'role'">
+        <a-tag :color="statusTagColor[record.role]">{{ MemberRole.label(record.role) }}</a-tag>
+      </template>
+      <template v-else-if="column.key === 'createdAt'">{{ formatDateTime(record.createdAt) }}</template>
+      <template v-else-if="column.key === 'action'">
+        <span v-if="record.role !== 0" class="b-opt !text-[#bc3038]" @click="onRemove(record)">移除</span>
+        <span v-else class="text-[12px] text-[#c8cfd9]">负责人不可移除</span>
+      </template>
+    </template>
+  </a-table>
+
+  <a-modal v-model:open="modalState.open" title="添加成员" @ok="onSave">
+    <a-form ref="formRef" :model="form" :rules="rules" layout="vertical">
+      <a-form-item label="选择用户" name="userId">
+        <a-select
+          v-model:value="form.userId"
+          placeholder="搜索用户名或昵称"
+          show-search
+          :filter-option="false"
+          :options="userOptions"
+          @search="onUserSearch"
+        />
+      </a-form-item>
+      <a-form-item label="角色">
+        <a-select v-model:value="form.role">
+          <a-select-option v-for="opt in MemberRole.options()" :key="opt.value" :value="opt.value">
+            {{ opt.label }}
+          </a-select-option>
+        </a-select>
+      </a-form-item>
+    </a-form>
+  </a-modal>
+</template>
+
+<script lang="ts">
+const columns = [
+  { title: '成员', key: 'member' },
+  { title: '角色', key: 'role', width: 120 },
+  { title: '加入时间', key: 'createdAt', width: 180 },
+  { title: '操作', key: 'action', width: 130 },
+]
+export default {
+  name: 'Members',
+}
+</script>
