@@ -27,6 +27,12 @@ pnpm build      # 类型检查 + 生产构建
 pnpm typecheck  # 仅类型检查
 ```
 
+## 前端界面规范
+
+页面视觉令牌、布局、控件、状态语义和验收清单统一沉淀在
+[docs/frontend-design-system.md](docs/frontend-design-system.md)。新增或修改界面时优先复用
+`--pms-*` 变量和共享样式，完成后执行 `pnpm typecheck`、`pnpm build` 与浏览器回归。
+
 ## 目录结构
 
 ```

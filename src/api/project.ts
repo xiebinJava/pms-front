@@ -2,6 +2,11 @@ import { http } from '/@/plugins/http'
 import type { PageResult } from '/@/types/api'
 import type { Project } from '/@/types/domain'
 
+export interface ProjectUpdatePayload extends Partial<Project> {
+  memberIds?: number[]
+  followerIds?: number[]
+}
+
 export interface ProjectPageParams {
   currPage: number
   pageSize: number
@@ -21,10 +26,23 @@ export function createProject(data: Partial<Project>): Promise<Project> {
   return http.post('/projects', data)
 }
 
-export function updateProject(id: number | string, data: Partial<Project>): Promise<Project> {
+export function updateProject(id: number | string, data: ProjectUpdatePayload): Promise<Project> {
   return http.put(`/projects/${id}`, data)
 }
 
 export function deleteProject(id: number | string): Promise<void> {
   return http.delete(`/projects/${id}`)
+}
+
+export interface ProjectStats {
+  total: number
+  planning: number
+  active: number
+  completed: number
+  archived: number
+  avgProgress: number
+}
+
+export function getProjectStats(): Promise<ProjectStats> {
+  return http.get('/projects/stats')
 }

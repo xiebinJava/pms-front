@@ -19,6 +19,13 @@ const form = reactive({ userId: undefined as number | undefined, role: 2 })
 const rules = { userId: [{ required: true, message: '请选择用户' }] }
 const userOptions = ref<{ value: number; label: string }[]>([])
 
+const columns = [
+  { title: '成员', key: 'member' },
+  { title: '角色', key: 'role', width: 120 },
+  { title: '加入时间', key: 'createdAt', width: 180 },
+  { title: '操作', key: 'action', width: 130 },
+]
+
 async function loadData() {
   loading.value = true
   try {
@@ -69,24 +76,24 @@ onMounted(loadData)
 
 <template>
   <div class="flex items-center justify-between mb-4">
-    <span class="text-[14px] text-[#5d6b7e]">共 {{ list.length }} 名成员</span>
+    <span class="pms-muted-text">共 {{ list.length }} 名成员</span>
     <a-button type="primary" size="small" @click="openAdd"><PlusOutlined /> 添加成员</a-button>
   </div>
 
   <a-table :data-source="list" :columns="columns" :loading="loading" row-key="id" :pagination="false">
     <template #bodyCell="{ column, record }">
       <template v-if="column.key === 'member'">
-        <a-avatar :size="28" style="background-color: #378eef">{{ (record.nickname || record.username || '?').charAt(0) }}</a-avatar>
-        <span class="ml-2 font-medium text-[#18212e]">{{ record.nickname || '-' }}</span>
-        <span class="ml-1 text-[12px] text-[#8895a7]">@{{ record.username }}</span>
+        <a-avatar :size="28" class="pms-avatar">{{ (record.nickname || record.username || '?').charAt(0) }}</a-avatar>
+        <span class="ml-2 pms-strong-text">{{ record.nickname || '-' }}</span>
+        <span class="ml-1 pms-faint-text">@{{ record.username }}</span>
       </template>
       <template v-else-if="column.key === 'role'">
         <a-tag :color="statusTagColor[record.role]">{{ MemberRole.label(record.role) }}</a-tag>
       </template>
       <template v-else-if="column.key === 'createdAt'">{{ formatDateTime(record.createdAt) }}</template>
       <template v-else-if="column.key === 'action'">
-        <span v-if="record.role !== 0" class="b-opt !text-[#bc3038]" @click="onRemove(record)">移除</span>
-        <span v-else class="text-[12px] text-[#c8cfd9]">负责人不可移除</span>
+        <span v-if="record.role !== 0" class="pms-action-link pms-action-link--danger" @click="onRemove(record)">移除</span>
+        <span v-else class="pms-faint-text">负责人不可移除</span>
       </template>
     </template>
   </a-table>
@@ -113,15 +120,3 @@ onMounted(loadData)
     </a-form>
   </a-modal>
 </template>
-
-<script lang="ts">
-const columns = [
-  { title: '成员', key: 'member' },
-  { title: '角色', key: 'role', width: 120 },
-  { title: '加入时间', key: 'createdAt', width: 180 },
-  { title: '操作', key: 'action', width: 130 },
-]
-export default {
-  name: 'Members',
-}
-</script>

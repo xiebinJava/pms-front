@@ -139,30 +139,30 @@ onMounted(loadAll)
     <div
       v-for="col in groups"
       :key="col.status"
-      class="flex-1 bg-[#f5f7fa] rounded-[6px] p-2 min-h-[420px]"
+      class="pms-task-column"
       @dragover.prevent
       @drop.prevent="onDrop(col.status)"
     >
       <div class="flex items-center justify-between px-1 pb-2">
-        <span class="font-medium text-[13px] text-[#18212e]">{{ col.label }}</span>
-        <span class="text-[12px] text-[#8895a7]">{{ col.list.length }}</span>
+        <span class="pms-strong-text">{{ col.label }}</span>
+        <span class="pms-faint-text">{{ col.list.length }}</span>
       </div>
 
       <div
         v-for="task in col.list"
         :key="task.id"
-        class="card p-2 mb-2 cursor-grab active:cursor-grabbing hover:border-[#378eef] transition-all"
+        class="pms-task-card"
         :draggable="true"
         @dragstart="dragId = task.id"
         @click="openEdit(task)"
       >
         <div class="flex items-start justify-between gap-2">
-          <span class="text-[13px] leading-snug text-[#18212e]">{{ task.title }}</span>
+          <span class="pms-task-card__title">{{ task.title }}</span>
           <a-tag :color="priorityTagColor[task.priority]" class="!m-0 !text-[11px] !px-1">
             {{ Priority.label(task.priority) }}
           </a-tag>
         </div>
-        <div class="flex items-center justify-between mt-2 text-[12px] text-[#8895a7]">
+        <div class="pms-task-card__meta">
           <span>{{ task.assigneeName || '未指派' }}</span>
           <span>{{ milestoneNameMap.get(task.milestoneId ?? 0) || '' }}</span>
           <span>{{ formatDate(task.dueDate) }}</span>

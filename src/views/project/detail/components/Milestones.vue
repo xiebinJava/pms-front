@@ -22,6 +22,14 @@ const form = reactive({
 })
 const rules = { title: [{ required: true, message: '请输入里程碑名称' }] }
 
+const columns = [
+  { title: '里程碑', key: 'title' },
+  { title: '状态', key: 'status', width: 100 },
+  { title: '任务进度', key: 'progress', width: 180 },
+  { title: '计划日期', key: 'dueDate', width: 120 },
+  { title: '操作', key: 'action', width: 120 },
+]
+
 async function loadData() {
   loading.value = true
   try {
@@ -82,15 +90,15 @@ onMounted(loadData)
 
 <template>
   <div class="flex items-center justify-between mb-4">
-    <span class="text-[14px] text-[#5d6b7e]">共 {{ list.length }} 个里程碑</span>
+    <span class="pms-muted-text">共 {{ list.length }} 个里程碑</span>
     <a-button type="primary" size="small" @click="openCreate"><PlusOutlined /> 新建里程碑</a-button>
   </div>
 
   <a-table :data-source="list" :columns="columns" :loading="loading" row-key="id" :pagination="false">
     <template #bodyCell="{ column, record }">
       <template v-if="column.key === 'title'">
-        <span class="font-medium text-[#18212e]">{{ record.title }}</span>
-        <div class="text-[12px] text-[#8895a7] mt-1">{{ record.description || '—' }}</div>
+        <span class="pms-strong-text">{{ record.title }}</span>
+        <div class="pms-faint-text mt-1">{{ record.description || '—' }}</div>
       </template>
       <template v-else-if="column.key === 'status'">
         <a-tag :color="statusTagColor[record.status]">{{ MilestoneStatus.label(record.status) }}</a-tag>
@@ -101,12 +109,12 @@ onMounted(loadData)
           size="small"
           style="width: 120px"
         />
-        <div class="text-[12px] text-[#8895a7]">{{ record.doneTaskCount }}/{{ record.taskCount }}</div>
+        <div class="pms-faint-text">{{ record.doneTaskCount }}/{{ record.taskCount }}</div>
       </template>
       <template v-else-if="column.key === 'dueDate'">{{ formatDate(record.dueDate) }}</template>
       <template v-else-if="column.key === 'action'">
-        <span class="b-opt mr-3" @click="openEdit(record)">编辑</span>
-        <span class="b-opt !text-[#bc3038]" @click="onDelete(record)">删除</span>
+        <span class="pms-action-link" @click="openEdit(record)">编辑</span>
+        <span class="pms-action-link pms-action-link--danger" @click="onDelete(record)">删除</span>
       </template>
     </template>
   </a-table>
@@ -134,16 +142,3 @@ onMounted(loadData)
     </a-form>
   </a-modal>
 </template>
-
-<script lang="ts">
-const columns = [
-  { title: '里程碑', key: 'title' },
-  { title: '状态', key: 'status', width: 100 },
-  { title: '任务进度', key: 'progress', width: 180 },
-  { title: '计划日期', key: 'dueDate', width: 120 },
-  { title: '操作', key: 'action', width: 120 },
-]
-export default {
-  name: 'Milestones',
-}
-</script>

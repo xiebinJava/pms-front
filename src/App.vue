@@ -1,13 +1,30 @@
 <script setup lang="ts">
 import { theme } from 'ant-design-vue'
+import { designTokens } from './styles/design-system'
 
 const themeConfig = {
   algorithm: theme.defaultAlgorithm,
   token: {
-    colorPrimary: '#378eef',
-    colorLink: '#378eef',
-    borderRadius: 4,
-    fontSize: 13,
+    colorPrimary: designTokens.primary,
+    colorInfo: designTokens.primary,
+    colorLink: designTokens.primary,
+    colorSuccess: designTokens.success,
+    colorError: designTokens.danger,
+    colorWarning: designTokens.warning,
+    colorTextBase: designTokens.text,
+    colorText: designTokens.text,
+    colorTextSecondary: designTokens.textMuted,
+    colorTextTertiary: designTokens.textFaint,
+    colorTextQuaternary: '#B6C0CC',
+    colorBorder: designTokens.border,
+    colorBorderSecondary: designTokens.border,
+    colorBgLayout: designTokens.background,
+    colorBgContainer: designTokens.surface,
+    colorFillAlter: designTokens.surfaceMuted,
+    borderRadius: designTokens.radius,
+    borderRadiusSM: designTokens.radius,
+    controlHeight: 36,
+    fontSize: 14,
   },
 }
 </script>

@@ -74,3 +74,16 @@ export interface Comment {
   userNickname?: string
   createdAt: string
 }
+
+export interface ProjectNode {
+  id: number
+  projectId: number
+  nodeKey: string
+  name: string
+  description?: string
+  deliverable?: string
+  roles?: string
+  status: number
+  sort: number
+  createdAt: string
+}
