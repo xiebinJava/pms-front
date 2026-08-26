@@ -105,26 +105,26 @@ async function onFinish() {
   color: #fff;
   background: var(--pms-primary);
   border-radius: 8px;
-  font-size: 22px;
+  font-size: var(--pms-font-size-title);
   font-weight: 750;
 }
 
 .pms-login-heading h1 {
   margin: 0;
   color: var(--pms-text);
-  font-size: 22px;
+  font-size: var(--pms-font-size-title);
   font-weight: 720;
 }
 
 .pms-login-heading p {
   margin: 5px 0 0;
   color: var(--pms-text-faint);
-  font-size: 13px;
+  font-size: var(--pms-font-size-compact);
 }
 
 .pms-login-icon { color: var(--pms-text-faint); }
 .pms-login-submit { height: 42px; border-radius: 6px !important; font-weight: 650; }
-.pms-login-hint { margin: 16px 0 0; color: var(--pms-text-faint); font-size: 12px; text-align: center; }
+.pms-login-hint { margin: 16px 0 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); text-align: center; }
 
 @media (max-width: 480px) {
   .pms-login-page { padding: 16px; }

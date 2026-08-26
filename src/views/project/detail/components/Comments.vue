@@ -59,7 +59,7 @@ onMounted(loadData)
   <div class="max-w-[720px]">
     <div class="flex gap-2 mb-5">
       <a-textarea v-model:value="content" :rows="3" placeholder="记录进展、评论项目…" :maxlength="2000" />
-      <a-button type="primary" :loading="submitting" @click="onAdd" class="self-end">发布</a-button>
+      <a-button type="primary" class="pms-primary-button self-end" :loading="submitting" @click="onAdd">发布</a-button>
     </div>
 
     <a-spin :spinning="loading">

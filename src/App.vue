@@ -24,7 +24,7 @@ const themeConfig = {
     borderRadius: designTokens.radius,
     borderRadiusSM: designTokens.radius,
     controlHeight: 36,
-    fontSize: 14,
+    fontSize: designTokens.fontSize.body,
   },
 }
 </script>

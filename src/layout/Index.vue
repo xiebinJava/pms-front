@@ -108,7 +108,7 @@ onMounted(async () => {
   color: #fff;
   background: var(--pms-primary);
   border-radius: 6px;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 750;
 }
 
@@ -119,7 +119,7 @@ onMounted(async () => {
 
 .pms-brand__copy strong {
   color: var(--pms-text);
-  font-size: 14px;
+  font-size: var(--pms-font-size-body);
   font-weight: 720;
 }
 
@@ -139,7 +139,7 @@ onMounted(async () => {
   margin: 3px 0;
   color: var(--pms-text-muted);
   border-radius: var(--pms-radius-sm);
-  font-size: 13px;
+  font-size: var(--pms-font-size-body);
 }
 
 .pms-nav :deep(.ant-menu-item-selected) {
@@ -164,7 +164,7 @@ onMounted(async () => {
 
 .pms-topbar__title {
   color: var(--pms-text-muted);
-  font-size: 13px;
+  font-size: var(--pms-font-size-compact);
 }
 
 .pms-user-menu {
@@ -172,7 +172,7 @@ onMounted(async () => {
   align-items: center;
   gap: 9px;
   color: var(--pms-text);
-  font-size: 13px;
+  font-size: var(--pms-font-size-body);
 }
 
 .pms-user-menu__avatar {

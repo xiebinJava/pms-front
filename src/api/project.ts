@@ -30,16 +30,34 @@ export function updateProject(id: number | string, data: ProjectUpdatePayload): 
   return http.put(`/projects/${id}`, data)
 }
 
+export interface ProjectImageUpload {
+  name: string
+  url: string
+}
+
+export function uploadProjectImage(file: File): Promise<ProjectImageUpload> {
+  const formData = new FormData()
+  formData.append('file', file)
+  return http.post('/projects/images', formData)
+}
+
 export function deleteProject(id: number | string): Promise<void> {
   return http.delete(`/projects/${id}`)
 }
 
+export function terminateProject(id: number | string, reason: string): Promise<Project> {
+  return http.post(`/projects/${id}/terminate`, { reason })
+}
+
+export function restoreProject(id: number | string, reason: string): Promise<Project> {
+  return http.post(`/projects/${id}/restore`, { reason })
+}
+
 export interface ProjectStats {
   total: number
-  planning: number
   active: number
   completed: number
-  archived: number
+  terminated: number
   avgProgress: number
 }
 

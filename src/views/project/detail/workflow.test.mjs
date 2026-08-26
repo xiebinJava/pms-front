@@ -2,12 +2,25 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   canRollbackNode,
+  buildTaskPayload,
   getFlowNodeState,
   getNodeDetailFields,
   getNodeProgress,
+  getNodeStatusMeta,
+  getNodeOwnerDisplay,
+  getNodeScopedParams,
+  getMissingKickoffProfileFields,
+  formatPersonLabel,
+  getProjectManagerDisplay,
+  getProjectProfileFields,
+  getPersonDisplay,
+  getSinglePersonSelection,
   isKickoffNode,
+  isNodeReadOnly,
+  moveTaskStatus,
   splitNodeItems,
   shouldAutoSaveProfile,
+  sortTasksByPriority,
 } from './workflow.ts'
 
 test('maps node status to the visual state used by the flow', () => {
@@ -22,10 +35,26 @@ test('maps node status to the visual state used by the flow', () => {
     canSelect: true,
   })
   assert.deepEqual(getFlowNodeState(0), {
-    label: '待开始',
+    label: '未开始',
     tone: 'locked',
     canSelect: true,
   })
+  assert.deepEqual(getFlowNodeState(3), {
+    label: '已终止',
+    tone: 'terminated',
+    canSelect: true,
+  })
+})
+
+test('uses the shared node status metadata and lock rule', () => {
+  assert.deepEqual(getNodeStatusMeta(0), { label: '未开始', tone: 'locked', readOnly: false })
+  assert.deepEqual(getNodeStatusMeta(1), { label: '进行中', tone: 'active', readOnly: false })
+  assert.deepEqual(getNodeStatusMeta(2), { label: '已完成', tone: 'completed', readOnly: true })
+  assert.deepEqual(getNodeStatusMeta(3), { label: '已终止', tone: 'terminated', readOnly: true })
+  assert.equal(isNodeReadOnly(0), false)
+  assert.equal(isNodeReadOnly(1), false)
+  assert.equal(isNodeReadOnly(2), true)
+  assert.equal(isNodeReadOnly(3), true)
 })
 
 test('calculates project progress from completed nodes', () => {
@@ -72,9 +101,121 @@ test('shows project profile content only on the kickoff node tab', () => {
   assert.equal(isKickoffNode(undefined), false)
 })
 
+test('keeps creation time out of the editable project profile', () => {
+  assert.deepEqual(getProjectProfileFields().map((field) => field.key), [
+    'description',
+    'priority',
+    'schedule',
+  ])
+})
+
+test('requires all kickoff profile fields except followers', () => {
+  assert.deepEqual(getMissingKickoffProfileFields({
+    description: '  ',
+    priority: null,
+    ownerId: undefined,
+    schedule: ['2026-08-01'],
+    memberIds: [],
+    followerIds: [],
+  }), ['项目描述', '优先级', '项目经理', '项目排期', '项目成员'])
+
+  assert.deepEqual(getMissingKickoffProfileFields({
+    description: '项目说明',
+    priority: 1,
+    projectManagerId: 1,
+    schedule: ['2026-08-01', '2026-08-10'],
+    memberIds: [1],
+  }), [])
+})
+
+test('shows an unconfirmed project manager as pending', () => {
+  assert.equal(getProjectManagerDisplay(undefined), '待确认')
+  assert.equal(getProjectManagerDisplay('  '), '待确认')
+  assert.equal(getProjectManagerDisplay('张三'), '张三')
+})
+
+test('shows an unassigned node owner as pending assignment', () => {
+  assert.equal(getNodeOwnerDisplay(undefined), '待分配')
+  assert.equal(getNodeOwnerDisplay('  '), '待分配')
+  assert.equal(getNodeOwnerDisplay('李四'), '李四')
+})
+
+test('formats people consistently as name and account', () => {
+  assert.equal(formatPersonLabel({ id: 1, nickname: '朱晨', username: 'Gloria.Zhu' }), '朱晨(Gloria.Zhu)')
+  assert.equal(formatPersonLabel({ id: 2, nickname: '', username: 'lisi' }), 'lisi')
+  assert.equal(formatPersonLabel({ id: 3 }), '用户 3')
+})
+
+test('prefers the selected person label over the stale project fallback', () => {
+  assert.deepEqual(getPersonDisplay({ label: '张三(zhangsan)', avatar: '/avatar.png' }, '管理员'), {
+    label: '张三(zhangsan)',
+    avatar: '/avatar.png',
+  })
+  assert.deepEqual(getPersonDisplay(undefined, undefined), {
+    label: '待确认',
+    avatar: undefined,
+  })
+})
+
+test('replaces a single person selection with the latest choice', () => {
+  assert.equal(getSinglePersonSelection([1, 2]), 2)
+  assert.equal(getSinglePersonSelection([]), undefined)
+})
+
 test('autosaves only when a dirty profile receives an outside click', () => {
   assert.equal(shouldAutoSaveProfile(true, false, false), true)
   assert.equal(shouldAutoSaveProfile(false, false, false), false)
   assert.equal(shouldAutoSaveProfile(true, true, false), false)
   assert.equal(shouldAutoSaveProfile(true, false, true), false)
+})
+
+test('builds node scope params only when a node is selected', () => {
+  assert.deepEqual(getNodeScopedParams(12), { params: { nodeId: 12 } })
+  assert.deepEqual(getNodeScopedParams(undefined), {})
+})
+
+test('updates only the dragged task status locally', () => {
+  const tasks = [
+    { id: 1, status: 0, title: '资料评审' },
+    { id: 2, status: 2, title: '接口开发' },
+  ]
+
+  assert.deepEqual(moveTaskStatus(tasks, 1, 1), [
+    { id: 1, status: 1, title: '资料评审' },
+    { id: 2, status: 2, title: '接口开发' },
+  ])
+})
+
+test('keeps task deliverables in the task payload', () => {
+  assert.deepEqual(buildTaskPayload({
+    title: '资料评审',
+    description: '评审说明',
+    deliverable: '评审结论与问题清单',
+    status: 0,
+    priority: 1,
+    assigneeId: 1,
+    milestoneId: undefined,
+    dueDate: null,
+  }, 12), {
+    title: '资料评审',
+    description: '评审说明',
+    deliverable: '评审结论与问题清单',
+    status: 0,
+    priority: 1,
+    assigneeId: 1,
+    milestoneId: undefined,
+    dueDate: undefined,
+    nodeId: 12,
+  })
+})
+
+test('sorts tasks by priority without using creation time', () => {
+  const tasks = [
+    { id: 1, title: '中优先级', priority: 1 },
+    { id: 2, title: '紧急任务', priority: 3 },
+    { id: 3, title: '高优先级', priority: 2 },
+    { id: 4, title: '另一个高优先级', priority: 2 },
+  ]
+
+  assert.deepEqual(sortTasksByPriority(tasks).map((task) => task.id), [2, 3, 4, 1])
 })

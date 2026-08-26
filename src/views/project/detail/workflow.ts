@@ -1,11 +1,17 @@
 import type { ProjectNode } from '/@/types/domain'
 
-export type FlowNodeTone = 'completed' | 'active' | 'locked'
+export type FlowNodeTone = 'completed' | 'active' | 'locked' | 'terminated'
 
 export interface FlowNodeState {
   label: string
   tone: FlowNodeTone
   canSelect: boolean
+}
+
+export interface NodeStatusMeta {
+  label: string
+  tone: FlowNodeTone
+  readOnly: boolean
 }
 
 export interface NodeDetailField {
@@ -17,10 +23,48 @@ export interface NodeDetailField {
 }
 
 export interface ProjectProfileFieldDefinition {
-  key: 'description' | 'priority' | 'owner' | 'schedule' | 'createdAt'
+  key: 'description' | 'priority' | 'schedule'
   label: string
   wide?: boolean
   multiline?: boolean
+}
+
+export interface TaskFormDraft {
+  title: string
+  description: string
+  deliverable: string
+  status: number
+  priority: number
+  assigneeId?: number
+  milestoneId?: number
+  dueDate?: string | null
+}
+
+export interface PersonOption {
+  value: number
+  label: string
+  avatar?: string
+}
+
+export function formatPersonLabel(user: { id: number; nickname?: string; username?: string }): string {
+  const nickname = user.nickname?.trim()
+  const username = user.username?.trim()
+  const name = nickname || username || `用户 ${user.id}`
+  return nickname && username ? `${name}(${username})` : name
+}
+
+export function getPersonDisplay(
+  option?: { label?: string; avatar?: string },
+  fallback?: string,
+): { label: string; avatar?: string } {
+  return {
+    label: option?.label || fallback?.trim() || '待确认',
+    avatar: option?.avatar,
+  }
+}
+
+export function getSinglePersonSelection(values: number[]): number | undefined {
+  return values.at(-1)
 }
 
 export function isKickoffNode(nodeKey?: string): boolean {
@@ -31,10 +75,40 @@ export function getProjectProfileFields(): ProjectProfileFieldDefinition[] {
   return [
     { key: 'description', label: '项目描述', wide: true, multiline: true },
     { key: 'priority', label: '优先级' },
-    { key: 'owner', label: '负责人' },
     { key: 'schedule', label: '项目排期' },
-    { key: 'createdAt', label: '创建时间' },
   ]
+}
+
+export function getMissingKickoffProfileFields(profile: {
+  description?: string
+  priority?: number | null
+  projectManagerId?: number | null
+  schedule?: string[]
+  memberIds?: number[]
+}): string[] {
+  const missing: string[] = []
+  if (!profile.description?.trim()) missing.push('项目描述')
+  if (profile.priority == null) missing.push('优先级')
+  if (profile.projectManagerId == null) missing.push('项目经理')
+  if (profile.schedule?.length !== 2) missing.push('项目排期')
+  if (!profile.memberIds?.length) missing.push('项目成员')
+  return missing
+}
+
+export function getProjectManagerDisplay(name?: string): string {
+  return name?.trim() || '待确认'
+}
+
+export function getNodeOwnerDisplay(name?: string): string {
+  return name?.trim() || '待分配'
+}
+
+export function buildTaskPayload(form: TaskFormDraft, nodeId: number) {
+  return {
+    ...form,
+    dueDate: form.dueDate || undefined,
+    nodeId,
+  }
 }
 
 export function getNodeDetailFields(
@@ -52,14 +126,20 @@ export function getNodeDetailFields(
   return fields
 }
 
+export function getNodeStatusMeta(status: number): NodeStatusMeta {
+  if (status === 1) return { label: '进行中', tone: 'active', readOnly: false }
+  if (status === 2) return { label: '已完成', tone: 'completed', readOnly: true }
+  if (status === 3) return { label: '已终止', tone: 'terminated', readOnly: true }
+  return { label: '未开始', tone: 'locked', readOnly: false }
+}
+
+export function isNodeReadOnly(status: number): boolean {
+  return getNodeStatusMeta(status).readOnly
+}
+
 export function getFlowNodeState(status: number): FlowNodeState {
-  if (status === 2) {
-    return { label: '已完成', tone: 'completed', canSelect: true }
-  }
-  if (status === 1) {
-    return { label: '进行中', tone: 'active', canSelect: true }
-  }
-  return { label: '待开始', tone: 'locked', canSelect: true }
+  const meta = getNodeStatusMeta(status)
+  return { label: meta.label, tone: meta.tone, canSelect: true }
 }
 
 export function getNodeProgress(doneCount: number, totalCount: number): number {
@@ -77,6 +157,23 @@ export function shouldAutoSaveProfile(
   clickedInsideOverlay: boolean,
 ): boolean {
   return dirty && !clickedInsideProfile && !clickedInsideOverlay
+}
+
+export function getNodeScopedParams(nodeId?: number): { params?: { nodeId: number } } {
+  return nodeId == null ? {} : { params: { nodeId } }
+}
+
+export function moveTaskStatus<T extends { id: number; status: number }>(
+  tasks: T[],
+  taskId: number,
+  status: number,
+): T[] {
+  return tasks.map((task) => task.id === taskId ? { ...task, status } : task)
+}
+
+export function sortTasksByPriority<T extends { priority: number; title: string }>(tasks: T[]): T[] {
+  return [...tasks].sort((left, right) =>
+    right.priority - left.priority || left.title.localeCompare(right.title, 'zh-CN'))
 }
 
 export function splitNodeItems(value?: string): string[] {

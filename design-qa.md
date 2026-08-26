@@ -52,6 +52,9 @@ No actionable P0/P1/P2 visual findings remain.
 8. Flow nodes now use color and icon treatment without rendering status words; the detail header omits the current-node index, and the detail body renders only fields configured on the selected node.
 9. The node detail card now behaves as a node-specific tab panel: the kickoff node includes the project profile and people sections, while other nodes omit those shared project fields; the collaboration section remains public below all node tabs.
 10. The kickoff profile now has an edit mode with text area, priority and user selects, date range picker, multi-select members and multi-select followers; saving persists the project fields and relations through the backend.
+11. Primary actions across the page now use one shared button style: 36px height, 13px text, 14px horizontal padding, 6px radius, and consistent hover treatment.
+12. The project creator is now a lightweight identity annotation while the project manager keeps the highlighted responsibility treatment; multi-person selector chips have a consistent 4px gap.
+13. The creator annotation is placed inline before the creation time in the compact project metadata row, leaving the manager as the only highlighted person card.
 
 ## Implementation checklist
 
@@ -72,5 +75,8 @@ No actionable P0/P1/P2 visual findings remain.
 - [x] Project collaboration remains shared below the node-specific detail panel.
 - [x] Kickoff profile controls use the requested input, select, date-range, and multi-select behaviors.
 - [x] Member and follower selections save and reload from backend relations.
+- [x] Primary actions use the shared button standard across page, node detail, and collaboration toolbars.
+- [x] Creator and manager emphasis is differentiated, and multi-person chips remain visually separated.
+- [x] Creator metadata stays compact and appears before the creation time in the project header.
 
 final result: passed

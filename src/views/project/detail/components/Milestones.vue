@@ -7,7 +7,9 @@ import { MilestoneStatus, statusTagColor } from '/@/enums'
 import { formatDate } from '/@/utils/format'
 import type { Milestone } from '/@/types/domain'
 
-const props = defineProps<{ projectId: number }>()
+const props = withDefaults(defineProps<{ projectId: number; canManage?: boolean }>(), {
+  canManage: true,
+})
 
 const list = ref<Milestone[]>([])
 const loading = ref(false)
@@ -27,7 +29,7 @@ const columns = [
   { title: '状态', key: 'status', width: 100 },
   { title: '任务进度', key: 'progress', width: 180 },
   { title: '计划日期', key: 'dueDate', width: 120 },
-  { title: '操作', key: 'action', width: 120 },
+  { title: '操作', key: 'action', width: 144 },
 ]
 
 async function loadData() {
@@ -40,12 +42,14 @@ async function loadData() {
 }
 
 function openCreate() {
+  if (!props.canManage) return
   modalState.editingId = null
   Object.assign(form, { title: '', description: '', status: 0, dueDate: null })
   modalState.open = true
 }
 
 function openEdit(record: Milestone) {
+  if (!props.canManage) return
   modalState.editingId = record.id
   Object.assign(form, {
     title: record.title,
@@ -57,6 +61,7 @@ function openEdit(record: Milestone) {
 }
 
 async function onSave() {
+  if (!props.canManage) return
   await formRef.value.validate()
   const payload = { ...form, dueDate: form.dueDate || undefined }
   if (modalState.editingId) {
@@ -71,6 +76,7 @@ async function onSave() {
 }
 
 function onDelete(record: Milestone) {
+  if (!props.canManage) return
   Modal.confirm({
     title: '删除里程碑',
     content: `确定删除里程碑「${record.title}」吗？`,
@@ -91,7 +97,9 @@ onMounted(loadData)
 <template>
   <div class="flex items-center justify-between mb-4">
     <span class="pms-muted-text">共 {{ list.length }} 个里程碑</span>
-    <a-button type="primary" size="small" @click="openCreate"><PlusOutlined /> 新建里程碑</a-button>
+    <a-button v-if="canManage" type="primary" class="pms-primary-button" @click="openCreate">
+      <PlusOutlined /> 新建里程碑
+    </a-button>
   </div>
 
   <a-table :data-source="list" :columns="columns" :loading="loading" row-key="id" :pagination="false">
@@ -113,8 +121,13 @@ onMounted(loadData)
       </template>
       <template v-else-if="column.key === 'dueDate'">{{ formatDate(record.dueDate) }}</template>
       <template v-else-if="column.key === 'action'">
-        <span class="pms-action-link" @click="openEdit(record)">编辑</span>
-        <span class="pms-action-link pms-action-link--danger" @click="onDelete(record)">删除</span>
+        <div class="milestone-actions">
+          <template v-if="canManage">
+            <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
+            <a-button type="link" danger size="small" @click="onDelete(record)">删除</a-button>
+          </template>
+          <span v-else class="pms-faint-text">只读</span>
+        </div>
       </template>
     </template>
   </a-table>
@@ -142,3 +155,8 @@ onMounted(loadData)
     </a-form>
   </a-modal>
 </template>
+
+<style scoped>
+.milestone-actions { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
+.milestone-actions :deep(.ant-btn) { padding-inline: 0; }
+</style>

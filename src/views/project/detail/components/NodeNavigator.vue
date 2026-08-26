@@ -70,7 +70,7 @@ const emit = defineEmits<{ (e: 'select', node: ProjectNode): void }>()
 
 .flow-node:hover:not(:disabled) {
   border-color: var(--pms-primary);
-  box-shadow: 0 4px 12px rgb(10 93 194 / 12%);
+  box-shadow: 0 4px 12px rgb(22 119 255 / 12%);
   transform: translateY(-1px);
 }
 
@@ -83,7 +83,7 @@ const emit = defineEmits<{ (e: 'select', node: ProjectNode): void }>()
 
 .flow-node--selected {
   border-color: var(--pms-primary);
-  box-shadow: 0 0 0 3px rgb(10 93 194 / 10%);
+  box-shadow: 0 0 0 3px rgb(22 119 255 / 12%);
 }
 
 .flow-node--completed .flow-node__dot {
@@ -94,13 +94,23 @@ const emit = defineEmits<{ (e: 'select', node: ProjectNode): void }>()
 
 .flow-node--active .flow-node__dot {
   background: var(--pms-surface);
-  border-color: var(--pms-primary);
+  border-color: var(--pms-warning);
 }
 
 .flow-node--locked .flow-node__dot {
-  color: var(--pms-text-faint);
+  color: var(--pms-status-neutral);
   background: var(--pms-surface);
-  border-color: var(--pms-border-strong);
+  border-color: var(--pms-status-neutral);
+}
+
+.flow-node--terminated .flow-node__dot {
+  color: #fff;
+  background: var(--pms-danger);
+  border-color: var(--pms-danger);
+}
+
+.flow-node--terminated .flow-node__dot-core {
+  background: var(--pms-danger);
 }
 
 .flow-node__dot {
@@ -111,7 +121,7 @@ const emit = defineEmits<{ (e: 'select', node: ProjectNode): void }>()
   width: 18px;
   height: 18px;
   color: var(--pms-primary);
-  font-size: 11px;
+  font-size: var(--pms-font-size-caption);
   border: 2px solid var(--pms-primary);
   border-radius: 50%;
 }
@@ -119,12 +129,12 @@ const emit = defineEmits<{ (e: 'select', node: ProjectNode): void }>()
 .flow-node__dot-core {
   width: 7px;
   height: 7px;
-  background: var(--pms-border-strong);
+  background: var(--pms-status-neutral);
   border-radius: 50%;
 }
 
 .flow-node--active .flow-node__dot-core {
-  background: var(--pms-primary);
+  background: var(--pms-warning);
 }
 
 .flow-node__content {
@@ -137,9 +147,9 @@ const emit = defineEmits<{ (e: 'select', node: ProjectNode): void }>()
 .flow-node__name {
   max-width: 160px;
   overflow: hidden;
-  font-size: 13px;
+  font-size: var(--pms-font-size-body);
   font-weight: 500;
-  line-height: 1.25;
+  line-height: var(--pms-line-height-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -158,12 +168,13 @@ const emit = defineEmits<{ (e: 'select', node: ProjectNode): void }>()
 }
 
 .flow-connector__arrow {
-  font-size: 12px;
+  font-size: var(--pms-font-size-compact);
 }
 
 .flow-empty {
   padding: 32px;
   color: var(--pms-text-faint);
+  font-size: var(--pms-font-size-compact);
   text-align: center;
   background: var(--pms-surface-muted);
   border-radius: var(--pms-radius);

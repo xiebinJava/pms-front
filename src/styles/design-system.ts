@@ -17,5 +17,19 @@ export const designTokens = {
   warningSoft: '#FFF8E8',
   danger: '#BC3038',
   dangerSoft: '#FFF1F2',
+  fontSize: {
+    body: 13,
+    compact: 12,
+    caption: 11,
+    section: 15,
+    title: 20,
+    display: 22,
+  },
+  lineHeight: {
+    tight: 1.25,
+    normal: 1.45,
+    relaxed: 1.6,
+  },
+  controlHeight: 36,
   radius: 8,
 } as const

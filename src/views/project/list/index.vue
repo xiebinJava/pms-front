@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
+  ExclamationCircleOutlined,
   PlusOutlined,
   ProjectOutlined,
   ReloadOutlined,
@@ -21,7 +22,7 @@ const router = useRouter()
 
 const columns = [
   { title: '项目名称', key: 'name', dataIndex: 'name' },
-  { title: '负责人', key: 'ownerName', dataIndex: 'ownerName', width: 110 },
+  { title: '创建人', key: 'createdByName', dataIndex: 'createdByName', width: 110 },
   { title: '状态', key: 'status', dataIndex: 'status', width: 90 },
   { title: '优先级', key: 'priority', dataIndex: 'priority', width: 90 },
   { title: '进度', key: 'progress', dataIndex: 'progress', width: 150 },
@@ -34,7 +35,7 @@ const columns = [
 const query = reactive({ keyword: '', status: undefined as number | undefined })
 const dataSource = ref<Project[]>([])
 const loading = ref(false)
-const stats = ref<ProjectStats>({ total: 0, planning: 0, active: 0, completed: 0, archived: 0, avgProgress: 0 })
+const stats = ref<ProjectStats>({ total: 0, active: 0, completed: 0, terminated: 0, avgProgress: 0 })
 const pagination = reactive({ current: 1, pageSize: 10, total: 0 })
 
 const modalState = reactive({
@@ -45,7 +46,6 @@ const formRef = ref()
 const form = reactive({
   name: '',
   description: '',
-  status: 0,
   priority: 1,
   startDate: null as string | null,
   endDate: null as string | null,
@@ -92,7 +92,6 @@ function openCreate() {
   Object.assign(form, {
     name: '',
     description: '',
-    status: 0,
     priority: 1,
     startDate: null,
     endDate: null,
@@ -102,11 +101,14 @@ function openCreate() {
 }
 
 function openEdit(record: Project) {
+  if (!record.permissions?.canManageProject) {
+    message.info('当前用户没有编辑该项目的权限')
+    return
+  }
   modalState.editingId = record.id
   Object.assign(form, {
     name: record.name,
     description: record.description || '',
-    status: record.status,
     priority: record.priority,
     startDate: record.startDate || null,
     endDate: record.endDate || null,
@@ -134,6 +136,10 @@ async function onSave() {
 }
 
 function onDelete(record: Project) {
+  if (!record.permissions?.canDeleteProject) {
+    message.info('当前用户没有删除该项目的权限')
+    return
+  }
   Modal.confirm({
     title: '删除项目',
     content: `确定删除项目「${record.name}」吗？其下任务、里程碑、成员将一并删除。`,
@@ -196,6 +202,15 @@ onMounted(loadData)
         </div>
       </div>
       <div class="pms-stat-card">
+        <div class="pms-stat-card__icon pms-stat-card__icon--danger">
+          <ExclamationCircleOutlined />
+        </div>
+        <div>
+          <div class="pms-stat-card__value">{{ stats.terminated }}</div>
+          <div class="pms-stat-card__label">已终止</div>
+        </div>
+      </div>
+      <div class="pms-stat-card">
         <div class="pms-stat-card__icon pms-stat-card__icon--warning">
           <ClockCircleOutlined />
         </div>
@@ -246,7 +261,14 @@ onMounted(loadData)
             <a-tag :color="statusTagColor[record.status]">{{ ProjectStatus.label(record.status) }}</a-tag>
           </template>
           <template v-else-if="column.key === 'priority'">
-            <a-tag :color="priorityTagColor[record.priority]">{{ Priority.label(record.priority) }}</a-tag>
+            <a-tag
+              :color="priorityTagColor[record.priority]"
+              class="pms-priority-tag"
+              :class="{ 'pms-priority-tag--urgent': record.priority === 3 }"
+            >
+              <ExclamationCircleOutlined v-if="record.priority === 3" />
+              {{ Priority.label(record.priority) }}
+            </a-tag>
           </template>
           <template v-else-if="column.key === 'progress'">
             <a-progress
@@ -261,8 +283,8 @@ onMounted(loadData)
           </template>
           <template v-else-if="column.key === 'action'">
             <span class="pms-action-link" @click="router.push(`/projects/${record.id}`)">详情</span>
-            <span class="pms-action-link" @click="openEdit(record)">编辑</span>
-            <span class="pms-action-link pms-action-link--danger" @click="onDelete(record)">删除</span>
+            <span v-if="record.permissions?.canManageProject" class="pms-action-link" @click="openEdit(record)">编辑</span>
+            <span v-if="record.permissions?.canDeleteProject" class="pms-action-link pms-action-link--danger" @click="onDelete(record)">删除</span>
           </template>
         </template>
       </a-table>
@@ -284,13 +306,6 @@ onMounted(loadData)
           <a-textarea v-model:value="form.description" :rows="3" placeholder="请输入项目描述" />
         </a-form-item>
         <div class="grid grid-cols-2 gap-3">
-          <a-form-item label="状态">
-            <a-select v-model:value="form.status">
-              <a-select-option v-for="opt in ProjectStatus.options()" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </a-select-option>
-            </a-select>
-          </a-form-item>
           <a-form-item label="优先级">
             <a-select v-model:value="form.priority">
               <a-select-option v-for="opt in Priority.options()" :key="opt.value" :value="opt.value">
@@ -324,32 +339,27 @@ onMounted(loadData)
 .pms-page-header h1 {
   margin: 3px 0 6px;
   color: var(--pms-text);
-  font-size: 24px;
+  font-size: var(--pms-font-size-display);
   font-weight: 720;
-  line-height: 1.25;
+  line-height: var(--pms-line-height-tight);
 }
 
 .pms-page-header p {
   max-width: 700px;
   margin: 0;
   color: var(--pms-text-muted);
-  font-size: 13px;
+  font-size: var(--pms-font-size-compact);
 }
 
-.pms-primary-button,
 .pms-secondary-button {
   min-height: 36px;
   border-radius: 6px !important;
   font-weight: 650;
 }
 
-.pms-primary-button {
-  padding: 0 14px;
-}
-
 .pms-stat-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -372,14 +382,15 @@ onMounted(loadData)
   height: 40px;
   place-items: center;
   border-radius: 7px;
-  font-size: 18px;
+  font-size: var(--pms-font-size-section);
 }
 
 .pms-stat-card__icon--primary { color: var(--pms-primary); background: var(--pms-primary-soft); }
 .pms-stat-card__icon--success { color: var(--pms-success); background: var(--pms-success-soft); }
 .pms-stat-card__icon--warning { color: var(--pms-warning); background: var(--pms-warning-soft); }
-.pms-stat-card__value { color: var(--pms-text); font-size: 22px; font-weight: 720; line-height: 1; }
-.pms-stat-card__label { margin-top: 6px; color: var(--pms-text-faint); font-size: 12px; }
+.pms-stat-card__icon--danger { color: var(--pms-danger); background: var(--pms-danger-soft); }
+.pms-stat-card__value { color: var(--pms-text); font-size: 20px; font-weight: 720; line-height: 1; }
+.pms-stat-card__label { margin-top: 6px; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
 
 .pms-table-card {
   overflow: hidden;
@@ -408,15 +419,15 @@ onMounted(loadData)
 .pms-muted-icon { color: var(--pms-text-faint); }
 .pms-project-link { color: var(--pms-text); font-weight: 650; cursor: pointer; }
 .pms-project-link:hover { color: var(--pms-primary); }
-.pms-table-subtext { color: var(--pms-text-faint); font-size: 12px; }
-.pms-action-link { margin-right: 12px; color: var(--pms-primary); cursor: pointer; font-size: 12px; font-weight: 650; }
+.pms-table-subtext { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
+.pms-action-link { margin-right: 12px; color: var(--pms-primary); cursor: pointer; font-size: var(--pms-font-size-compact); font-weight: 650; }
 .pms-action-link:hover { color: var(--pms-primary-dark); text-decoration: underline; }
 .pms-action-link--danger { margin-right: 0; color: var(--pms-danger); }
 
 :deep(.ant-card-body) { padding: 20px; }
 :deep(.ant-input), :deep(.ant-select-selector) { border-color: var(--pms-border) !important; border-radius: 6px !important; }
 :deep(.ant-input:hover), :deep(.ant-select:hover .ant-select-selector) { border-color: var(--pms-border-strong) !important; }
-:deep(.ant-table-thead > tr > th) { color: var(--pms-text-faint); background: var(--pms-surface-muted); border-bottom-color: var(--pms-border); font-size: 11px; font-weight: 750; }
+:deep(.ant-table-thead > tr > th) { color: var(--pms-text-faint); background: var(--pms-surface-muted); border-bottom-color: var(--pms-border); font-size: var(--pms-font-size-caption); font-weight: 750; }
 :deep(.ant-table-tbody > tr > td) { color: var(--pms-text-muted); border-bottom-color: var(--pms-border); font-size: 12.5px; }
 :deep(.ant-table-tbody > tr:hover > td) { background: var(--pms-surface-muted) !important; }
 :deep(.ant-modal-content) { border: 1px solid var(--pms-border); border-radius: var(--pms-radius); box-shadow: var(--pms-shadow-md); }

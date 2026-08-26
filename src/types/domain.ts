@@ -15,6 +15,12 @@ export interface Project {
   priority: number
   ownerId: number
   ownerName?: string
+  createdBy?: number
+  createdByName?: string
+  createdByAvatar?: string
+  projectManagerId?: number
+  projectManagerName?: string
+  projectManagerAvatar?: string
   startDate?: string
   endDate?: string
   progress: number
@@ -23,6 +29,32 @@ export interface Project {
   memberCount: number
   createdAt: string
   updatedAt: string
+  permissions?: ProjectPermissions
+}
+
+export interface ProjectPermissions {
+  canManageProject: boolean
+  canManageMembers: boolean
+  canSetProjectManager: boolean
+  canAssignNodeOwner: boolean
+  canTerminateProject: boolean
+  canRestoreProject: boolean
+  canDeleteProject: boolean
+}
+
+export interface NodePermissions {
+  canEdit: boolean
+  canManageTasks: boolean
+  canComplete: boolean
+  canRollback: boolean
+  readOnly: boolean
+}
+
+export interface TaskPermissions {
+  canEdit: boolean
+  canMove: boolean
+  canDelete: boolean
+  readOnly: boolean
 }
 
 export interface ProjectMember {
@@ -39,9 +71,11 @@ export interface ProjectMember {
 export interface Task {
   id: number
   projectId: number
+  nodeId?: number
   parentId?: number
   title: string
   description?: string
+  deliverable?: string
   status: number
   priority: number
   assigneeId?: number
@@ -51,6 +85,7 @@ export interface Task {
   dueDate?: string
   createdAt: string
   updatedAt: string
+  permissions?: TaskPermissions
 }
 
 export interface Milestone {
@@ -83,7 +118,11 @@ export interface ProjectNode {
   description?: string
   deliverable?: string
   roles?: string
+  ownerId?: number
+  ownerName?: string
+  ownerAvatar?: string
   status: number
   sort: number
   createdAt: string
+  permissions?: NodePermissions
 }

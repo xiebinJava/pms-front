@@ -1,8 +1,9 @@
 import { http } from '/@/plugins/http'
 import type { Task } from '/@/types/domain'
+import { getNodeScopedParams } from '/@/views/project/detail/workflow'
 
-export function getTasks(projectId: number | string): Promise<Task[]> {
-  return http.get(`/projects/${projectId}/tasks`)
+export function getTasks(projectId: number | string, nodeId?: number): Promise<Task[]> {
+  return http.get(`/projects/${projectId}/tasks`, getNodeScopedParams(nodeId))
 }
 
 export function createTask(projectId: number | string, data: Partial<Task>): Promise<Task> {
