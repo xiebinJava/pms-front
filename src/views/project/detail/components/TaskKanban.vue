@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons-vue'
+import { CloseOutlined, ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import { Modal, message } from 'ant-design-vue'
 import { createTask, deleteTask, getTasks, moveTask, updateTask } from '/@/api/task'
 import { getMembers } from '/@/api/member'
@@ -11,6 +11,7 @@ import type { Milestone, Project, ProjectMember, ProjectNode, Task } from '/@/ty
 import {
   buildTaskPayload,
   formatPersonLabel,
+  normalizePersonDisplayLabel,
   isNodeReadOnly,
   moveTaskStatus,
   shouldReloadNodeTasks,
@@ -214,7 +215,17 @@ watch(taskScope, (next, previous) => {
         @dragend="clearDrag"
         @click.stop="openEdit(task)"
       >
-        <div class="flex items-start justify-between gap-2">
+        <button
+          v-if="task.permissions?.canDelete"
+          type="button"
+          class="pms-task-card__delete"
+          aria-label="删除任务"
+          title="删除任务"
+          @click.stop="onDelete(task)"
+        >
+          <CloseOutlined />
+        </button>
+        <div class="flex items-start justify-between gap-2 pr-5">
           <span class="pms-task-card__title">{{ task.title }}</span>
           <a-tag
             :color="priorityTagColor[task.priority]"
@@ -226,7 +237,7 @@ watch(taskScope, (next, previous) => {
           </a-tag>
         </div>
         <div class="pms-task-card__meta">
-          <span>{{ task.assigneeName || '未指派' }}</span>
+          <span>{{ normalizePersonDisplayLabel(task.assigneeName) || '未指派' }}</span>
           <span>{{ milestoneNameMap.get(task.milestoneId ?? 0) || '' }}</span>
           <span>{{ formatDate(task.dueDate) }}</span>
         </div>
@@ -295,3 +306,44 @@ watch(taskScope, (next, previous) => {
     </template>
   </a-modal>
 </template>
+
+<style scoped>
+.pms-task-card {
+  position: relative;
+  min-height: 74px;
+  padding: 12px 14px;
+  box-shadow: 0 3px 10px rgb(15 23 42 / 6%);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+.pms-task-card:hover {
+  border-color: var(--pms-primary);
+  box-shadow: 0 8px 18px rgb(15 23 42 / 12%);
+  transform: translateY(-1px);
+}
+.pms-task-card__delete {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--pms-text-faint);
+  background: var(--pms-surface);
+  border: 1px solid var(--pms-border);
+  border-radius: 5px;
+  opacity: 0;
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease, opacity 160ms ease;
+}
+.pms-task-card:hover .pms-task-card__delete,
+.pms-task-card:focus-within .pms-task-card__delete {
+  opacity: 1;
+}
+.pms-task-card__delete:hover {
+  color: var(--pms-danger);
+  border-color: var(--pms-danger);
+}
+</style>

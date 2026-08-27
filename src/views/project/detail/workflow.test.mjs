@@ -159,6 +159,7 @@ test('keeps creation time out of the editable project profile', () => {
     'description',
     'priority',
     'schedule',
+    'businessLine',
   ])
 })
 
@@ -194,14 +195,23 @@ test('shows an unassigned node owner as pending assignment', () => {
 })
 
 test('formats people consistently as name and account', () => {
-  assert.equal(formatPersonLabel({ id: 1, nickname: '朱晨', username: 'Gloria.Zhu' }), '朱晨(Gloria.Zhu)')
+  assert.equal(formatPersonLabel({ id: 1, nickname: '朱晨', username: 'Gloria.Zhu' }), '朱晨（Gloria.Zhu）')
+  assert.equal(formatPersonLabel({ id: 4, nickname: '管理员（admin）', username: 'admin' }), '管理员（admin）')
+  assert.equal(formatPersonLabel({ id: 5, displayName: '管理员（admin） (admin)', username: 'admin' }), '管理员（admin）')
   assert.equal(formatPersonLabel({ id: 2, nickname: '', username: 'lisi' }), 'lisi')
   assert.equal(formatPersonLabel({ id: 3 }), '用户 3')
 })
 
+test('normalizes duplicate preformatted person display labels', () => {
+  assert.deepEqual(getPersonDisplay({ label: '管理员（admin） (admin)', avatar: '/avatar.png' }), {
+    label: '管理员（admin）',
+    avatar: '/avatar.png',
+  })
+})
+
 test('prefers the selected person label over the stale project fallback', () => {
   assert.deepEqual(getPersonDisplay({ label: '张三(zhangsan)', avatar: '/avatar.png' }, '管理员'), {
-    label: '张三(zhangsan)',
+    label: '张三（zhangsan）',
     avatar: '/avatar.png',
   })
   assert.deepEqual(getPersonDisplay(undefined, undefined), {

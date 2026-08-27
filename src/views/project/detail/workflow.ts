@@ -23,7 +23,7 @@ export interface NodeDetailField {
 }
 
 export interface ProjectProfileFieldDefinition {
-  key: 'description' | 'priority' | 'schedule'
+  key: 'description' | 'priority' | 'schedule' | 'businessLine'
   label: string
   wide?: boolean
   multiline?: boolean
@@ -48,11 +48,41 @@ export interface PersonOption {
 
 export type ProjectStatusTone = 'pending' | 'active' | 'completed' | 'terminated' | 'deleted'
 
-export function formatPersonLabel(user: { id: number; nickname?: string; username?: string }): string {
-  const nickname = user.nickname?.trim()
+function stripUsernameSuffix(value: string, username?: string): string {
+  const text = value.trim()
+  if (!text || !username?.trim()) return text
+  const escaped = username.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const suffix = new RegExp(`\\s*(?:（|\\()${escaped}(?:）|\\))$`, 'i')
+  let result = text
+  while (suffix.test(result)) result = result.replace(suffix, '').trim()
+  return result
+}
+
+/** 统一清理后端历史格式，避免“中文名（英文名） (英文名)”重复展示。 */
+export function normalizePersonDisplayLabel(value?: string): string | undefined {
+  let text = value?.trim()
+  if (!text) return undefined
+  text = text.replace(/\s*（([^（）]+)）\s*\(\1\)$/i, '（$1）')
+  text = text.replace(/^(.+?)\s*\(([^()]+)\)$/, '$1（$2）')
+  return text.trim()
+}
+
+export function formatPersonLabel(user: {
+  id: number
+  nameZh?: string
+  displayName?: string
+  nickname?: string
+  username?: string
+}): string {
   const username = user.username?.trim()
-  const name = nickname || username || `用户 ${user.id}`
-  return nickname && username ? `${name}(${username})` : name
+  const candidates = [user.nameZh, user.nickname, user.displayName]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value))
+  const name = candidates
+    .map((value) => stripUsernameSuffix(value, username))
+    .find((value) => value && value.toLocaleLowerCase() !== username?.toLocaleLowerCase())
+  if (name && username) return `${name}（${username}）`
+  return normalizePersonDisplayLabel(name || username || `用户 ${user.id}`) || `用户 ${user.id}`
 }
 
 export function getPersonDisplay(
@@ -60,7 +90,7 @@ export function getPersonDisplay(
   fallback?: string,
 ): { label: string; avatar?: string } {
   return {
-    label: option?.label || fallback?.trim() || '待确认',
+    label: normalizePersonDisplayLabel(option?.label || fallback) || '待确认',
     avatar: option?.avatar,
   }
 }
@@ -78,6 +108,7 @@ export function getProjectProfileFields(): ProjectProfileFieldDefinition[] {
     { key: 'description', label: '项目描述', wide: true, multiline: true },
     { key: 'priority', label: '优先级' },
     { key: 'schedule', label: '项目排期' },
+    { key: 'businessLine', label: '业务线' },
   ]
 }
 

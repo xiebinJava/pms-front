@@ -16,3 +16,11 @@ export function rollbackNode(projectId: number | string, nodeId: number, reason:
 export function updateNodeOwner(projectId: number | string, nodeId: number, ownerId?: number): Promise<ProjectNode> {
   return http.put(`/projects/${projectId}/nodes/${nodeId}/owner`, { ownerId })
 }
+
+export function updateNodeSchedule(
+  projectId: number | string,
+  nodeId: number,
+  payload: { startDate?: string; endDate?: string },
+): Promise<ProjectNode> {
+  return http.put(`/projects/${projectId}/nodes/${nodeId}/schedule`, payload)
+}

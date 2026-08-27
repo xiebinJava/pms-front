@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeftOutlined,
@@ -12,7 +12,8 @@ import { Modal, message } from 'ant-design-vue'
 import { getFollowers } from '/@/api/follower'
 import { getMembers } from '/@/api/member'
 import { getProject, restoreProject, terminateProject, updateProject, uploadProjectImage } from '/@/api/project'
-import { completeNode, getNodes, rollbackNode, updateNodeOwner } from '/@/api/node'
+import { completeNode, getNodes, rollbackNode, updateNodeOwner, updateNodeSchedule } from '/@/api/node'
+import { getProjectOrgTree } from '/@/api/admin-org'
 import { searchUsers } from '/@/api/user'
 import { getProjectStatusLabel, Priority, statusTagColor } from '/@/enums'
 import { formatDate, formatDateTime } from '/@/utils/format'
@@ -39,7 +40,7 @@ import Members from './components/Members.vue'
 import Comments from './components/Comments.vue'
 import PersonSelect from './components/PersonSelect.vue'
 import type { PersonOption } from './workflow'
-import type { Project, ProjectMember, ProjectNode, User } from '/@/types/domain'
+import type { OrgUnit, Project, ProjectMember, ProjectNode, User } from '/@/types/domain'
 
 const route = useRoute()
 const router = useRouter()
@@ -64,6 +65,9 @@ const projectProfileFields = getProjectProfileFields()
 const members = ref<ProjectMember[]>([])
 const followers = ref<User[]>([])
 const profileUserOptions = ref<PersonOption[]>([])
+const orgTree = ref<OrgUnit[]>([])
+const nodeSchedule = ref<string[]>([])
+const nodeScheduleSaving = ref(false)
 type ReasonAction = 'terminate' | 'restore' | 'rollback'
 
 const reasonModal = reactive({
@@ -82,6 +86,7 @@ const profileForm = reactive({
   priority: 1,
   projectManagerId: undefined as number | undefined,
   schedule: [] as string[],
+  orgUnitId: undefined as number | undefined,
   memberIds: [] as number[],
   followerIds: [] as number[],
 })
@@ -98,6 +103,23 @@ const nodeOwnerOptions = computed(() => members.value.map((member) => ({
   label: formatPersonLabel({ id: member.userId, nickname: member.nickname, username: member.username }),
   avatar: member.avatar,
 })))
+function flattenOrgUnits(units: OrgUnit[], depth = 0): Array<{ id: number; name: string; typeCode?: string; depth: number }> {
+  return units.flatMap((unit) => [
+    { id: unit.id, name: unit.name, typeCode: unit.typeCode, depth },
+    ...flattenOrgUnits(unit.children || [], depth + 1),
+  ])
+}
+const businessLineOptions = computed(() => {
+  const flattened = flattenOrgUnits(orgTree.value)
+  const businessGroups = flattened.filter((unit) => unit.typeCode === 'BG')
+  const current = profileForm.orgUnitId == null ? undefined : flattened.find((unit) => unit.id === profileForm.orgUnitId)
+  const source = businessGroups.length ? businessGroups : flattened.filter((unit) => unit.typeCode !== 'COMPANY')
+  if (current && !source.some((unit) => unit.id === current.id)) source.unshift(current)
+  return source.map((unit) => ({
+    value: unit.id,
+    label: `${'　'.repeat(unit.depth)}${unit.name}`,
+  }))
+})
 const projectCreatorOption = computed(() => {
   const creatorId = project.value?.createdBy
   return creatorId == null ? undefined : profileUserOptions.value.find((option) => option.value === creatorId)
@@ -119,6 +141,7 @@ const projectStatusTone = computed(() => {
 })
 const canManageProject = computed(() => project.value?.permissions?.canManageProject ?? project.value?.status === 1)
 const canAssignNodeOwner = computed(() => project.value?.permissions?.canAssignNodeOwner ?? project.value?.status === 1)
+const canEditActiveNode = computed(() => activeNode.value?.permissions?.canEdit ?? canManageProject.value)
 const canTerminateProject = computed(() => project.value?.permissions?.canTerminateProject ?? false)
 const canRestoreProject = computed(() => project.value?.permissions?.canRestoreProject ?? false)
 const activeNodeReadOnly = computed(() => Boolean(
@@ -140,16 +163,18 @@ function getNodeStatusLabel(status: number): string {
 async function loadData() {
   loading.value = true
   try {
-    const [projectData, nodeData, memberData, followerData] = await Promise.all([
+    const [projectData, nodeData, memberData, followerData, orgData] = await Promise.all([
       getProject(projectId.value),
       getNodes(projectId.value),
       getMembers(projectId.value),
       getFollowers(projectId.value),
+      getProjectOrgTree().catch(() => []),
     ])
     project.value = projectData
     nodes.value = nodeData
     members.value = memberData
     followers.value = followerData
+    orgTree.value = orgData
     resetProfileForm()
     profileUserOptions.value = []
     await onProfileUserSearch()
@@ -172,11 +197,16 @@ function resetProfileForm() {
     priority: project.value.priority,
     projectManagerId: project.value.projectManagerId,
     schedule: [project.value.startDate, project.value.endDate].filter(Boolean) as string[],
+    orgUnitId: project.value.orgUnitId,
     memberIds: members.value.map((member) => member.userId),
     followerIds: followers.value.map((user) => user.id),
   })
   profileDirty.value = false
 }
+
+watch(activeNode, (node) => {
+  nodeSchedule.value = [node?.startDate, node?.endDate].filter(Boolean) as string[]
+}, { immediate: true })
 
 function formatUserOption(user: User): PersonOption {
   return { value: user.id, label: formatPersonLabel(user), avatar: user.avatar }
@@ -228,6 +258,40 @@ async function onNodeOwnerChange(ownerId: number | undefined) {
 function onNodeOwnerSelection(value: number | number[] | undefined) {
   const ownerId = Array.isArray(value) ? value[0] : value
   void onNodeOwnerChange(ownerId)
+}
+
+async function onNodeScheduleChange(value: unknown, dateStrings?: string[] | string) {
+  if (!activeNode.value) return
+  const next = (Array.isArray(dateStrings)
+    ? dateStrings
+    : Array.isArray(value) && value.every((item) => typeof item === 'string')
+      ? value as string[]
+      : []).filter(Boolean)
+  if (next.length === 1) {
+    message.warning('请选择完整的节点排期')
+    nodeSchedule.value = [activeNode.value.startDate, activeNode.value.endDate].filter(Boolean) as string[]
+    return
+  }
+  if (!canEditActiveNode.value || activeNodeReadOnly.value) {
+    message.info('当前用户没有编辑节点排期的权限')
+    return
+  }
+  nodeScheduleSaving.value = true
+  try {
+    const updated = await updateNodeSchedule(projectId.value, activeNode.value.id, {
+      startDate: next[0],
+      endDate: next[1],
+    })
+    const index = nodes.value.findIndex((node) => node.id === updated.id)
+    if (index >= 0) nodes.value[index] = updated
+    nodeSchedule.value = next
+    message.success('节点排期已更新')
+  } catch {
+    nodeSchedule.value = [activeNode.value.startDate, activeNode.value.endDate].filter(Boolean) as string[]
+    message.error('节点排期保存失败，请重试')
+  } finally {
+    nodeScheduleSaving.value = false
+  }
 }
 
 function openDescriptionImagePicker() {
@@ -293,6 +357,7 @@ async function onSaveProfile() {
         endDate: profileForm.schedule?.[1] || undefined,
         memberIds: profileForm.memberIds,
         followerIds: profileForm.followerIds,
+        orgUnitId: profileForm.orgUnitId,
       })
       members.value = await getMembers(project.value.id)
       followers.value = await getFollowers(project.value.id)
@@ -477,10 +542,10 @@ onBeforeUnmount(() => {
           <span v-if="elapsedDays !== null" class="project-elapsed">已进行 {{ elapsedDays }} 天</span>
           <a-button
             v-if="canTerminateProject"
-            type="text"
+            type="default"
             danger
             size="small"
-            class="project-lifecycle-action"
+            class="project-lifecycle-action project-terminate-button"
             :loading="lifecycleSaving"
             @click="onTerminate"
           >
@@ -611,6 +676,20 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
+      <div class="node-owner-row node-schedule-row">
+        <span class="node-owner-row__label">节点排期</span>
+        <div class="node-owner-row__control">
+          <a-range-picker
+            v-model:value="nodeSchedule"
+            value-format="YYYY-MM-DD"
+            class="node-schedule-picker"
+            :disabled="!canEditActiveNode || activeNodeReadOnly"
+            @change="onNodeScheduleChange"
+          />
+          <a-spin v-if="nodeScheduleSaving" size="small" />
+        </div>
+      </div>
+
       <a-divider />
 
       <div v-if="showKickoffProfile" ref="profileContainer" class="node-tab-profile">
@@ -659,6 +738,16 @@ onBeforeUnmount(() => {
                   v-model:value="profileForm.priority"
                   class="project-profile-control"
                   :options="Priority.options()"
+                  :disabled="!canManageProject || activeNodeReadOnly"
+                  @change="markProfileDirty"
+                />
+                <a-select
+                  v-else-if="field.key === 'businessLine'"
+                  v-model:value="profileForm.orgUnitId"
+                  class="project-profile-control"
+                  :options="businessLineOptions"
+                  allow-clear
+                  placeholder="选择业务线"
                   :disabled="!canManageProject || activeNodeReadOnly"
                   @change="markProfileDirty"
                 />
@@ -798,6 +887,7 @@ onBeforeUnmount(() => {
 .project-title-row h1, .section-title-row h2, .node-detail-title h2 { margin: 0; color: var(--pms-text); }
 .project-title-row h1 { font-size: var(--pms-font-size-title); font-weight: 650; line-height: var(--pms-line-height-tight); }
 .project-lifecycle-action { margin-left: 2px; }
+.project-terminate-button { font-weight: 600; }
 .project-status-icon, .node-detail-title__dot { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 20px; height: 20px; color: #fff; font-size: var(--pms-font-size-compact); border-radius: 6px; }
 .project-status-icon--active, .node-detail-title__dot--1 { background: var(--pms-warning); }
 .project-status-icon--completed, .node-detail-title__dot--2 { background: var(--pms-success); }
@@ -846,6 +936,8 @@ onBeforeUnmount(() => {
 .node-owner-row__label { flex: 0 0 76px; color: var(--pms-text-muted); font-size: var(--pms-font-size-body); }
 .node-owner-row__control { display: flex; flex: 1 1 auto; align-items: center; gap: 8px; width: auto; min-width: 0; }
 .node-owner-row__select { width: 100%; }
+.node-schedule-row { margin-top: 10px; }
+.node-schedule-picker { width: min(100%, 380px); }
 .profile-section-title { margin-bottom: 14px; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
 .profile-section-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .profile-section-title-row .profile-section-title { margin-bottom: 0; }
@@ -889,6 +981,7 @@ onBeforeUnmount(() => {
   .node-owner-row { align-items: flex-start; flex-direction: column; gap: 8px; width: 100%; min-width: 0; }
   .node-owner-row__control, .node-owner-row__select { width: 100%; }
   .node-owner-row__control { flex-basis: auto; }
+  .node-schedule-picker { width: 100%; }
   .project-profile-grid, .project-people-grid { grid-template-columns: 1fr; }
   .project-profile-field--wide { grid-column: auto; }
   .summary-progress { grid-column: span 3; }

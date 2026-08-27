@@ -172,6 +172,8 @@ export interface ProjectNode {
   ownerAvatar?: string
   status: number
   sort: number
+  startDate?: string
+  endDate?: string
   createdAt: string
   permissions?: NodePermissions
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { CloseOutlined } from '@ant-design/icons-vue'
-import { formatPersonLabel, getSinglePersonSelection } from '../workflow'
+import { formatPersonLabel, getSinglePersonSelection, normalizePersonDisplayLabel } from '../workflow'
 import type { PersonOption } from '../workflow'
 
 const props = withDefaults(defineProps<{
@@ -38,7 +38,8 @@ function findOption(value: number | string): PersonOption | undefined {
 }
 
 function getLabel(value: number | string, label?: string): string {
-  return label || findOption(value)?.label || formatPersonLabel({ id: Number(value) })
+  return normalizePersonDisplayLabel(label || findOption(value)?.label)
+    || formatPersonLabel({ id: Number(value) })
 }
 
 function getAvatar(value: number | string): string | undefined {
@@ -46,7 +47,7 @@ function getAvatar(value: number | string): string | undefined {
 }
 
 function getInitials(label: string): string {
-  return label.replace(/\s*\([^)]*\)\s*$/, '').slice(0, 2) || '?'
+  return label.replace(/\s*(?:\([^)]*\)|（[^）]*）)\s*$/, '').slice(0, 2) || '?'
 }
 
 function onChange(values: number[]) {
@@ -75,7 +76,7 @@ function onChange(values: number[]) {
     <template #option="{ value, label }">
       <span class="person-select__option">
         <a-avatar :src="getAvatar(value)" :size="20">{{ getInitials(String(label)) }}</a-avatar>
-        <span>{{ label }}</span>
+        <span>{{ getLabel(value, label) }}</span>
       </span>
     </template>
     <template #tagRender="{ value, label, closable, onClose }">

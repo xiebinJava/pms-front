@@ -2,6 +2,7 @@ import { http } from '/@/plugins/http'
 import type { OrgUnit } from '/@/types/domain'
 
 export function getOrgTree(): Promise<OrgUnit[]> { return http.get('/admin/org/tree') }
+export function getProjectOrgTree(): Promise<OrgUnit[]> { return http.get('/org/tree') }
 export function createOrg(payload: Record<string, unknown>): Promise<OrgUnit> { return http.post('/admin/org', payload) }
 export function updateOrg(id: number, payload: Record<string, unknown>): Promise<OrgUnit> { return http.put(`/admin/org/${id}`, payload) }
 export function moveOrg(id: number, parentId?: number): Promise<OrgUnit> { return http.put(`/admin/org/${id}/move`, { parentId }) }
