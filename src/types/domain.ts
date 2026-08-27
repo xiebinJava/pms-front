@@ -99,6 +99,8 @@ export interface Personnel {
   primaryOrgName?: string
   primaryOrgUnitId?: number
   primaryPositionName?: string
+  partTimePositionIds: number[]
+  partTimeOrgUnitIds: number[]
   roles: string[]
   partTimeOrgNames: string[]
 }

@@ -13,6 +13,14 @@ export function changePrimaryPosition(id: number, payload: Record<string, unknow
   return http.put(`/admin/users/${id}/primary-position`, payload)
 }
 
+export function addPartTimePosition(id: number, payload: Record<string, unknown>) {
+  return http.post(`/admin/users/${id}/part-time-positions`, payload)
+}
+
+export function removePartTimePosition(userId: number, positionId: number) {
+  return http.delete(`/admin/users/${userId}/part-time-positions/${positionId}`)
+}
+
 export function disableUser(id: number, reason: string) {
   return http.post(`/admin/users/${id}/disable`, { reason })
 }
