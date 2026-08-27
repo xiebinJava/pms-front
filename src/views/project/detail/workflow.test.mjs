@@ -12,6 +12,7 @@ import {
   getMissingKickoffProfileFields,
   formatPersonLabel,
   buildBusinessLineOptions,
+  findOrgUnitById,
   getOrgUnitPath,
   getProjectManagerDisplay,
   getProjectProfileFields,
@@ -184,6 +185,18 @@ test('builds hierarchical business line options without exposing the company roo
     children: [{ value: 3, label: 'PDT-01' }],
   }])
   assert.deepEqual(getOrgUnitPath(tree, 3), [2, 3])
+})
+
+test('resolves the selected business line and its responsible leader', () => {
+  const tree = [{
+    id: 1,
+    name: '公司总部',
+    typeCode: 'COMPANY',
+    children: [{ id: 2, name: '产品制造 BG', typeCode: 'BG', leaderUserId: 88 }],
+  }]
+
+  assert.deepEqual(findOrgUnitById(tree, 2), tree[0].children[0])
+  assert.equal(findOrgUnitById(tree, 999), undefined)
 })
 
 test('requires all kickoff profile fields except followers', () => {

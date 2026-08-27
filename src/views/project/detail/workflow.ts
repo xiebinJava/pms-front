@@ -141,6 +141,16 @@ export function getOrgUnitPath(units: OrgUnit[], targetId?: number): number[] {
   return []
 }
 
+export function findOrgUnitById(units: OrgUnit[], targetId?: number): OrgUnit | undefined {
+  if (targetId == null) return undefined
+  for (const unit of units) {
+    if (unit.id === targetId) return unit
+    const match = findOrgUnitById(unit.children || [], targetId)
+    if (match) return match
+  }
+  return undefined
+}
+
 export function getMissingKickoffProfileFields(profile: {
   description?: string
   priority?: number | null

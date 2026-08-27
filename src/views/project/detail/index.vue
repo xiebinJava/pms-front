@@ -10,7 +10,7 @@ import {
 } from '@ant-design/icons-vue'
 import { Modal, message } from 'ant-design-vue'
 import { getFollowers } from '/@/api/follower'
-import { getMembers } from '/@/api/member'
+import { addMember, getMembers } from '/@/api/member'
 import { getProject, restoreProject, terminateProject, updateProject, uploadProjectImage } from '/@/api/project'
 import { completeNode, getNodes, rollbackNode, updateNodeOwner, updateNodeSchedule } from '/@/api/node'
 import { getProjectOrgTree } from '/@/api/admin-org'
@@ -20,6 +20,7 @@ import { formatDate, formatDateTime } from '/@/utils/format'
 import {
   canRollbackNode,
   buildBusinessLineOptions,
+  findOrgUnitById,
   getElapsedDays,
   getMissingKickoffProfileFields,
   formatPersonLabel,
@@ -257,6 +258,25 @@ async function onNodeOwnerChange(ownerId: number | undefined) {
 function onNodeOwnerSelection(value: number | number[] | undefined) {
   const ownerId = Array.isArray(value) ? value[0] : value
   void onNodeOwnerChange(ownerId)
+}
+
+async function onBusinessLineChange(value: Array<number | string> | undefined) {
+  const path = Array.isArray(value) ? value : []
+  const orgUnitId = path.length ? Number(path[path.length - 1]) : undefined
+  const businessLine = findOrgUnitById(orgTree.value, orgUnitId)
+  const leaderId = businessLine?.leaderUserId
+  if (leaderId == null || !activeNode.value || !canAssignNodeOwner.value || activeNodeReadOnly.value) return
+
+  try {
+    if (!members.value.some((member) => member.userId === leaderId)) {
+      await addMember(projectId.value, { userId: leaderId })
+      members.value = await getMembers(projectId.value)
+      profileForm.memberIds = members.value.map((member) => member.userId)
+    }
+    await onNodeOwnerChange(leaderId)
+  } catch {
+    message.error('业务线负责人自动分配失败，请检查项目成员权限')
+  }
 }
 
 async function onNodeScheduleChange(value: unknown, dateStrings?: string[] | string) {
@@ -752,6 +772,7 @@ onBeforeUnmount(() => {
                   allow-clear
                   placeholder="选择业务线"
                   :disabled="!canManageProject || activeNodeReadOnly"
+                  @change="onBusinessLineChange"
                 />
                 <a-range-picker
                   v-else-if="field.key === 'schedule'"
