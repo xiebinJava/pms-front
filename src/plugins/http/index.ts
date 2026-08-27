@@ -11,7 +11,7 @@ const instance = axios.create({
   withCredentials: true,
 })
 
-type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean; _skipAuthRefresh?: boolean }
+type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean; _skipAuthRefresh?: boolean; _raw?: boolean }
 
 instance.interceptors.request.use((config) => {
   if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`
@@ -20,6 +20,7 @@ instance.interceptors.request.use((config) => {
 
 instance.interceptors.response.use(
   (response) => {
+    if ((response.config as RetryConfig)._raw) return response.data as any
     const res = response.data as ApiResult
     if (res.code !== 200) {
       message.error(res.msg || '请求失败')
@@ -68,6 +69,7 @@ export const http = {
   post: <T>(url: string, data?: unknown, config?: AxiosRequestConfig) => request<T>({ ...config, method: 'POST', url, data }),
   put: <T>(url: string, data?: unknown, config?: AxiosRequestConfig) => request<T>({ ...config, method: 'PUT', url, data }),
   delete: <T>(url: string, config?: AxiosRequestConfig) => request<T>({ ...config, method: 'DELETE', url }),
+  getBlob: (url: string) => request<Blob>({ method: 'GET', url, responseType: 'blob', _raw: true } as AxiosRequestConfig & { _raw: boolean }),
 }
 
 export function setAccessToken(token: string) { accessToken = token }
