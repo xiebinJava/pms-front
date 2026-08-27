@@ -168,7 +168,18 @@ export function getMissingKickoffProfileFields(profile: {
 }
 
 export function getProjectManagerDisplay(name?: string): string {
-  return name?.trim() || '待确认'
+  const normalized = name?.trim()
+  if (!normalized || ['待确认', '未设置', '未分配'].includes(normalized)) return '待分配'
+  return normalized
+}
+
+/** Prefer the server's canonical node progress so list and detail stay aligned. */
+export function getProjectOverallProgress(
+  projectProgress: number | null | undefined,
+  doneNodeCount: number,
+  totalNodeCount: number,
+): number {
+  return projectProgress == null ? getNodeProgress(doneNodeCount, totalNodeCount) : projectProgress
 }
 
 export function getProjectStatusTone(status?: number): ProjectStatusTone {

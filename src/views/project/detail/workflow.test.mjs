@@ -15,6 +15,7 @@ import {
   findOrgUnitById,
   getOrgUnitPath,
   getProjectManagerDisplay,
+  getProjectOverallProgress,
   getProjectProfileFields,
   getPersonDisplay,
   getSinglePersonSelection,
@@ -218,10 +219,18 @@ test('requires all kickoff profile fields except followers', () => {
   }), [])
 })
 
-test('shows an unconfirmed project manager as pending', () => {
-  assert.equal(getProjectManagerDisplay(undefined), '待确认')
-  assert.equal(getProjectManagerDisplay('  '), '待确认')
+test('shows an unassigned project manager as pending assignment', () => {
+  assert.equal(getProjectManagerDisplay(undefined), '待分配')
+  assert.equal(getProjectManagerDisplay('  '), '待分配')
+  assert.equal(getProjectManagerDisplay('待确认'), '待分配')
+  assert.equal(getProjectManagerDisplay('未设置'), '待分配')
   assert.equal(getProjectManagerDisplay('张三'), '张三')
+})
+
+test('uses the server project progress so list and detail share one source', () => {
+  assert.equal(getProjectOverallProgress(42, 1, 9), 42)
+  assert.equal(getProjectOverallProgress(undefined, 3, 9), 33)
+  assert.equal(getProjectOverallProgress(null, 0, 0), 0)
 })
 
 test('shows an unassigned node owner as pending assignment', () => {

@@ -11,13 +11,14 @@ import { Modal, message } from 'ant-design-vue'
 import { createProject, deleteProject, getProjectPage, updateProject } from '/@/api/project'
 import { getProjectStatusLabel, ProjectStatus, Priority, statusTagColor, priorityTagColor } from '/@/enums'
 import { formatDate } from '/@/utils/format'
+import { getProjectManagerDisplay } from '../detail/workflow'
 import type { Project } from '/@/types/domain'
 
 const router = useRouter()
 
 const columns = [
   { title: '项目名称', key: 'name', dataIndex: 'name' },
-  { title: '创建人', key: 'createdByName', dataIndex: 'createdByName', width: 110 },
+  { title: '项目经理', key: 'projectManagerName', dataIndex: 'projectManagerName', width: 130 },
   { title: '状态', key: 'status', dataIndex: 'status', width: 90 },
   { title: '优先级', key: 'priority', dataIndex: 'priority', width: 90 },
   { title: '进度', key: 'progress', dataIndex: 'progress', width: 150 },
@@ -197,6 +198,9 @@ onMounted(loadData)
               {{ record.name }}
             </a>
             <div class="pms-table-subtext">{{ record.code }}</div>
+          </template>
+          <template v-else-if="column.key === 'projectManagerName'">
+            {{ getProjectManagerDisplay(record.projectManagerName) }}
           </template>
           <template v-else-if="column.key === 'status'">
             <a-tag :color="statusTagColor[record.status]">{{ getProjectStatusLabel(record.status) }}</a-tag>

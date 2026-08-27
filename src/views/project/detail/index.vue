@@ -27,7 +27,8 @@ import {
   getNodeOwnerDisplay,
   getPersonDisplay,
   getProjectProfileFields,
-  getNodeProgress,
+  getProjectManagerDisplay,
+  getProjectOverallProgress,
   getNodeStatusMeta,
   getOrgUnitPath,
   getProjectStatusTone,
@@ -98,7 +99,11 @@ const activeNode = computed<ProjectNode | null>(
   () => nodes.value.find((node) => node.id === activeNodeId.value) || null,
 )
 const doneNodeCount = computed(() => nodes.value.filter((node) => node.status === 2).length)
-const nodeProgress = computed(() => getNodeProgress(doneNodeCount.value, nodes.value.length))
+const nodeProgress = computed(() => getProjectOverallProgress(
+  project.value?.progress,
+  doneNodeCount.value,
+  nodes.value.length,
+))
 const elapsedDays = computed(() => getElapsedDays(project.value?.startDate))
 const showKickoffProfile = computed(() => isKickoffNode(activeNode.value?.nodeKey))
 const nodeOwnerOptions = computed(() => members.value.map((member) => ({
@@ -132,10 +137,11 @@ const projectCreatorDisplay = computed(() => getPersonDisplay(
   projectCreatorOption.value,
   project.value?.createdByName || '未记录',
 ))
-const projectManagerDisplay = computed(() => getPersonDisplay(
-  projectManagerOption.value,
-  project.value?.projectManagerName,
-))
+const projectManagerDisplay = computed(() => {
+  const managerName = projectManagerOption.value?.label || project.value?.projectManagerName
+  const display = getPersonDisplay(projectManagerOption.value, managerName)
+  return { ...display, label: getProjectManagerDisplay(managerName) }
+})
 const projectStatusTone = computed(() => {
   return getProjectStatusTone(project.value?.status)
 })
@@ -605,7 +611,7 @@ onBeforeUnmount(() => {
               :src="projectManagerDisplay.avatar || project.projectManagerAvatar"
               :size="32"
               class="project-person__avatar"
-              :class="{ 'project-person__avatar--pending': projectManagerDisplay.label === '待确认' }"
+              :class="{ 'project-person__avatar--pending': projectManagerDisplay.label === '待分配' }"
             >
               {{ getPersonInitials(projectManagerDisplay.label) }}
             </a-avatar>
