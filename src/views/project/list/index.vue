@@ -18,6 +18,7 @@ const router = useRouter()
 
 const columns = [
   { title: '项目名称', key: 'name', dataIndex: 'name' },
+  { title: '业务线', key: 'orgUnitPath', dataIndex: 'orgUnitPath', width: 190 },
   { title: '项目经理', key: 'projectManagerName', dataIndex: 'projectManagerName', width: 130 },
   { title: '状态', key: 'status', dataIndex: 'status', width: 90 },
   { title: '优先级', key: 'priority', dataIndex: 'priority', width: 90 },
@@ -201,6 +202,10 @@ onMounted(loadData)
           </template>
           <template v-else-if="column.key === 'projectManagerName'">
             {{ getProjectManagerDisplay(record.projectManagerName) }}
+          </template>
+          <template v-else-if="column.key === 'orgUnitPath'">
+            <span>{{ record.orgUnitPath || record.orgUnitName || '未设置' }}</span>
+            <div v-if="record.orgUnitLeaderName" class="pms-table-subtext">负责人：{{ record.orgUnitLeaderName }}</div>
           </template>
           <template v-else-if="column.key === 'status'">
             <a-tag :color="statusTagColor[record.status]">{{ getProjectStatusLabel(record.status) }}</a-tag>

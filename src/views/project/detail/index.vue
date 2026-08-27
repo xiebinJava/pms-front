@@ -620,6 +620,13 @@ onBeforeUnmount(() => {
               <strong>{{ projectManagerDisplay.label }}</strong>
             </div>
           </div>
+          <div v-if="project.orgUnitPath || project.orgUnitName" class="project-person project-person--business-line">
+            <div class="project-person__copy">
+              <span>业务线</span>
+              <strong :title="project.orgUnitPath || project.orgUnitName">{{ project.orgUnitPath || project.orgUnitName }}</strong>
+              <small v-if="project.orgUnitLeaderName">负责人：{{ project.orgUnitLeaderName }}</small>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -935,11 +942,13 @@ onBeforeUnmount(() => {
 .project-people-line { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .project-person { display: flex; align-items: center; gap: 9px; min-width: 190px; padding: 8px 12px; border: 1px solid var(--pms-border); border-radius: 9px; box-shadow: 0 2px 8px rgb(15 23 42 / 4%); }
 .project-person--manager { background: #fff7e8; border-color: rgb(250 140 22 / 35%); }
+.project-person--business-line { max-width: min(430px, 100%); background: var(--pms-primary-soft); border-color: rgb(22 119 255 / 20%); }
 .project-person__avatar { color: #fff; background: var(--pms-primary); }
 .project-person__avatar--pending { color: var(--pms-text-muted); background: var(--pms-surface-strong); }
 .project-person__copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .project-person__copy span { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
 .project-person__copy strong { overflow: hidden; color: var(--pms-text); font-size: var(--pms-font-size-body); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.project-person__copy small { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
 .meta-separator { color: var(--pms-text-faint); }
 .project-header__summary { display: grid; grid-template-columns: repeat(3, minmax(88px, 1fr)); align-items: center; gap: 20px; min-width: 420px; padding-left: 28px; border-left: 1px solid var(--pms-border); }
 .summary-item, .summary-progress { display: flex; flex-direction: column; gap: 5px; }

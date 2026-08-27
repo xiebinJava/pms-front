@@ -34,6 +34,9 @@ export interface Project {
   doneTaskCount: number
   memberCount: number
   orgUnitId?: number
+  orgUnitName?: string
+  orgUnitPath?: string
+  orgUnitLeaderName?: string
   createdAt: string
   updatedAt: string
   permissions?: ProjectPermissions
