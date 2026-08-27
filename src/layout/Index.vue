@@ -22,6 +22,21 @@ const selectedKeys = computed(() => {
 const can = (permission: string) => userStore.can(permission)
 const canConfig = computed(() => ['admin:user:read', 'admin:org:read', 'admin:role:read', 'admin:audit:read', 'admin:import:write'].some(can))
 
+const menuRoutes: Record<string, string> = {
+  dashboard: '/projects',
+  projects: '/projects',
+  'admin-users': '/admin/users',
+  'admin-org': '/admin/org',
+  'admin-roles': '/admin/roles',
+  'admin-import': '/admin/import',
+  'admin-audit': '/admin/audit',
+}
+
+function handleMenuClick({ key }: { key: string }) {
+  const target = menuRoutes[key]
+  if (target && target !== route.path) router.push(target)
+}
+
 function logout() {
   userStore.logout()
   message.success('已退出登录')
@@ -49,7 +64,7 @@ onMounted(async () => {
           <span>Project Management</span>
         </div>
       </div>
-      <a-menu v-model:selectedKeys="selectedKeys" mode="inline" class="pms-nav">
+      <a-menu v-model:selectedKeys="selectedKeys" mode="inline" class="pms-nav" @click="handleMenuClick">
         <a-menu-item key="dashboard">
           <DashboardOutlined />
           <span>工作台</span>
