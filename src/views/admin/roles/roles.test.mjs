@@ -21,3 +21,10 @@ test('permission choices use Chinese labels with lowercase English codes and loc
   assert.match(source, /permission-option__code/)
   assert.match(source, /cancel-text="取消"/)
 })
+
+test('role editing validates permissions, custom organizations, and respects write permission', () => {
+  assert.match(source, /至少选择一个权限点/)
+  assert.match(source, /请选择自定义组织范围/)
+  assert.match(source, /canRoleWrite/)
+  assert.match(source, /toUpperCase\(\)/)
+})
