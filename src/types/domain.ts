@@ -1,10 +1,15 @@
 export interface User {
   id: number
   username: string
+  nameZh?: string
+  displayName?: string
   nickname: string
   email?: string
+  phone?: string
   avatar?: string
   systemRole?: number
+  status?: string
+  permissionCodes?: string[]
 }
 
 export interface Project {
@@ -28,6 +33,7 @@ export interface Project {
   taskCount: number
   doneTaskCount: number
   memberCount: number
+  orgUnitId?: number
   createdAt: string
   updatedAt: string
   permissions?: ProjectPermissions
@@ -64,9 +70,48 @@ export interface ProjectMember {
   userId: number
   username?: string
   nickname?: string
+  displayName?: string
   avatar?: string
   role: number
   createdAt: string
+}
+
+export interface OrgUnit {
+  id: number
+  parentId?: number
+  code: string
+  name: string
+  typeCode?: string
+  status: string
+  leaderDisplayName?: string
+  memberCount?: number
+  children?: OrgUnit[]
+}
+
+export interface Personnel {
+  id: number
+  username: string
+  nameZh: string
+  displayName: string
+  email?: string
+  phone?: string
+  status: string
+  primaryOrgName?: string
+  primaryOrgUnitId?: number
+  primaryPositionName?: string
+  roles: string[]
+  partTimeOrgNames: string[]
+}
+
+export interface Role {
+  id: number
+  code: string
+  name: string
+  builtin: boolean
+  dataScopeType: string
+  enabled: boolean
+  permissionCodes: string[]
+  customOrgUnitIds: number[]
 }
 
 export interface Task {

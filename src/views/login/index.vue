@@ -9,7 +9,7 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 
-const form = reactive({ username: 'admin', password: 'admin123' })
+const form = reactive({ username: '', password: '' })
 const loading = ref(false)
 
 async function onFinish() {
@@ -40,8 +40,8 @@ async function onFinish() {
       </div>
 
       <a-form layout="vertical" :model="form" @finish="onFinish">
-        <a-form-item name="username" :rules="[{ required: true, message: '请输入用户名' }]">
-          <a-input v-model:value="form.username" placeholder="用户名" size="large">
+        <a-form-item name="username" :rules="[{ required: true, message: '请输入英文名' }]">
+          <a-input v-model:value="form.username" placeholder="英文名（如 Brad.Xie）" size="large">
             <template #prefix><UserOutlined class="pms-login-icon" /></template>
           </a-input>
         </a-form-item>
@@ -62,7 +62,7 @@ async function onFinish() {
         </a-button>
       </a-form>
 
-      <p class="pms-login-hint">默认账号 admin / admin123</p>
+      <p class="pms-login-hint">请输入管理员邀请的英文名，英文名不区分大小写</p>
     </a-card>
   </div>
 </template>

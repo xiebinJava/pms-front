@@ -52,6 +52,7 @@ PMS 的前端视觉统一采用冷灰工作台风格：冷灰页面背景、白�
 | `--pms-font-size-caption` | `11px` | 极弱提示、表头、辅助说明 |
 | `--pms-font-size-compact` | `12px` | 元信息、标签、操作链接、次级文字 |
 | `--pms-font-size-body` | `13px` | 正文、表单内容、导航、看板卡片 |
+| `--pms-font-size-nav` | `14px` | 主导航与配置管理分组，保证侧栏可读性 |
 | `--pms-font-size-section` | `15px` | 模块标题、统计标题 |
 | `--pms-font-size-title` | `20px` | 项目详情主标题、登录页标题 |
 | `--pms-font-size-display` | `22px` | 列表页主标题 |

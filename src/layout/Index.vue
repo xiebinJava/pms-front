@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { LogoutOutlined, ProjectOutlined } from '@ant-design/icons-vue'
+import { LogoutOutlined, ProjectOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, DashboardOutlined } from '@ant-design/icons-vue'
 import { useUserStore } from '/@/store/user'
 import { message } from 'ant-design-vue'
 
@@ -11,8 +11,16 @@ const userStore = useUserStore()
 
 const selectedKeys = computed(() => {
   if (route.path.startsWith('/projects')) return ['projects']
+  if (route.path.startsWith('/admin/users')) return ['admin-users']
+  if (route.path.startsWith('/admin/org')) return ['admin-org']
+  if (route.path.startsWith('/admin/roles')) return ['admin-roles']
+  if (route.path.startsWith('/admin/audit')) return ['admin-audit']
+  if (route.path.startsWith('/admin/import')) return ['admin-import']
   return []
 })
+
+const can = (permission: string) => userStore.can(permission)
+const canConfig = computed(() => ['admin:user:read', 'admin:org:read', 'admin:role:read', 'admin:audit:read', 'admin:import:write'].some(can))
 
 function logout() {
   userStore.logout()
@@ -42,10 +50,22 @@ onMounted(async () => {
         </div>
       </div>
       <a-menu v-model:selectedKeys="selectedKeys" mode="inline" class="pms-nav">
+        <a-menu-item key="dashboard">
+          <DashboardOutlined />
+          <span>工作台</span>
+        </a-menu-item>
         <a-menu-item key="projects">
           <ProjectOutlined />
           <span>项目管理</span>
         </a-menu-item>
+        <a-sub-menu v-if="canConfig" key="configuration">
+          <template #title><SettingOutlined /><span>配置管理</span></template>
+          <a-menu-item v-if="can('admin:user:read')" key="admin-users"><TeamOutlined /><span>人员与权限</span></a-menu-item>
+          <a-menu-item v-if="can('admin:org:read')" key="admin-org"><ApartmentOutlined /><span>组织架构</span></a-menu-item>
+          <a-menu-item v-if="can('admin:role:read')" key="admin-roles"><SafetyCertificateOutlined /><span>角色管理</span></a-menu-item>
+          <a-menu-item v-if="can('admin:import:write')" key="admin-import"><ApartmentOutlined /><span>批量导入</span></a-menu-item>
+          <a-menu-item v-if="can('admin:audit:read')" key="admin-audit"><AuditOutlined /><span>审计日志</span></a-menu-item>
+        </a-sub-menu>
       </a-menu>
     </a-layout-sider>
 
@@ -57,7 +77,7 @@ onMounted(async () => {
             <a-avatar size="small" class="pms-user-menu__avatar">
               {{ (userStore.user?.nickname || userStore.user?.username || 'U').charAt(0) }}
             </a-avatar>
-            <span>{{ userStore.user?.nickname || userStore.user?.username || '未登录' }}</span>
+            <span>{{ userStore.displayName }}</span>
           </a>
           <template #overlay>
             <a-menu>
@@ -139,7 +159,11 @@ onMounted(async () => {
   margin: 3px 0;
   color: var(--pms-text-muted);
   border-radius: var(--pms-radius-sm);
-  font-size: var(--pms-font-size-body);
+  font-size: var(--pms-font-size-nav);
+}
+
+.pms-nav :deep(.ant-menu-submenu-title) {
+  font-size: var(--pms-font-size-nav);
 }
 
 .pms-nav :deep(.ant-menu-item-selected) {
