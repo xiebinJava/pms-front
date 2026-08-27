@@ -194,7 +194,7 @@ function resetView() {
         @click="emit('select', node.unit)"
       >
         <strong>{{ node.unit.name }}</strong>
-        <span class="org-node__type">{{ node.unit.typeCode || node.unit.code }}</span>
+        <span class="org-node__type">{{ (node.unit.typeCode || node.unit.code || '').toLowerCase() }}</span>
         <span class="org-node__leader">负责人：{{ node.unit.leaderDisplayName || '未设置' }}</span>
       </button>
     </div>

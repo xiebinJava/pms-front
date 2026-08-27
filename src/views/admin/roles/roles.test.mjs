@@ -15,3 +15,9 @@ test('role data scopes use Chinese labels with lowercase English explanations', 
 test('role codes are rendered in lowercase secondary text', () => {
   assert.match(source, /record\.code\.toLowerCase\(\)/)
 })
+
+test('permission choices use Chinese labels with lowercase English codes and localized modal actions', () => {
+  assert.match(source, /查看人员/)
+  assert.match(source, /permission-option__code/)
+  assert.match(source, /cancel-text="取消"/)
+})

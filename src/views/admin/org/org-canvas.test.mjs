@@ -16,5 +16,6 @@ test('organization canvas renders connected links and supports pan and zoom', ()
 test('organization nodes expose their responsible leader and use the available workspace height', () => {
   assert.match(source, /leaderDisplayName/)
   assert.match(source, /class="org-node__leader"/)
+  assert.match(source, /\.toLowerCase\(\)/)
   assert.match(source, /height: 100%/)
 })
