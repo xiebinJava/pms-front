@@ -6,16 +6,27 @@ import { listAudit, type AuditLog, type AuditQuery } from '/@/api/admin-audit'
 const logs = ref<AuditLog[]>([])
 const loading = ref(false)
 const query = reactive<AuditQuery>({ action: '', resourceType: '', resourceId: undefined, operatorId: undefined, from: '', to: '' })
+const pagination = reactive({ current: 1, pageSize: 20, total: 0 })
 
 function normalizedQuery(): AuditQuery {
   return Object.fromEntries(Object.entries(query).filter(([, value]) => value !== '' && value !== undefined && value !== null)) as AuditQuery
 }
 async function load() {
   loading.value = true
-  try { logs.value = await listAudit(normalizedQuery()) } catch (error) { message.error((error as Error).message || '审计日志加载失败') } finally { loading.value = false }
+  try {
+    const result = await listAudit({ ...normalizedQuery(), currPage: pagination.current, pageSize: pagination.pageSize })
+    logs.value = result.list
+    pagination.total = result.total
+  } catch (error) { message.error((error as Error).message || '审计日志加载失败') } finally { loading.value = false }
 }
 function reset() {
   Object.assign(query, { action: '', resourceType: '', resourceId: undefined, operatorId: undefined, from: '', to: '' })
+  pagination.current = 1
+  load()
+}
+function onTableChange(page: { current?: number; pageSize?: number }) {
+  pagination.current = page.current || 1
+  pagination.pageSize = page.pageSize || 20
   load()
 }
 onMounted(load)
@@ -33,11 +44,12 @@ onMounted(load)
       <a-input v-model:value="query.to" type="datetime-local" aria-label="结束时间" />
       <a-button type="primary" @click="load">筛选</a-button><a-button @click="reset">重置</a-button>
     </div>
-    <a-table :data-source="logs" :loading="loading" row-key="id" :pagination="{ pageSize: 20 }">
+    <a-table :data-source="logs" :loading="loading" row-key="id" :pagination="pagination" @change="onTableChange">
       <a-table-column title="时间" data-index="createdAt" />
       <a-table-column title="动作" data-index="action" />
       <a-table-column title="资源" key="resource"><template #default="{ record }">{{ record.resourceType }} #{{ record.resourceId || '—' }}</template></a-table-column>
       <a-table-column title="操作人" key="operator"><template #default="{ record }">{{ record.operatorId || '系统' }}</template></a-table-column>
+      <a-table-column title="请求 ID" key="requestId"><template #default="{ record }"><span class="request-id">{{ record.requestId || '—' }}</span></template></a-table-column>
       <a-table-column title="变更" key="diff"><template #default="{ record }"><details><summary>查看差异</summary><pre>{{ record.afterJson || record.beforeJson || '—' }}</pre></details></template></a-table-column>
     </a-table>
   </section>

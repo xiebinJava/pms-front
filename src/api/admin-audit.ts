@@ -1,4 +1,5 @@
 import { http } from '/@/plugins/http'
+import type { PageResult } from '/@/types/api'
 
 export interface AuditLog {
   id: number
@@ -8,6 +9,7 @@ export interface AuditLog {
   resourceId?: number
   beforeJson?: string
   afterJson?: string
+  requestId?: string
   createdAt: string
 }
 
@@ -18,8 +20,10 @@ export interface AuditQuery {
   operatorId?: number
   from?: string
   to?: string
+  currPage?: number
+  pageSize?: number
 }
 
-export function listAudit(params: AuditQuery = {}): Promise<AuditLog[]> {
+export function listAudit(params: AuditQuery = {}): Promise<PageResult<AuditLog>> {
   return http.get('/admin/audit', { params })
 }
