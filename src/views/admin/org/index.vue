@@ -79,11 +79,11 @@ onMounted(load)
   </section>
 </template>
 <style scoped>
-.admin-page { display: grid; gap: 16px; }
+.admin-page { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 16px; height: calc(100vh - var(--pms-topbar-height) - 48px); min-height: calc(100vh - var(--pms-topbar-height) - 48px); }
 .page-heading { display: flex; justify-content: space-between; gap: 16px; }
 h1 { margin: 0; font-size: var(--pms-font-size-display); } p { margin: 6px 0 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); }
-.org-layout { display: grid; grid-template-columns: minmax(0, 1fr) 240px; min-height: 560px; background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); overflow: hidden; }
-.org-panel { min-width: 0; }
-.property-panel { padding: 20px; border-left: 1px solid var(--pms-border); } .property-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; } h2 { margin: 0 0 18px; font-size: var(--pms-font-size-section); } dl { display: grid; gap: 12px; margin: 0; } dt { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); } dd { margin: -7px 0 0; color: var(--pms-text); } .property-actions { display: grid; gap: 8px; margin-top: 22px; }
-@media (max-width: 760px) { .org-layout { grid-template-columns: 1fr; } .property-panel { border-top: 1px solid var(--pms-border); border-left: 0; } }
+.org-layout { display: grid; grid-template-columns: minmax(0, 1fr) 240px; height: 100%; min-height: 0; background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); overflow: hidden; }
+.org-panel { display: flex; min-width: 0; min-height: 0; }
+.property-panel { min-height: 0; padding: 20px; overflow: auto; border-left: 1px solid var(--pms-border); } .property-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; } h2 { margin: 0 0 18px; font-size: var(--pms-font-size-section); } dl { display: grid; gap: 12px; margin: 0; } dt { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); } dd { margin: -7px 0 0; color: var(--pms-text); } .property-actions { display: grid; gap: 8px; margin-top: 22px; }
+@media (max-width: 760px) { .admin-page { height: auto; min-height: calc(100vh - var(--pms-topbar-height) - 24px); } .org-layout { grid-template-columns: 1fr; height: auto; min-height: calc(100vh - 160px); } .org-panel { min-height: 520px; } .property-panel { border-top: 1px solid var(--pms-border); border-left: 0; } }
 </style>

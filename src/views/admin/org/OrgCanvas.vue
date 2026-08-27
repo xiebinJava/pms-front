@@ -6,7 +6,7 @@ const props = defineProps<{ units: OrgUnit[]; selected?: number; readonly?: bool
 const emit = defineEmits<{ select: [unit: OrgUnit]; move: [id: number, parentId: number | undefined] }>()
 
 const NODE_WIDTH = 154
-const NODE_HEIGHT = 58
+const NODE_HEIGHT = 78
 const HORIZONTAL_GAP = 38
 const VERTICAL_GAP = 94
 const PADDING = 60
@@ -194,14 +194,15 @@ function resetView() {
         @click="emit('select', node.unit)"
       >
         <strong>{{ node.unit.name }}</strong>
-        <span>{{ node.unit.typeCode || node.unit.code }}</span>
+        <span class="org-node__type">{{ node.unit.typeCode || node.unit.code }}</span>
+        <span class="org-node__leader">负责人：{{ node.unit.leaderDisplayName || '未设置' }}</span>
       </button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.org-canvas-viewport { position: relative; min-height: 560px; height: min(680px, calc(100vh - 220px)); overflow: hidden; background: var(--pms-surface-muted); cursor: grab; touch-action: none; }
+.org-canvas-viewport { position: relative; min-height: 0; height: 100%; flex: 1 1 auto; overflow: hidden; background: var(--pms-surface-muted); cursor: grab; touch-action: none; }
 .org-canvas-viewport.is-panning { cursor: grabbing; }
 .org-canvas-toolbar { position: absolute; z-index: 2; top: 14px; right: 14px; display: flex; align-items: center; gap: 4px; padding: 4px; color: var(--pms-text-muted); background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: 7px; box-shadow: var(--pms-shadow-sm); }
 .org-canvas-toolbar button { min-width: 30px; height: 30px; padding: 0 7px; color: var(--pms-text); font-size: var(--pms-font-size-compact); background: transparent; border: 0; border-radius: 5px; cursor: pointer; }
@@ -210,10 +211,11 @@ function resetView() {
 .org-canvas-stage { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; }
 .org-links { position: absolute; top: 0; left: 0; overflow: visible; color: var(--pms-border-strong); pointer-events: none; }
 .org-links path { fill: none; stroke: currentColor; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.org-node { position: absolute; display: grid; width: 154px; min-height: 58px; gap: 3px; padding: 10px 14px; color: var(--pms-text); text-align: center; background: var(--pms-surface); border: 1px solid var(--pms-border-strong); border-radius: 7px; box-shadow: var(--pms-shadow-sm); cursor: pointer; }
+.org-node { position: absolute; display: grid; width: 154px; min-height: 78px; gap: 3px; padding: 9px 12px; color: var(--pms-text); text-align: center; background: var(--pms-surface); border: 1px solid var(--pms-border-strong); border-radius: 7px; box-shadow: var(--pms-shadow-sm); cursor: pointer; }
 .org-node strong { overflow: hidden; font-size: var(--pms-font-size-body); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.org-node span { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
+.org-node span { overflow: hidden; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); text-overflow: ellipsis; white-space: nowrap; }
+.org-node__leader { color: var(--pms-text-muted); }
 .org-node.selected { color: var(--pms-primary); border-color: var(--pms-primary); box-shadow: 0 0 0 3px var(--pms-primary-soft); }
-.org-canvas-empty { display: grid; min-height: 560px; place-items: center; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
+.org-canvas-empty { display: grid; height: 100%; min-height: 0; place-items: center; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
 @media (max-width: 760px) { .org-canvas-viewport { height: 520px; min-height: 520px; } .org-canvas-toolbar { top: 10px; right: 10px; } }
 </style>
