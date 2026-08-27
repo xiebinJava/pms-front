@@ -15,13 +15,17 @@ import {
   getProjectProfileFields,
   getPersonDisplay,
   getSinglePersonSelection,
+  getProjectStatusTone,
+  normalizeRequiredReason,
   isKickoffNode,
   isNodeReadOnly,
   moveTaskStatus,
+  shouldReloadNodeTasks,
   splitNodeItems,
   shouldAutoSaveProfile,
   sortTasksByPriority,
 } from './workflow.ts'
+import { getProjectStatusLabel, ProjectStatus, statusTagColor } from '../../../enums/index.ts'
 
 test('maps node status to the visual state used by the flow', () => {
   assert.deepEqual(getFlowNodeState(2), {
@@ -64,12 +68,61 @@ test('calculates project progress from completed nodes', () => {
   assert.equal(getNodeProgress(0, 0), 0)
 })
 
+test('maps every project status to the shared visual tone and color', () => {
+  assert.deepEqual(ProjectStatus.options(), [
+    { value: 1, label: '进行中' },
+    { value: 2, label: '已完成' },
+    { value: 3, label: '已终止' },
+    { value: 4, label: '已删除' },
+  ])
+  assert.deepEqual([0, 1, 2, 3, 4].map(getProjectStatusTone), [
+    'active',
+    'active',
+    'completed',
+    'terminated',
+    'deleted',
+  ])
+  assert.deepEqual([1, 2, 3, 4].map((status) => statusTagColor[status]), [
+    'orange',
+    'green',
+    'red',
+    'red',
+  ])
+})
+
+test('renders legacy project status zero as active', () => {
+  assert.equal(getProjectStatusLabel(0), '进行中')
+  assert.equal(getProjectStatusLabel(1), '进行中')
+  assert.equal(getProjectStatusLabel(4), '已删除')
+})
+
+test('reloads tasks when the same node changes lifecycle state', () => {
+  assert.equal(shouldReloadNodeTasks(
+    { nodeId: 1, status: 2, readOnly: true },
+    { nodeId: 1, status: 1, readOnly: false },
+  ), true)
+  assert.equal(shouldReloadNodeTasks(
+    { nodeId: 1, status: 1, readOnly: false },
+    { nodeId: 1, status: 1, readOnly: false },
+  ), false)
+  assert.equal(shouldReloadNodeTasks(
+    { nodeId: 1, status: 1, readOnly: false },
+    { nodeId: 2, status: 1, readOnly: false },
+  ), true)
+})
+
 test('only allows rollback for completed nodes', () => {
   assert.equal(canRollbackNode(0, 0), false)
   assert.equal(canRollbackNode(1, 0), false)
   assert.equal(canRollbackNode(1, 1), false)
   assert.equal(canRollbackNode(1, 2), true)
   assert.equal(canRollbackNode(0, 2), true)
+})
+
+test('normalizes required lifecycle reasons before submission', () => {
+  assert.equal(normalizeRequiredReason('  回滚节点，重新确认范围  '), '回滚节点，重新确认范围')
+  assert.equal(normalizeRequiredReason('  \n  '), undefined)
+  assert.equal(normalizeRequiredReason(undefined), undefined)
 })
 
 test('splits node metadata into clean display items', () => {

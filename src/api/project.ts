@@ -58,6 +58,7 @@ export interface ProjectStats {
   active: number
   completed: number
   terminated: number
+  deleted: number
   avgProgress: number
 }
 

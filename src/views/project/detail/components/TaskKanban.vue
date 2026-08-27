@@ -8,7 +8,14 @@ import { getMilestones } from '/@/api/milestone'
 import { Priority, TaskStatus, priorityTagColor } from '/@/enums'
 import { formatDate } from '/@/utils/format'
 import type { Milestone, Project, ProjectMember, ProjectNode, Task } from '/@/types/domain'
-import { buildTaskPayload, formatPersonLabel, isNodeReadOnly, moveTaskStatus, sortTasksByPriority } from '../workflow'
+import {
+  buildTaskPayload,
+  formatPersonLabel,
+  isNodeReadOnly,
+  moveTaskStatus,
+  shouldReloadNodeTasks,
+  sortTasksByPriority,
+} from '../workflow'
 import PersonSelect from './PersonSelect.vue'
 
 const props = defineProps<{ projectId: number; nodeId: number; project: Project; node: ProjectNode }>()
@@ -51,6 +58,11 @@ const form = reactive({
 const rules = { title: [{ required: true, message: '请输入任务标题' }] }
 
 const nodeReadOnly = computed(() => props.node.permissions?.readOnly ?? isNodeReadOnly(props.node.status))
+const taskScope = computed(() => ({
+  nodeId: props.nodeId,
+  status: props.node.status,
+  readOnly: nodeReadOnly.value,
+}))
 const canManageTasks = computed(() => props.node.permissions?.canManageTasks ?? !nodeReadOnly.value)
 const editingTask = computed(() => modalState.editingId == null
   ? null
@@ -170,7 +182,8 @@ function onDelete(task: Task) {
 }
 
 onMounted(loadAll)
-watch(() => props.nodeId, () => {
+watch(taskScope, (next, previous) => {
+  if (!shouldReloadNodeTasks(previous, next)) return
   modalState.open = false
   loadAll()
 })

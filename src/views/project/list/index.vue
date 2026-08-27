@@ -2,19 +2,14 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  CheckCircleOutlined,
-  ClockCircleOutlined,
   ExclamationCircleOutlined,
   PlusOutlined,
-  ProjectOutlined,
   ReloadOutlined,
   SearchOutlined,
-  ThunderboltOutlined,
 } from '@ant-design/icons-vue'
 import { Modal, message } from 'ant-design-vue'
-import { createProject, deleteProject, getProjectPage, getProjectStats, updateProject } from '/@/api/project'
-import type { ProjectStats } from '/@/api/project'
-import { ProjectStatus, Priority, statusTagColor, priorityTagColor } from '/@/enums'
+import { createProject, deleteProject, getProjectPage, updateProject } from '/@/api/project'
+import { getProjectStatusLabel, ProjectStatus, Priority, statusTagColor, priorityTagColor } from '/@/enums'
 import { formatDate } from '/@/utils/format'
 import type { Project } from '/@/types/domain'
 
@@ -35,7 +30,6 @@ const columns = [
 const query = reactive({ keyword: '', status: undefined as number | undefined })
 const dataSource = ref<Project[]>([])
 const loading = ref(false)
-const stats = ref<ProjectStats>({ total: 0, active: 0, completed: 0, terminated: 0, avgProgress: 0 })
 const pagination = reactive({ current: 1, pageSize: 10, total: 0 })
 
 const modalState = reactive({
@@ -59,18 +53,14 @@ const rules = {
 async function loadData() {
   loading.value = true
   try {
-    const [data, statsData] = await Promise.all([
-      getProjectPage({
-        currPage: pagination.current,
-        pageSize: pagination.pageSize,
-        keyword: query.keyword || undefined,
-        status: query.status,
-      }),
-      getProjectStats(),
-    ])
+    const data = await getProjectPage({
+      currPage: pagination.current,
+      pageSize: pagination.pageSize,
+      keyword: query.keyword || undefined,
+      status: query.status,
+    })
     dataSource.value = data.list
     pagination.total = data.total
-    stats.value = statsData
   } finally {
     loading.value = false
   }
@@ -172,55 +162,6 @@ onMounted(loadData)
       </a-button>
     </div>
 
-    <!-- 统计卡片 -->
-    <div class="pms-stat-grid">
-      <div class="pms-stat-card">
-        <div class="pms-stat-card__icon pms-stat-card__icon--primary">
-          <ProjectOutlined />
-        </div>
-        <div>
-          <div class="pms-stat-card__value">{{ stats.total }}</div>
-          <div class="pms-stat-card__label">项目总数</div>
-        </div>
-      </div>
-      <div class="pms-stat-card">
-        <div class="pms-stat-card__icon pms-stat-card__icon--primary">
-          <ThunderboltOutlined />
-        </div>
-        <div>
-          <div class="pms-stat-card__value">{{ stats.active }}</div>
-          <div class="pms-stat-card__label">进行中</div>
-        </div>
-      </div>
-      <div class="pms-stat-card">
-        <div class="pms-stat-card__icon pms-stat-card__icon--success">
-          <CheckCircleOutlined />
-        </div>
-        <div>
-          <div class="pms-stat-card__value">{{ stats.completed }}</div>
-          <div class="pms-stat-card__label">已完成</div>
-        </div>
-      </div>
-      <div class="pms-stat-card">
-        <div class="pms-stat-card__icon pms-stat-card__icon--danger">
-          <ExclamationCircleOutlined />
-        </div>
-        <div>
-          <div class="pms-stat-card__value">{{ stats.terminated }}</div>
-          <div class="pms-stat-card__label">已终止</div>
-        </div>
-      </div>
-      <div class="pms-stat-card">
-        <div class="pms-stat-card__icon pms-stat-card__icon--warning">
-          <ClockCircleOutlined />
-        </div>
-        <div>
-          <div class="pms-stat-card__value">{{ stats.avgProgress }}%</div>
-          <div class="pms-stat-card__label">平均进度</div>
-        </div>
-      </div>
-    </div>
-
     <a-card :bordered="false" class="pms-table-card">
       <div class="pms-table-toolbar">
         <div class="pms-table-toolbar__filters">
@@ -258,7 +199,7 @@ onMounted(loadData)
             <div class="pms-table-subtext">{{ record.code }}</div>
           </template>
           <template v-else-if="column.key === 'status'">
-            <a-tag :color="statusTagColor[record.status]">{{ ProjectStatus.label(record.status) }}</a-tag>
+            <a-tag :color="statusTagColor[record.status]">{{ getProjectStatusLabel(record.status) }}</a-tag>
           </template>
           <template v-else-if="column.key === 'priority'">
             <a-tag
@@ -357,41 +298,6 @@ onMounted(loadData)
   font-weight: 650;
 }
 
-.pms-stat-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.pms-stat-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 82px;
-  padding: 16px;
-  background: var(--pms-surface);
-  border: 1px solid var(--pms-border);
-  border-radius: var(--pms-radius);
-  box-shadow: var(--pms-shadow-sm);
-}
-
-.pms-stat-card__icon {
-  display: grid;
-  width: 40px;
-  height: 40px;
-  place-items: center;
-  border-radius: 7px;
-  font-size: var(--pms-font-size-section);
-}
-
-.pms-stat-card__icon--primary { color: var(--pms-primary); background: var(--pms-primary-soft); }
-.pms-stat-card__icon--success { color: var(--pms-success); background: var(--pms-success-soft); }
-.pms-stat-card__icon--warning { color: var(--pms-warning); background: var(--pms-warning-soft); }
-.pms-stat-card__icon--danger { color: var(--pms-danger); background: var(--pms-danger-soft); }
-.pms-stat-card__value { color: var(--pms-text); font-size: 20px; font-weight: 720; line-height: 1; }
-.pms-stat-card__label { margin-top: 6px; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
-
 .pms-table-card {
   overflow: hidden;
   background: var(--pms-surface);
@@ -432,15 +338,10 @@ onMounted(loadData)
 :deep(.ant-table-tbody > tr:hover > td) { background: var(--pms-surface-muted) !important; }
 :deep(.ant-modal-content) { border: 1px solid var(--pms-border); border-radius: var(--pms-radius); box-shadow: var(--pms-shadow-md); }
 
-@media (max-width: 900px) {
-  .pms-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
 @media (max-width: 640px) {
   .pms-page-header, .pms-table-toolbar { align-items: stretch; flex-direction: column; }
   .pms-table-toolbar__filters { flex-wrap: wrap; }
   .pms-search-input { width: min(100%, 260px); }
-  .pms-stat-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
   :deep(.ant-card-body) { padding: 14px; }
 }
 

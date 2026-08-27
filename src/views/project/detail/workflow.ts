@@ -46,6 +46,8 @@ export interface PersonOption {
   avatar?: string
 }
 
+export type ProjectStatusTone = 'pending' | 'active' | 'completed' | 'terminated' | 'deleted'
+
 export function formatPersonLabel(user: { id: number; nickname?: string; username?: string }): string {
   const nickname = user.nickname?.trim()
   const username = user.username?.trim()
@@ -97,6 +99,15 @@ export function getMissingKickoffProfileFields(profile: {
 
 export function getProjectManagerDisplay(name?: string): string {
   return name?.trim() || '待确认'
+}
+
+export function getProjectStatusTone(status?: number): ProjectStatusTone {
+  if (status === 1) return 'active'
+  if (status === 2) return 'completed'
+  if (status === 3) return 'terminated'
+  if (status === 4) return 'deleted'
+  // 兼容历史状态 0 和接口缺省值，项目状态统一展示为进行中。
+  return 'active'
 }
 
 export function getNodeOwnerDisplay(name?: string): string {
@@ -151,12 +162,33 @@ export function canRollbackNode(_sort: number, status: number): boolean {
   return status === 2
 }
 
+export function normalizeRequiredReason(value?: string): string | undefined {
+  const reason = value?.trim()
+  return reason || undefined
+}
+
 export function shouldAutoSaveProfile(
   dirty: boolean,
   clickedInsideProfile: boolean,
   clickedInsideOverlay: boolean,
 ): boolean {
   return dirty && !clickedInsideProfile && !clickedInsideOverlay
+}
+
+export interface NodeTaskScope {
+  nodeId?: number
+  status?: number
+  readOnly: boolean
+}
+
+export function shouldReloadNodeTasks(
+  previous?: NodeTaskScope,
+  next?: NodeTaskScope,
+): boolean {
+  if (!previous || !next) return false
+  return previous.nodeId !== next.nodeId
+    || previous.status !== next.status
+    || previous.readOnly !== next.readOnly
 }
 
 export function getNodeScopedParams(nodeId?: number): { params?: { nodeId: number } } {

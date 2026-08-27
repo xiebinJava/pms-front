@@ -4,6 +4,7 @@ export interface User {
   nickname: string
   email?: string
   avatar?: string
+  systemRole?: number
 }
 
 export interface Project {

@@ -14,7 +14,7 @@ import { getMembers } from '/@/api/member'
 import { getProject, restoreProject, terminateProject, updateProject, uploadProjectImage } from '/@/api/project'
 import { completeNode, getNodes, rollbackNode, updateNodeOwner } from '/@/api/node'
 import { searchUsers } from '/@/api/user'
-import { Priority, ProjectStatus, statusTagColor } from '/@/enums'
+import { getProjectStatusLabel, Priority, statusTagColor } from '/@/enums'
 import { formatDate, formatDateTime } from '/@/utils/format'
 import {
   canRollbackNode,
@@ -26,8 +26,10 @@ import {
   getProjectProfileFields,
   getNodeProgress,
   getNodeStatusMeta,
+  getProjectStatusTone,
   isNodeReadOnly,
   isKickoffNode,
+  normalizeRequiredReason,
   shouldAutoSaveProfile,
 } from './workflow'
 import NodeNavigator from './components/NodeNavigator.vue'
@@ -62,6 +64,19 @@ const projectProfileFields = getProjectProfileFields()
 const members = ref<ProjectMember[]>([])
 const followers = ref<User[]>([])
 const profileUserOptions = ref<PersonOption[]>([])
+type ReasonAction = 'terminate' | 'restore' | 'rollback'
+
+const reasonModal = reactive({
+  open: false,
+  action: null as ReasonAction | null,
+  title: '',
+  description: '',
+  okText: '确认',
+  okType: 'primary' as 'primary' | 'danger',
+})
+const reasonValue = ref('')
+const reasonSubmitting = ref(false)
+const rollbackTargetNode = ref<ProjectNode | null>(null)
 const profileForm = reactive({
   description: '',
   priority: 1,
@@ -100,10 +115,7 @@ const projectManagerDisplay = computed(() => getPersonDisplay(
   project.value?.projectManagerName,
 ))
 const projectStatusTone = computed(() => {
-  if (project.value?.status === 2) return 'completed'
-  if (project.value?.status === 3) return 'terminated'
-  if (project.value?.status === 1) return 'active'
-  return 'pending'
+  return getProjectStatusTone(project.value?.status)
 })
 const canManageProject = computed(() => project.value?.permissions?.canManageProject ?? project.value?.status === 1)
 const canAssignNodeOwner = computed(() => project.value?.permissions?.canAssignNodeOwner ?? project.value?.status === 1)
@@ -340,55 +352,87 @@ async function refreshAfterLifecycle(preferredStatus: number) {
   if (preferredNode) activeNodeId.value = preferredNode.id
 }
 
-function onTerminate() {
-  if (!canTerminateProject.value) return
-  Modal.confirm({
-    title: '终止项目',
-    content: '终止后当前节点会标记为已终止，后续节点保持未开始，项目数据仍会保留。',
-    okText: '终止项目',
-    okType: 'danger',
-    cancelText: '取消',
-    onOk: async () => {
-      const reason = window.prompt('请输入终止原因')?.trim()
-      if (!reason) {
-        message.warning('请输入终止原因后再提交')
+function openReasonModal(action: ReasonAction, targetNode?: ProjectNode) {
+  reasonValue.value = ''
+  rollbackTargetNode.value = targetNode || null
+  Object.assign(reasonModal, {
+    open: true,
+    action,
+    title: action === 'terminate' ? '终止项目' : action === 'restore' ? '恢复项目' : '回滚节点',
+    description: action === 'terminate'
+      ? '终止后当前节点会标记为已终止，后续节点保持未开始，项目数据仍会保留。'
+      : action === 'restore'
+        ? '恢复后将从终止节点继续推进，终止节点会重新进入进行中。'
+        : `确定将项目回滚至「${targetNode?.name || ''}」吗？该节点之后的节点会恢复为待开始。`,
+    okText: action === 'terminate' ? '终止项目' : action === 'restore' ? '恢复项目' : '确认回滚',
+    okType: action === 'terminate' ? 'danger' : 'primary',
+  })
+}
+
+function closeReasonModal() {
+  if (reasonSubmitting.value) return
+  reasonModal.open = false
+  reasonModal.action = null
+  rollbackTargetNode.value = null
+  reasonValue.value = ''
+}
+
+async function onReasonModalOk() {
+  const reason = normalizeRequiredReason(reasonValue.value)
+  if (!reason) {
+    message.warning('请输入原因后再提交')
+    return
+  }
+
+  const action = reasonModal.action
+  if (!action) return
+
+  reasonSubmitting.value = true
+  if (action === 'rollback') rollingBack.value = true
+  else lifecycleSaving.value = true
+
+  try {
+    if (action === 'terminate') {
+      await terminateProject(projectId.value, reason)
+      await refreshAfterLifecycle(3)
+      message.success('项目已终止')
+    } else if (action === 'restore') {
+      await restoreProject(projectId.value, reason)
+      await refreshAfterLifecycle(1)
+      message.success('项目已恢复')
+    } else {
+      const targetNode = rollbackTargetNode.value
+      if (!targetNode) {
+        message.error('未找到待回滚节点，请刷新后重试')
         return
       }
-      lifecycleSaving.value = true
-      try {
-        await terminateProject(projectId.value, reason)
-        await refreshAfterLifecycle(3)
-        message.success('项目已终止')
-      } finally {
-        lifecycleSaving.value = false
-      }
-    },
-  })
+      const nextNodes = await rollbackNode(projectId.value, targetNode.id, reason)
+      nodes.value = nextNodes
+      project.value = await getProject(projectId.value)
+      activeNodeId.value = targetNode.id
+      message.success(`已回滚至「${targetNode.name}」`)
+    }
+    reasonModal.open = false
+    reasonModal.action = null
+    rollbackTargetNode.value = null
+    reasonValue.value = ''
+  } catch {
+    message.error(action === 'rollback' ? '节点回滚失败，请检查权限或稍后重试' : '项目状态更新失败，请稍后重试')
+  } finally {
+    reasonSubmitting.value = false
+    rollingBack.value = false
+    lifecycleSaving.value = false
+  }
+}
+
+function onTerminate() {
+  if (!canTerminateProject.value) return
+  openReasonModal('terminate')
 }
 
 function onRestore() {
   if (!canRestoreProject.value) return
-  Modal.confirm({
-    title: '恢复项目',
-    content: '恢复后将从终止节点继续推进，终止节点会重新进入进行中。',
-    okText: '恢复项目',
-    cancelText: '取消',
-    onOk: async () => {
-      const reason = window.prompt('请输入恢复原因')?.trim()
-      if (!reason) {
-        message.warning('请输入恢复原因后再提交')
-        return
-      }
-      lifecycleSaving.value = true
-      try {
-        await restoreProject(projectId.value, reason)
-        await refreshAfterLifecycle(1)
-        message.success('项目已恢复')
-      } finally {
-        lifecycleSaving.value = false
-      }
-    },
-  })
+  openReasonModal('restore')
 }
 
 function onRollback() {
@@ -397,29 +441,7 @@ function onRollback() {
     message.info('当前节点暂不可回滚')
     return
   }
-  Modal.confirm({
-    title: '回滚节点',
-    content: `确定将项目回滚至「${targetNode.name}」吗？该节点之后的节点会恢复为待开始。`,
-    okText: '确认回滚',
-    cancelText: '取消',
-    onOk: async () => {
-      const reason = window.prompt('请输入回滚原因')?.trim()
-      if (!reason) {
-        message.warning('请输入回滚原因后再提交')
-        return
-      }
-      rollingBack.value = true
-      try {
-        const nextNodes = await rollbackNode(projectId.value, targetNode.id, reason)
-        nodes.value = nextNodes
-        project.value = await getProject(projectId.value)
-        activeNodeId.value = targetNode.id
-        message.success(`已回滚至「${targetNode.name}」`)
-      } finally {
-        rollingBack.value = false
-      }
-    },
-  })
+  openReasonModal('rollback', targetNode)
 }
 
 onMounted(() => {
@@ -451,7 +473,7 @@ onBeforeUnmount(() => {
             <span v-else />
           </span>
           <h1>{{ project.name }}</h1>
-          <a-tag :color="statusTagColor[project.status]">{{ ProjectStatus.label(project.status) }}</a-tag>
+          <a-tag :color="statusTagColor[project.status]">{{ getProjectStatusLabel(project.status) }}</a-tag>
           <span v-if="elapsedDays !== null" class="project-elapsed">已进行 {{ elapsedDays }} 天</span>
           <a-button
             v-if="canTerminateProject"
@@ -734,6 +756,31 @@ onBeforeUnmount(() => {
         </a-tab-pane>
       </a-tabs>
     </section>
+
+    <a-modal
+      v-model:open="reasonModal.open"
+      :title="reasonModal.title"
+      :ok-text="reasonModal.okText"
+      :ok-type="reasonModal.okType"
+      :confirm-loading="reasonSubmitting"
+      :mask-closable="!reasonSubmitting"
+      :closable="!reasonSubmitting"
+      @ok="onReasonModalOk"
+      @cancel="closeReasonModal"
+    >
+      <p class="reason-modal__description">{{ reasonModal.description }}</p>
+      <div class="reason-modal__field">
+        <div class="reason-modal__label"><span>*</span> 原因</div>
+        <a-textarea
+          v-model:value="reasonValue"
+          :rows="4"
+          :maxlength="200"
+          show-count
+          :disabled="reasonSubmitting"
+          placeholder="请输入原因"
+        />
+      </div>
+    </a-modal>
   </div>
 </template>
 
@@ -754,7 +801,7 @@ onBeforeUnmount(() => {
 .project-status-icon, .node-detail-title__dot { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 20px; height: 20px; color: #fff; font-size: var(--pms-font-size-compact); border-radius: 6px; }
 .project-status-icon--active, .node-detail-title__dot--1 { background: var(--pms-warning); }
 .project-status-icon--completed, .node-detail-title__dot--2 { background: var(--pms-success); }
-.project-status-icon--terminated, .node-detail-title__dot--3 { background: var(--pms-danger); }
+.project-status-icon--terminated, .project-status-icon--deleted, .node-detail-title__dot--3 { background: var(--pms-danger); }
 .project-status-icon--pending, .node-detail-title__dot--0 { background: var(--pms-status-neutral); }
 .project-status-icon > span { width: 7px; height: 7px; background: #fff; border-radius: 50%; }
 .project-elapsed { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
@@ -825,6 +872,10 @@ onBeforeUnmount(() => {
 .project-people-item .project-profile-field__label { flex: 0 0 auto; }
 .project-people-control { min-width: 0; flex: 1; }
 .section-title-row--compact { margin-bottom: 6px; }
+.reason-modal__description { margin: 0 0 16px; color: var(--pms-text-muted); font-size: var(--pms-font-size-body); line-height: var(--pms-line-height-normal); }
+.reason-modal__field { display: grid; gap: 7px; }
+.reason-modal__label { color: var(--pms-text); font-size: var(--pms-font-size-body); }
+.reason-modal__label span { margin-right: 3px; color: var(--pms-danger); }
 @media (max-width: 900px) {
   .project-header { flex-direction: column; }
   .project-header__summary { min-width: 0; padding-top: 20px; padding-left: 0; border-top: 1px solid var(--pms-border); border-left: 0; }
