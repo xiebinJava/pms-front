@@ -293,7 +293,7 @@ watch(taskScope, (next, previous) => {
           </a-select>
         </a-form-item>
         <a-form-item label="截止日期">
-          <a-date-picker v-model:value="form.dueDate" :disabled="!canEditModal" value-format="YYYY-MM-DD" style="width: 100%" />
+          <a-date-picker v-model:value="form.dueDate" :disabled="!canEditModal" value-format="YYYY-MM-DD" placeholder="截止日期" style="width: 100%" />
         </a-form-item>
       </div>
     </a-form>
@@ -312,12 +312,12 @@ watch(taskScope, (next, previous) => {
   position: relative;
   min-height: 74px;
   padding: 12px 14px;
-  box-shadow: 0 3px 10px rgb(15 23 42 / 6%);
+  box-shadow: 0 6px 16px rgb(15 23 42 / 10%);
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 .pms-task-card:hover {
   border-color: var(--pms-primary);
-  box-shadow: 0 8px 18px rgb(15 23 42 / 12%);
+  box-shadow: 0 12px 24px rgb(15 23 42 / 16%);
   transform: translateY(-1px);
 }
 .pms-task-card__delete {
@@ -335,12 +335,14 @@ watch(taskScope, (next, previous) => {
   border: 1px solid var(--pms-border);
   border-radius: 5px;
   opacity: 0;
+  pointer-events: none;
   cursor: pointer;
   transition: color 160ms ease, border-color 160ms ease, opacity 160ms ease;
 }
 .pms-task-card:hover .pms-task-card__delete,
 .pms-task-card:focus-within .pms-task-card__delete {
   opacity: 1;
+  pointer-events: auto;
 }
 .pms-task-card__delete:hover {
   color: var(--pms-danger);

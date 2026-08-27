@@ -1,4 +1,4 @@
-import type { ProjectNode } from '/@/types/domain'
+import type { OrgUnit, ProjectNode } from '/@/types/domain'
 
 export type FlowNodeTone = 'completed' | 'active' | 'locked' | 'terminated'
 
@@ -44,6 +44,12 @@ export interface PersonOption {
   value: number
   label: string
   avatar?: string
+}
+
+export interface BusinessLineOption {
+  value: number
+  label: string
+  children?: BusinessLineOption[]
 }
 
 export type ProjectStatusTone = 'pending' | 'active' | 'completed' | 'terminated' | 'deleted'
@@ -110,6 +116,29 @@ export function getProjectProfileFields(): ProjectProfileFieldDefinition[] {
     { key: 'schedule', label: '项目排期' },
     { key: 'businessLine', label: '业务线' },
   ]
+}
+
+/** 组织树转为级联选择器数据；公司总部仅作为容器，不作为业务线选项。 */
+export function buildBusinessLineOptions(units: OrgUnit[]): BusinessLineOption[] {
+  return units.flatMap((unit) => {
+    const children = buildBusinessLineOptions(unit.children || [])
+    if (unit.typeCode === 'COMPANY') return children
+    return [{
+      value: unit.id,
+      label: unit.name,
+      ...(children.length ? { children } : {}),
+    }]
+  })
+}
+
+export function getOrgUnitPath(units: OrgUnit[], targetId?: number): number[] {
+  if (targetId == null) return []
+  for (const unit of units) {
+    const childPath = getOrgUnitPath(unit.children || [], targetId)
+    if (unit.id === targetId) return unit.typeCode === 'COMPANY' ? [] : [unit.id]
+    if (childPath.length) return unit.typeCode === 'COMPANY' ? childPath : [unit.id, ...childPath]
+  }
+  return []
 }
 
 export function getMissingKickoffProfileFields(profile: {

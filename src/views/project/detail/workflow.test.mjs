@@ -11,6 +11,8 @@ import {
   getNodeScopedParams,
   getMissingKickoffProfileFields,
   formatPersonLabel,
+  buildBusinessLineOptions,
+  getOrgUnitPath,
   getProjectManagerDisplay,
   getProjectProfileFields,
   getPersonDisplay,
@@ -161,6 +163,27 @@ test('keeps creation time out of the editable project profile', () => {
     'schedule',
     'businessLine',
   ])
+})
+
+test('builds hierarchical business line options without exposing the company root', () => {
+  const tree = [{
+    id: 1,
+    name: '公司总部',
+    typeCode: 'COMPANY',
+    children: [{
+      id: 2,
+      name: '产品制造 BG',
+      typeCode: 'BG',
+      children: [{ id: 3, name: 'PDT-01', typeCode: 'TEAM' }],
+    }],
+  }]
+
+  assert.deepEqual(buildBusinessLineOptions(tree), [{
+    value: 2,
+    label: '产品制造 BG',
+    children: [{ value: 3, label: 'PDT-01' }],
+  }])
+  assert.deepEqual(getOrgUnitPath(tree, 3), [2, 3])
 })
 
 test('requires all kickoff profile fields except followers', () => {

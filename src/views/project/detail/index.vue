@@ -19,6 +19,7 @@ import { getProjectStatusLabel, Priority, statusTagColor } from '/@/enums'
 import { formatDate, formatDateTime } from '/@/utils/format'
 import {
   canRollbackNode,
+  buildBusinessLineOptions,
   getElapsedDays,
   getMissingKickoffProfileFields,
   formatPersonLabel,
@@ -27,6 +28,7 @@ import {
   getProjectProfileFields,
   getNodeProgress,
   getNodeStatusMeta,
+  getOrgUnitPath,
   getProjectStatusTone,
   isNodeReadOnly,
   isKickoffNode,
@@ -103,22 +105,19 @@ const nodeOwnerOptions = computed(() => members.value.map((member) => ({
   label: formatPersonLabel({ id: member.userId, nickname: member.nickname, username: member.username }),
   avatar: member.avatar,
 })))
-function flattenOrgUnits(units: OrgUnit[], depth = 0): Array<{ id: number; name: string; typeCode?: string; depth: number }> {
-  return units.flatMap((unit) => [
-    { id: unit.id, name: unit.name, typeCode: unit.typeCode, depth },
-    ...flattenOrgUnits(unit.children || [], depth + 1),
-  ])
-}
 const businessLineOptions = computed(() => {
-  const flattened = flattenOrgUnits(orgTree.value)
-  const businessGroups = flattened.filter((unit) => unit.typeCode === 'BG')
-  const current = profileForm.orgUnitId == null ? undefined : flattened.find((unit) => unit.id === profileForm.orgUnitId)
-  const source = businessGroups.length ? businessGroups : flattened.filter((unit) => unit.typeCode !== 'COMPANY')
-  if (current && !source.some((unit) => unit.id === current.id)) source.unshift(current)
-  return source.map((unit) => ({
-    value: unit.id,
-    label: `${'　'.repeat(unit.depth)}${unit.name}`,
-  }))
+  return buildBusinessLineOptions(orgTree.value)
+})
+const businessLinePath = computed<number[] | undefined>({
+  get: () => {
+    const path = getOrgUnitPath(orgTree.value, profileForm.orgUnitId)
+    return path.length ? path : undefined
+  },
+  set: (value) => {
+    const path = Array.isArray(value) ? value : []
+    profileForm.orgUnitId = path.length ? Number(path[path.length - 1]) : undefined
+    markProfileDirty()
+  },
 })
 const projectCreatorOption = computed(() => {
   const creatorId = project.value?.createdBy
@@ -661,32 +660,35 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="node-owner-row">
-        <span class="node-owner-row__label">节点负责人</span>
-        <div class="node-owner-row__control">
-          <PersonSelect
-            :model-value="activeNode.ownerId"
-            class="node-owner-row__select"
-            :options="nodeOwnerOptions"
-            :loading="nodeOwnerSaving"
-            :disabled="!canAssignNodeOwner || activeNodeReadOnly"
-            :placeholder="getNodeOwnerDisplay(activeNode.ownerName)"
-            @change="onNodeOwnerSelection"
-          />
+      <div class="node-assignment-row">
+        <div class="node-owner-row">
+          <span class="node-owner-row__label">节点负责人</span>
+          <div class="node-owner-row__control">
+            <PersonSelect
+              :model-value="activeNode.ownerId"
+              class="node-owner-row__select"
+              :options="nodeOwnerOptions"
+              :loading="nodeOwnerSaving"
+              :disabled="!canAssignNodeOwner || activeNodeReadOnly"
+              :placeholder="getNodeOwnerDisplay(activeNode.ownerName)"
+              @change="onNodeOwnerSelection"
+            />
+          </div>
         </div>
-      </div>
 
-      <div class="node-owner-row node-schedule-row">
-        <span class="node-owner-row__label">节点排期</span>
-        <div class="node-owner-row__control">
-          <a-range-picker
-            v-model:value="nodeSchedule"
-            value-format="YYYY-MM-DD"
-            class="node-schedule-picker"
-            :disabled="!canEditActiveNode || activeNodeReadOnly"
-            @change="onNodeScheduleChange"
-          />
-          <a-spin v-if="nodeScheduleSaving" size="small" />
+        <div class="node-owner-row node-schedule-row">
+          <span class="node-owner-row__label">节点排期</span>
+          <div class="node-owner-row__control">
+            <a-range-picker
+              v-model:value="nodeSchedule"
+              value-format="YYYY-MM-DD"
+              class="node-schedule-picker"
+              :placeholder="['开始日期', '结束日期']"
+              :disabled="!canEditActiveNode || activeNodeReadOnly"
+              @change="onNodeScheduleChange"
+            />
+            <a-spin v-if="nodeScheduleSaving" size="small" />
+          </div>
         </div>
       </div>
 
@@ -741,21 +743,22 @@ onBeforeUnmount(() => {
                   :disabled="!canManageProject || activeNodeReadOnly"
                   @change="markProfileDirty"
                 />
-                <a-select
+                <a-cascader
                   v-else-if="field.key === 'businessLine'"
-                  v-model:value="profileForm.orgUnitId"
+                  v-model:value="businessLinePath"
                   class="project-profile-control"
                   :options="businessLineOptions"
+                  :change-on-select="true"
                   allow-clear
                   placeholder="选择业务线"
                   :disabled="!canManageProject || activeNodeReadOnly"
-                  @change="markProfileDirty"
                 />
                 <a-range-picker
                   v-else-if="field.key === 'schedule'"
                   v-model:value="profileForm.schedule"
                   value-format="YYYY-MM-DD"
                   class="project-profile-control"
+                  :placeholder="['开始日期', '结束日期']"
                   :disabled="!canManageProject || activeNodeReadOnly"
                   @change="markProfileDirty"
                 />
@@ -932,11 +935,12 @@ onBeforeUnmount(() => {
 .node-detail-title__copy { min-width: 0; flex: 1; }
 .node-detail-title__heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .node-detail-title__description { max-width: 100%; margin: 4px 0 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-normal); }
-.node-owner-row { display: flex; align-items: center; gap: 10px; width: calc((100% - 56px) / 3); min-width: 280px; margin-top: 16px; }
+.node-assignment-row { display: flex; align-items: flex-end; gap: 24px; margin-top: 16px; }
+.node-owner-row { display: flex; align-items: center; flex: 1 1 0; gap: 10px; width: auto; min-width: 0; }
 .node-owner-row__label { flex: 0 0 76px; color: var(--pms-text-muted); font-size: var(--pms-font-size-body); }
 .node-owner-row__control { display: flex; flex: 1 1 auto; align-items: center; gap: 8px; width: auto; min-width: 0; }
 .node-owner-row__select { width: 100%; }
-.node-schedule-row { margin-top: 10px; }
+.node-schedule-row { margin-top: 0; }
 .node-schedule-picker { width: min(100%, 380px); }
 .profile-section-title { margin-bottom: 14px; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
 .profile-section-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
@@ -978,6 +982,7 @@ onBeforeUnmount(() => {
   .project-header__summary { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
   .node-detail-header, .section-title-row { align-items: flex-start; flex-direction: column; }
   .node-detail-actions { align-self: stretch; justify-content: flex-end; }
+  .node-assignment-row { align-items: stretch; flex-direction: column; gap: 10px; }
   .node-owner-row { align-items: flex-start; flex-direction: column; gap: 8px; width: 100%; min-width: 0; }
   .node-owner-row__control, .node-owner-row__select { width: 100%; }
   .node-owner-row__control { flex-basis: auto; }

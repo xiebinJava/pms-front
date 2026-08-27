@@ -255,10 +255,10 @@ onMounted(loadData)
             </a-select>
           </a-form-item>
           <a-form-item label="开始日期">
-            <a-date-picker v-model:value="form.startDate" value-format="YYYY-MM-DD" style="width: 100%" />
+            <a-date-picker v-model:value="form.startDate" value-format="YYYY-MM-DD" placeholder="开始日期" style="width: 100%" />
           </a-form-item>
           <a-form-item label="结束日期">
-            <a-date-picker v-model:value="form.endDate" value-format="YYYY-MM-DD" style="width: 100%" />
+            <a-date-picker v-model:value="form.endDate" value-format="YYYY-MM-DD" placeholder="结束日期" style="width: 100%" />
           </a-form-item>
         </div>
       </a-form>

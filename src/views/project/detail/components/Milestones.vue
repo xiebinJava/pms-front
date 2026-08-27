@@ -149,7 +149,7 @@ onMounted(loadData)
           </a-select>
         </a-form-item>
         <a-form-item label="计划日期">
-          <a-date-picker v-model:value="form.dueDate" value-format="YYYY-MM-DD" style="width: 100%" />
+          <a-date-picker v-model:value="form.dueDate" value-format="YYYY-MM-DD" placeholder="计划日期" style="width: 100%" />
         </a-form-item>
       </div>
     </a-form>
