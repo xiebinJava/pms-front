@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { OrgUnit } from '/@/types/domain'
 
 const props = defineProps<{ units: OrgUnit[]; selected?: number; readonly?: boolean }>()
@@ -151,8 +151,32 @@ function handleWheel(event: WheelEvent) {
 
 function resetView() {
   zoom.value = 1
-  pan.value = { x: 28, y: 28 }
+  centerView()
 }
+
+function centerView() {
+  const viewport = viewportRef.value
+  if (!viewport) {
+    pan.value = { x: 28, y: 28 }
+    return
+  }
+  pan.value = {
+    x: Math.max(28, (viewport.clientWidth - canvas.value.width * zoom.value) / 2),
+    y: Math.max(28, (viewport.clientHeight - canvas.value.height * zoom.value) / 2),
+  }
+}
+
+let resizeObserver: ResizeObserver | undefined
+onMounted(async () => {
+  await nextTick()
+  centerView()
+  if (typeof ResizeObserver !== 'undefined' && viewportRef.value) {
+    resizeObserver = new ResizeObserver(() => { if (!isPanning.value) centerView() })
+    resizeObserver.observe(viewportRef.value)
+  }
+})
+onBeforeUnmount(() => resizeObserver?.disconnect())
+watch(() => [canvas.value.width, canvas.value.height], () => { if (!isPanning.value) centerView() })
 </script>
 
 <template>
