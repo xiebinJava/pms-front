@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { OrgUnit } from '/@/types/domain'
-defineProps<{ units: OrgUnit[]; selected?: number }>()
+const props = defineProps<{ units: OrgUnit[]; selected?: number; readonly?: boolean }>()
 const emit = defineEmits<{ select: [unit: OrgUnit]; move: [id: number, parentId: number | undefined] }>()
 function drop(event: DragEvent, parentId: number) {
   event.preventDefault()
+  if (props.readonly) return
   const raw = event.dataTransfer?.getData('text/plain')
   const id = raw ? Number(raw) : NaN
   if (Number.isFinite(id) && id !== parentId) emit('move', id, parentId)
@@ -14,10 +15,10 @@ function forwardMove(id: number, parentId: number | undefined) { emit('move', id
 <template>
   <div class="org-canvas">
     <div v-for="unit in units" :key="unit.id" class="org-branch">
-      <button class="org-node" draggable="true" :class="{ selected: selected === unit.id }" @dragstart="event => event.dataTransfer?.setData('text/plain', String(unit.id))" @dragover.prevent @drop="event => drop(event, unit.id)" @click="emit('select', unit)">
+      <button class="org-node" :draggable="!props.readonly" :class="{ selected: selected === unit.id }" @dragstart="event => event.dataTransfer?.setData('text/plain', String(unit.id))" @dragover.prevent @drop="event => drop(event, unit.id)" @click="emit('select', unit)">
         <strong>{{ unit.name }}</strong><span>{{ unit.typeCode || unit.code }}</span>
       </button>
-    <div v-if="unit.children?.length" class="org-children"><OrgCanvas :units="unit.children" :selected="selected" @select="emit('select', $event)" @move="forwardMove" /></div>
+    <div v-if="unit.children?.length" class="org-children"><OrgCanvas :units="unit.children" :selected="selected" :readonly="props.readonly" @select="emit('select', $event)" @move="forwardMove" /></div>
     </div>
   </div>
 </template>

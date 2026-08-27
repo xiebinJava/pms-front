@@ -81,6 +81,7 @@ export interface OrgUnit {
   parentId?: number
   code: string
   name: string
+  leaderUserId?: number
   typeCode?: string
   status: string
   leaderDisplayName?: string

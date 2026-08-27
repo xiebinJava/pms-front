@@ -55,6 +55,7 @@ No actionable P0/P1/P2 visual findings remain.
 11. Primary actions across the page now use one shared button style: 36px height, 13px text, 14px horizontal padding, 6px radius, and consistent hover treatment.
 12. The project creator is now a lightweight identity annotation while the project manager keeps the highlighted responsibility treatment; multi-person selector chips have a consistent 4px gap.
 13. The creator annotation is placed inline before the creation time in the compact project metadata row, leaving the manager as the only highlighted person card.
+14. Enterprise administration follow-up: organization properties now support leader/type/name edits, read-only users see disabled drag/mutation controls, and audit logs expose action/resource/operator/time filters. Desktop login and 360 × 800 narrow-screen layouts were rechecked in the in-app browser on 2026-08-27; the empty login submit shows inline validation without a network request.
 
 ## Implementation checklist
 
@@ -78,5 +79,8 @@ No actionable P0/P1/P2 visual findings remain.
 - [x] Primary actions use the shared button standard across page, node detail, and collaboration toolbars.
 - [x] Creator and manager emphasis is differentiated, and multi-person chips remain visually separated.
 - [x] Creator metadata stays compact and appears before the creation time in the project header.
+- [x] Organization property editing keeps the existing leader when omitted and supports explicit leader clearing.
+- [x] Read-only organization users cannot drag or trigger mutation controls from the canvas.
+- [x] Audit filters use the shared 36px control height and collapse to a two-column narrow-screen layout.
 
 final result: passed
