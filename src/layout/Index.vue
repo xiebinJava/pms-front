@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { LogoutOutlined, ProjectOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, DashboardOutlined } from '@ant-design/icons-vue'
 import { useUserStore } from '/@/store/user'
@@ -8,6 +8,9 @@ import { message } from 'ant-design-vue'
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const passwordOpen = ref(false)
+const passwordLoading = ref(false)
+const passwordForm = reactive({ currentPassword: '', newPassword: '', confirmPassword: '' })
 
 const selectedKeys = computed(() => {
   if (route.path.startsWith('/projects')) return ['projects']
@@ -37,10 +40,27 @@ function handleMenuClick({ key }: { key: string }) {
   if (target && target !== route.path) router.push(target)
 }
 
-function logout() {
-  userStore.logout()
+async function logout() {
+  await userStore.logout()
   message.success('已退出登录')
   router.push('/login')
+}
+
+async function submitPasswordChange() {
+  if (passwordForm.newPassword.length < 12 || passwordForm.newPassword !== passwordForm.confirmPassword) {
+    message.error('请确认两次密码一致，且新密码至少 12 位')
+    return
+  }
+  passwordLoading.value = true
+  try {
+    await userStore.changePassword(passwordForm.currentPassword, passwordForm.newPassword)
+    passwordOpen.value = false
+    Object.assign(passwordForm, { currentPassword: '', newPassword: '', confirmPassword: '' })
+    message.success('密码已更新，请重新登录')
+    router.push('/login')
+  } finally {
+    passwordLoading.value = false
+  }
 }
 
 onMounted(async () => {
@@ -96,6 +116,9 @@ onMounted(async () => {
           </a>
           <template #overlay>
             <a-menu>
+              <a-menu-item key="change-password" @click="passwordOpen = true">
+                修改密码
+              </a-menu-item>
               <a-menu-item key="logout" @click="logout">
                 <LogoutOutlined />
                 退出登录
@@ -112,6 +135,13 @@ onMounted(async () => {
       </a-layout-content>
     </a-layout>
   </a-layout>
+  <a-modal v-model:open="passwordOpen" title="修改密码" ok-text="保存" cancel-text="取消" :confirm-loading="passwordLoading" @ok="submitPasswordChange">
+    <a-form layout="vertical">
+      <a-form-item label="当前密码"><a-input-password v-model:value="passwordForm.currentPassword" /></a-form-item>
+      <a-form-item label="新密码"><a-input-password v-model:value="passwordForm.newPassword" /></a-form-item>
+      <a-form-item label="确认新密码"><a-input-password v-model:value="passwordForm.confirmPassword" /></a-form-item>
+    </a-form>
+  </a-modal>
 </template>
 
 <style scoped>

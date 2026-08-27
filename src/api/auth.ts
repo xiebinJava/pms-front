@@ -23,6 +23,10 @@ export function activate(token: string, password: string) {
 export function refreshSession(): Promise<LoginResult> {
   return http.post('/auth/refresh')
 }
+export function logout() { return http.post('/auth/logout') }
+export function changePassword(currentPassword: string, newPassword: string) {
+  return http.post('/auth/password/change', { currentPassword, newPassword })
+}
 
 export function requestPasswordReset(username: string) { return http.post<{ resetUrl: string; expiresAt: string }>('/auth/password-reset/request', { username }) }
 export function confirmPasswordReset(token: string, password: string) { return http.post('/auth/password-reset/confirm', { token, password }) }

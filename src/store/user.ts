@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { login as loginApi, getMe, refreshSession } from '/@/api/auth'
+import { login as loginApi, getMe, refreshSession, logout as logoutApi, changePassword as changePasswordApi } from '/@/api/auth'
 import { clearAccessToken, getAccessToken, setAccessToken } from '/@/plugins/http'
 import type { User } from '/@/types/domain'
 
@@ -33,7 +33,18 @@ export const useUserStore = defineStore('user', {
       this.user = data.user
       return this.user
     },
-    logout() {
+    async logout() {
+      try {
+        if (this.token) await logoutApi()
+      } catch {
+        // Local cleanup must still happen when the network is unavailable.
+      }
+      clearAccessToken()
+      this.token = ''
+      this.user = null
+    },
+    async changePassword(currentPassword: string, newPassword: string) {
+      await changePasswordApi(currentPassword, newPassword)
       clearAccessToken()
       this.token = ''
       this.user = null
