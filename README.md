@@ -27,6 +27,18 @@ pnpm build      # 类型检查 + 生产构建
 pnpm typecheck  # 仅类型检查
 ```
 
+### Docker Compose
+
+后端仓库的 `docker-compose.example.yml` 会构建本目录的 Nginx 静态镜像（默认假设两个仓库
+位于同一父目录），并把 `/api` 代理到后端容器。也可以单独构建前端镜像：
+
+```bash
+docker build -t pms-front .
+docker run --rm -p 5173:80 pms-front
+```
+
+生产环境请通过反向代理限制来源，并将后端 `PMS_CORS_ALLOWED_ORIGINS` 配置为实际访问域名。
+
 ## 前端界面规范
 
 页面视觉令牌、布局、控件、状态语义和验收清单统一沉淀在
