@@ -9,6 +9,47 @@
 
 body { font-family: var(--pms-font-family); background: var(--pms-bg); }
 
+.pms-shell { min-height: 100vh; background: var(--pms-bg); }
+.pms-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: minmax(236px, 1fr) minmax(180px, 1fr) minmax(236px, 1fr);
+  align-items: center;
+  gap: 16px;
+  height: var(--pms-topbar-height);
+  padding: 0 20px;
+  background: var(--pms-surface);
+  border-bottom: 1px solid var(--pms-border);
+}
+.pms-topbar__left { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.pms-topbar__title { justify-self: center; color: var(--pms-text-muted); font-size: 12px; }
+.pms-brand { display: flex; align-items: center; gap: 10px; min-width: 236px; }
+.pms-brand__logo { display: grid; width: 30px; height: 30px; place-items: center; color: #fff; background: var(--pms-primary); border-radius: 6px; font-size: 14px; font-weight: 750; }
+.pms-brand__copy { display: grid; line-height: 1.12; }
+.pms-brand__copy strong { color: var(--pms-text); font-size: 14px; font-weight: 720; }
+.pms-brand__copy span { margin-top: 3px; color: var(--pms-text-faint); font-size: 10.5px; }
+.pms-user-menu { display: inline-flex; align-items: center; justify-self: end; gap: 9px; padding: 0; color: var(--pms-text); background: transparent; font-size: 13px; }
+.pms-user-menu__avatar { background: var(--pms-primary) !important; }
+.pms-mobile-menu { display: none; width: 34px; height: 34px; place-items: center; color: var(--pms-text-muted); background: transparent; border-radius: 6px; }
+.pms-mobile-menu:hover { color: var(--pms-text); background: var(--pms-surface-strong); }
+.pms-shell-body { display: flex; min-height: calc(100vh - var(--pms-topbar-height)); }
+.pms-sidebar { position: sticky; top: var(--pms-topbar-height); z-index: 20; display: flex; width: var(--pms-sidebar-width); height: calc(100vh - var(--pms-topbar-height)); flex: 0 0 var(--pms-sidebar-width); flex-direction: column; overflow: hidden; background: var(--pms-surface); border-right: 1px solid var(--pms-border); }
+.pms-nav { flex: 1; padding: 17px 10px 14px; }
+.pms-nav > .ant-menu { border-inline-end: 0 !important; background: transparent; }
+.pms-nav .ant-menu-item,
+.pms-nav .ant-menu-submenu-title { height: 38px; margin: 2px 0; padding-inline: 10px !important; color: var(--pms-text-muted); border-radius: 6px; font-size: 13px; font-weight: 560; line-height: 38px; }
+.pms-nav .ant-menu-item .anticon,
+.pms-nav .ant-menu-submenu-title .anticon { font-size: 16px; }
+.pms-nav .ant-menu-item:hover,
+.pms-nav .ant-menu-submenu-title:hover { color: var(--pms-text); background: var(--pms-surface-muted); }
+.pms-nav .ant-menu-item-selected { color: var(--pms-primary) !important; background: var(--pms-primary-soft) !important; font-weight: 700; }
+.pms-nav .ant-menu-item-selected::after { display: none; }
+.pms-nav .ant-menu-submenu-arrow { color: var(--pms-text-faint); }
+.pms-sidebar-scrim { display: none; }
+.pms-main-content { width: min(var(--pms-content-max-width), 100%); min-width: 0; margin: 0 auto; padding: 31px 34px 64px; }
+
 .pms-panel,
 .pms-table-panel,
 .pms-detail-panel,
@@ -188,6 +229,16 @@ body { font-family: var(--pms-font-family); background: var(--pms-bg); }
 .pms-org-workspace .org-canvas-viewport { min-height: inherit; }
 
 @media (max-width: 760px) {
+  .pms-topbar { display: flex; gap: 12px; padding: 0 12px; }
+  .pms-mobile-menu { display: inline-grid; }
+  .pms-brand { min-width: auto; }
+  .pms-brand__copy { display: none; }
+  .pms-topbar__title { overflow: hidden; flex: 1; text-overflow: ellipsis; white-space: nowrap; }
+  .pms-user-menu > span:not(.ant-avatar) { display: none; }
+  .pms-sidebar { position: fixed; left: 0; transform: translateX(-103%); transition: transform 180ms ease; box-shadow: var(--pms-shadow-md); }
+  .pms-sidebar--open { transform: translateX(0); }
+  .pms-sidebar-scrim { position: fixed; z-index: 15; inset: var(--pms-topbar-height) 0 0; display: block; width: 100%; height: calc(100vh - var(--pms-topbar-height)); background: rgb(0 0 0 / 26%); }
+  .pms-main-content { padding: 23px 18px 44px; }
   .pms-page-header,
   .pms-page-heading,
   .page-heading { flex-direction: column; gap: 13px; }
