@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { listAudit, type AuditLog, type AuditQuery } from '/@/api/admin-audit'
+import PmsPageHeader from '/@/components/PmsPageHeader.vue'
 
 const logs = ref<AuditLog[]>([])
 const loading = ref(false)
@@ -34,8 +35,10 @@ onMounted(load)
 
 <template>
   <section class="admin-page">
-    <div class="page-heading"><div><h1>审计日志</h1><p>组织、人员、角色、导入与会话变更均保留可追溯记录。</p></div><a-button @click="load">刷新</a-button></div>
-    <div class="filter-panel">
+    <PmsPageHeader title="审计日志" description="组织、人员、角色、导入与会话变更均保留可追溯记录。">
+      <template #actions><a-button class="pms-secondary-button" @click="load">刷新</a-button></template>
+    </PmsPageHeader>
+    <div class="filter-panel pms-filter-bar">
       <a-input v-model:value="query.action" placeholder="动作，如 USER_DISABLED" />
       <a-input v-model:value="query.resourceType" placeholder="资源类型，如 USER" />
       <a-input-number v-model:value="query.resourceId" :min="1" placeholder="资源 ID" />
@@ -44,7 +47,7 @@ onMounted(load)
       <a-input v-model:value="query.to" type="datetime-local" aria-label="结束时间" />
       <a-button type="primary" @click="load">筛选</a-button><a-button @click="reset">重置</a-button>
     </div>
-    <a-table :data-source="logs" :loading="loading" row-key="id" :pagination="pagination" @change="onTableChange">
+    <a-table class="pms-admin-table" :data-source="logs" :loading="loading" row-key="id" :pagination="pagination" @change="onTableChange">
       <a-table-column title="时间" data-index="createdAt" />
       <a-table-column title="动作" data-index="action" />
       <a-table-column title="资源" key="resource"><template #default="{ record }">{{ record.resourceType }} #{{ record.resourceId || '—' }}</template></a-table-column>

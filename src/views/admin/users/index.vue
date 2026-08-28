@@ -5,6 +5,7 @@ import { listPersonnel, inviteUser, disableUser, assignUserRole, unassignUserRol
 import { listRoles } from '/@/api/admin-role'
 import { getOrgTree } from '/@/api/admin-org'
 import type { OrgUnit, Personnel, Role } from '/@/types/domain'
+import PmsPageHeader from '/@/components/PmsPageHeader.vue'
 
 const loading = ref(false)
 const users = ref<Personnel[]>([])
@@ -94,12 +95,9 @@ onMounted(async () => {
 
 <template>
   <section class="admin-page">
-    <div class="page-heading">
-      <div><h1>人员与权限</h1><p>统一管理员工主归属、兼职归属、角色与账号状态。</p></div>
-      <a-button class="pms-primary-button" @click="inviteOpen = true">+ 邀请员工</a-button>
-    </div>
-    <div class="toolbar"><a-input-search v-model:value="search" placeholder="搜索中文名、英文名或邮箱" style="max-width: 360px" @search="load" /><a-button @click="load">刷新</a-button></div>
-    <a-table :data-source="users" :loading="loading" row-key="id" :pagination="{ pageSize: 12 }">
+    <PmsPageHeader title="人员与权限" description="统一管理员工主归属、兼职归属、角色与账号状态。"><template #actions><a-button class="pms-primary-button" @click="inviteOpen = true">+ 邀请员工</a-button></template></PmsPageHeader>
+    <div class="toolbar pms-filter-bar"><a-input-search v-model:value="search" placeholder="搜索中文名、英文名或邮箱" style="max-width: 360px" @search="load" /><a-button class="pms-secondary-button" @click="load">刷新</a-button></div>
+    <a-table class="pms-admin-table" :data-source="users" :loading="loading" row-key="id" :pagination="{ pageSize: 12 }">
       <a-table-column title="员工" key="displayName"><template #default="{ record }"><strong>{{ record.displayName }}</strong><div class="muted">{{ record.email || '—' }}</div></template></a-table-column>
       <a-table-column title="主归属" data-index="primaryOrgName" key="primaryOrgName" />
       <a-table-column title="兼职 / 项目归属" key="partTime"><template #default="{ record }">{{ record.partTimeOrgNames?.join('、') || '—' }}</template></a-table-column>

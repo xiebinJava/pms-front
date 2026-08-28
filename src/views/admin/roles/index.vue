@@ -5,6 +5,7 @@ import { listRoles, saveRole, deleteRole } from '/@/api/admin-role'
 import { getOrgTree } from '/@/api/admin-org'
 import { useUserStore } from '/@/store/user'
 import type { OrgUnit, Role } from '/@/types/domain'
+import PmsPageHeader from '/@/components/PmsPageHeader.vue'
 const roles = ref<Role[]>([]); const open = ref(false); const editing = ref<number>(); const loading = ref(false)
 const userStore = useUserStore()
 const canRoleWrite = computed(() => userStore.can('admin:role:write'))
@@ -52,8 +53,8 @@ onMounted(async () => { await Promise.all([load(), getOrgTree().then(tree => { o
 </script>
 <template>
   <section class="admin-page">
-    <div class="page-heading"><div><h1>角色管理</h1><p>按权限点与数据范围配置角色，内置角色由系统保护。</p></div><a-button v-if="canRoleWrite" class="pms-primary-button" @click="edit()">+ 新增角色</a-button></div>
-    <a-table :data-source="roles" :loading="loading" row-key="id">
+    <PmsPageHeader title="角色管理" description="按权限点与数据范围配置角色，内置角色由系统保护。"><template #actions><a-button v-if="canRoleWrite" class="pms-primary-button" @click="edit()">+ 新增角色</a-button></template></PmsPageHeader>
+    <a-table class="pms-admin-table" :data-source="roles" :loading="loading" row-key="id">
       <a-table-column title="角色" key="name"><template #default="{ record }"><strong>{{ record.name }}</strong><div class="muted role-code">{{ record.code.toLowerCase() }}</div></template></a-table-column>
       <a-table-column title="数据范围" key="dataScopeType"><template #default="{ record }"><div class="scope-label">{{ scopeMeta(record.dataScopeType).label }}</div><div class="muted scope-code">{{ scopeMeta(record.dataScopeType).code }}</div></template></a-table-column>
       <a-table-column title="权限点" key="permissions"><template #default="{ record }">{{ record.permissionCodes?.length || 0 }} 项</template></a-table-column>
