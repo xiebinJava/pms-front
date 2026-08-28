@@ -546,7 +546,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div v-if="loading && !project" class="detail-loading"><a-spin size="large" /></div>
-  <div v-else-if="project" class="project-detail-page">
+  <div v-else-if="project" class="project-detail-page pms-page-stack">
     <div class="detail-breadcrumb">
       <span class="detail-breadcrumb__back" @click="router.push('/projects')">
         <ArrowLeftOutlined /> 项目管理
@@ -555,7 +555,7 @@ onBeforeUnmount(() => {
       <span>项目详情</span>
     </div>
 
-    <section class="project-header pms-detail-panel card-surface">
+    <section class="project-header pms-detail-panel pms-detail-hero card-surface">
       <div class="project-header__main">
         <div class="project-title-row">
           <span class="project-status-icon" :class="`project-status-icon--${projectStatusTone}`">
@@ -651,8 +651,8 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <section class="flow-card pms-detail-panel card-surface">
-      <div class="section-title-row">
+    <section class="flow-card pms-detail-panel pms-section-panel card-surface">
+      <div class="section-title-row pms-section-heading">
         <div>
           <h2>项目流程</h2>
         </div>
@@ -661,7 +661,7 @@ onBeforeUnmount(() => {
       <NodeNavigator :nodes="nodes" :active-id="activeNodeId ?? 0" @select="onSelectNode" />
     </section>
 
-    <section v-if="activeNode" class="node-detail-card pms-detail-panel card-surface">
+    <section v-if="activeNode" class="node-detail-card pms-detail-panel pms-section-panel card-surface">
       <div class="node-detail-header">
         <div class="node-detail-title">
           <div class="node-detail-title__copy">
@@ -693,7 +693,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="node-assignment-row">
+      <div class="node-assignment-row pms-assignment-grid">
         <div class="node-owner-row">
           <span class="node-owner-row__label">节点负责人</span>
           <div class="node-owner-row__control">
@@ -855,7 +855,7 @@ onBeforeUnmount(() => {
       <a-divider />
 
       <section class="node-task-section">
-        <div class="section-title-row section-title-row--compact">
+        <div class="section-title-row section-title-row--compact pms-section-heading">
           <div>
             <h2>任务看板</h2>
           </div>
@@ -864,8 +864,8 @@ onBeforeUnmount(() => {
       </section>
     </section>
 
-    <section class="management-card pms-detail-panel card-surface">
-      <div class="section-title-row section-title-row--compact">
+    <section class="management-card pms-detail-panel pms-section-panel card-surface">
+      <div class="section-title-row section-title-row--compact pms-section-heading">
         <div>
           <h2>项目协作</h2>
         </div>

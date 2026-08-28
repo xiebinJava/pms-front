@@ -36,7 +36,11 @@ const menuRoutes: Record<string, string> = {
   'admin-audit': '/admin/audit',
 }
 
-function handleMenuClick({ key }: { key: string }) {
+function handleMenuClick(payload: { key?: string } | string | Event) {
+  const key = typeof payload === 'string'
+    ? payload
+    : ('key' in payload && typeof payload.key === 'string' ? payload.key : undefined)
+  if (!key) return
   const target = menuRoutes[key]
   if (target && target !== route.path) router.push(target)
   navOpen.value = false
@@ -115,25 +119,37 @@ onMounted(async () => {
 
     <div class="pms-shell-body">
       <aside class="pms-sidebar" :class="{ 'pms-sidebar--open': navOpen }">
-        <nav class="pms-nav">
-          <a-menu :selectedKeys="selectedKeys" mode="inline" @click="handleMenuClick">
-            <a-menu-item key="dashboard">
-              <DashboardOutlined />
-              <span>工作台</span>
-            </a-menu-item>
-            <a-menu-item key="projects">
-              <ProjectOutlined />
-              <span>项目管理</span>
-            </a-menu-item>
-            <a-sub-menu v-if="canConfig" key="configuration">
-              <template #title><SettingOutlined /><span>配置管理</span></template>
-              <a-menu-item v-if="can('admin:user:read')" key="admin-users"><TeamOutlined /><span>人员与权限</span></a-menu-item>
-              <a-menu-item v-if="can('admin:org:read')" key="admin-org"><ApartmentOutlined /><span>组织架构</span></a-menu-item>
-              <a-menu-item v-if="can('admin:role:read')" key="admin-roles"><SafetyCertificateOutlined /><span>角色管理</span></a-menu-item>
-              <a-menu-item v-if="can('admin:import:write')" key="admin-import"><ApartmentOutlined /><span>批量导入</span></a-menu-item>
-              <a-menu-item v-if="can('admin:audit:read')" key="admin-audit"><AuditOutlined /><span>审计日志</span></a-menu-item>
-            </a-sub-menu>
-          </a-menu>
+        <nav class="pms-nav" @click="handleMenuClick">
+          <div class="pms-nav-list">
+          <div class="pms-nav-group">
+            <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('dashboard') }" type="button" @click.stop="handleMenuClick({ key: 'dashboard' })">
+              <DashboardOutlined /><span>工作台</span>
+            </button>
+            <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('projects') }" type="button" @click.stop="handleMenuClick({ key: 'projects' })">
+              <ProjectOutlined /><span>项目管理</span>
+            </button>
+          </div>
+          <div v-if="canConfig" class="pms-nav-group pms-nav-group--configuration">
+            <div class="pms-nav-section-label"><SettingOutlined /><span>配置管理</span></div>
+            <div class="pms-nav-subnav">
+              <button v-if="can('admin:user:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-users') }" type="button" @click.stop="handleMenuClick({ key: 'admin-users' })">
+                <TeamOutlined /><span>人员与权限</span>
+              </button>
+              <button v-if="can('admin:org:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-org') }" type="button" @click.stop="handleMenuClick({ key: 'admin-org' })">
+                <ApartmentOutlined /><span>组织架构</span>
+              </button>
+              <button v-if="can('admin:role:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-roles') }" type="button" @click.stop="handleMenuClick({ key: 'admin-roles' })">
+                <SafetyCertificateOutlined /><span>角色管理</span>
+              </button>
+              <button v-if="can('admin:import:write')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-import') }" type="button" @click.stop="handleMenuClick({ key: 'admin-import' })">
+                <ApartmentOutlined /><span>批量导入</span>
+              </button>
+              <button v-if="can('admin:audit:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-audit') }" type="button" @click.stop="handleMenuClick({ key: 'admin-audit' })">
+                <AuditOutlined /><span>审计日志</span>
+              </button>
+            </div>
+          </div>
+          </div>
         </nav>
       </aside>
       <button v-if="navOpen" class="pms-sidebar-scrim" type="button" aria-label="关闭导航" @click="navOpen = false" />

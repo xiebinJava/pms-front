@@ -200,7 +200,7 @@ watch(taskScope, (next, previous) => {
       @dragover.prevent
       @drop.prevent.stop="onDrop(col.status)"
     >
-      <div class="flex items-center justify-between px-1 pb-2">
+      <div class="flex items-center justify-between px-1 pb-2 pms-task-column__header">
         <span class="pms-strong-text">{{ col.label }}</span>
         <span class="pms-faint-text">{{ col.list.length }}</span>
       </div>
@@ -208,7 +208,7 @@ watch(taskScope, (next, previous) => {
       <div
         v-for="task in col.list"
         :key="task.id"
-        class="pms-task-card"
+        class="pms-task-card pms-task-card__surface"
         :class="{ 'pms-task-card--readonly': task.permissions?.readOnly || !task.permissions?.canEdit }"
         :draggable="Boolean(task.permissions?.canMove && !nodeReadOnly)"
         @dragstart.stop="dragId = task.id"

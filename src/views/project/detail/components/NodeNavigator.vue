@@ -12,28 +12,30 @@ const emit = defineEmits<{ (e: 'select', node: ProjectNode): void }>()
     <div v-if="nodes.length === 0" class="flow-empty">暂无流程节点</div>
     <div v-else class="flow-track">
       <template v-for="(node, index) in nodes" :key="node.id">
-        <button
-          type="button"
-          class="flow-node"
-          :class="[
-            `flow-node--${getFlowNodeState(node.status).tone}`,
-            { 'flow-node--selected': node.id === activeId },
-          ]"
-          :disabled="!getFlowNodeState(node.status).canSelect"
-          @click="getFlowNodeState(node.status).canSelect && emit('select', node)"
-        >
-          <span class="flow-node__dot">
-            <CheckOutlined v-if="node.status === 2" />
-            <span v-else class="flow-node__dot-core" />
+        <div class="flow-track__item">
+          <button
+            type="button"
+            class="flow-node"
+            :class="[
+              `flow-node--${getFlowNodeState(node.status).tone}`,
+              { 'flow-node--selected': node.id === activeId },
+            ]"
+            :disabled="!getFlowNodeState(node.status).canSelect"
+            @click="getFlowNodeState(node.status).canSelect && emit('select', node)"
+          >
+            <span class="flow-node__dot">
+              <CheckOutlined v-if="node.status === 2" />
+              <span v-else class="flow-node__dot-core" />
+            </span>
+            <span class="flow-node__content">
+              <span class="flow-node__name">{{ node.name }}</span>
+            </span>
+          </button>
+          <span v-if="index < nodes.length - 1" class="flow-connector" aria-hidden="true">
+            <span class="flow-connector__line" />
+            <ArrowRightOutlined class="flow-connector__arrow" />
           </span>
-          <span class="flow-node__content">
-            <span class="flow-node__name">{{ node.name }}</span>
-          </span>
-        </button>
-        <span v-if="index < nodes.length - 1" class="flow-connector" aria-hidden="true">
-          <span class="flow-connector__line" />
-          <ArrowRightOutlined class="flow-connector__arrow" />
-        </span>
+        </div>
       </template>
     </div>
   </div>

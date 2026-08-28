@@ -34,7 +34,7 @@ onMounted(load)
 </script>
 
 <template>
-  <section class="admin-page">
+  <section class="admin-page pms-admin-page">
     <PmsPageHeader title="审计日志" description="组织、人员、角色、导入与会话变更均保留可追溯记录。">
       <template #actions><a-button class="pms-secondary-button" @click="load">刷新</a-button></template>
     </PmsPageHeader>

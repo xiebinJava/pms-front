@@ -52,7 +52,7 @@ function remove(role: Role) { Modal.confirm({ title: `删除角色 ${role.name}�
 onMounted(async () => { await Promise.all([load(), getOrgTree().then(tree => { orgOptions.value = flattenOrg(tree) }).catch(() => undefined)]) })
 </script>
 <template>
-  <section class="admin-page">
+  <section class="admin-page pms-admin-page">
     <PmsPageHeader title="角色管理" description="按权限点与数据范围配置角色，内置角色由系统保护。"><template #actions><a-button v-if="canRoleWrite" class="pms-primary-button" @click="edit()">+ 新增角色</a-button></template></PmsPageHeader>
     <a-table class="pms-admin-table" :data-source="roles" :loading="loading" row-key="id">
       <a-table-column title="角色" key="name"><template #default="{ record }"><strong>{{ record.name }}</strong><div class="muted role-code">{{ record.code.toLowerCase() }}</div></template></a-table-column>

@@ -94,9 +94,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="admin-page">
+  <section class="admin-page pms-admin-page">
     <PmsPageHeader title="人员与权限" description="统一管理员工主归属、兼职归属、角色与账号状态。"><template #actions><a-button class="pms-primary-button" @click="inviteOpen = true">+ 邀请员工</a-button></template></PmsPageHeader>
-    <div class="toolbar pms-filter-bar"><a-input-search v-model:value="search" placeholder="搜索中文名、英文名或邮箱" style="max-width: 360px" @search="load" /><a-button class="pms-secondary-button" @click="load">刷新</a-button></div>
+    <div class="toolbar pms-filter-bar pms-admin-toolbar"><a-input-search v-model:value="search" placeholder="搜索中文名、英文名或邮箱" style="max-width: 360px" @search="load" /><a-button class="pms-secondary-button" @click="load">刷新</a-button></div>
     <a-table class="pms-admin-table" :data-source="users" :loading="loading" row-key="id" :pagination="{ pageSize: 12 }">
       <a-table-column title="员工" key="displayName"><template #default="{ record }"><strong>{{ record.displayName }}</strong><div class="muted">{{ record.email || '—' }}</div></template></a-table-column>
       <a-table-column title="主归属" data-index="primaryOrgName" key="primaryOrgName" />
