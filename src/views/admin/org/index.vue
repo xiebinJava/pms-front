@@ -22,12 +22,16 @@ type OrgOption = OrgUnit & { level: number }
 const options = ref<OrgOption[]>([])
 function flattenOrg(units: OrgUnit[], level = 0): OrgOption[] { return units.flatMap(unit => [{ ...unit, level }, ...flattenOrg(unit.children || [], level + 1)]) }
 async function load() {
-  tree.value = await getOrgTree()
-  options.value = flattenOrg(tree.value)
-  if (selected.value) selected.value = options.value.find(item => item.id === selected.value?.id)
+  try {
+    tree.value = await getOrgTree()
+    options.value = flattenOrg(tree.value)
+    if (selected.value) selected.value = options.value.find(item => item.id === selected.value?.id)
+  } catch (error) {
+    message.error((error as Error).message || '组织架构加载失败，请重试')
+  }
 }
 function openCreate() { form.value = { code: '', name: '', typeCode: 'BG', parentId: selected.value?.id }; open.value = true }
-async function add() { await createOrg(form.value); open.value = false; message.success('组织已新增'); await load() }
+async function add() { try { await createOrg(form.value); open.value = false; message.success('组织已新增'); await load() } catch (error) { message.error((error as Error).message || '组织新增失败，请重试') } }
 async function openEdit() {
   if (!selected.value) return
   editForm.name = selected.value.name
@@ -56,6 +60,8 @@ async function saveEdit() {
     editOpen.value = false
     message.success('组织属性已更新')
     await load()
+  } catch (error) {
+    message.error((error as Error).message || '组织属性保存失败，请重试')
   } finally { editLoading.value = false }
 }
 function moveTo(id: number, parentId: number | undefined) {
@@ -63,12 +69,17 @@ function moveTo(id: number, parentId: number | undefined) {
   const source = options.value.find(org => org.id === id)
   const target = parentId == null ? '顶层' : options.value.find(org => org.id === parentId)?.name || '目标组织'
   Modal.confirm({ title: `将「${source?.name || '组织'}」移动到「${target}」？`, content: '移动后组织下的人员主归属与子组织路径会随之更新。', async onOk() {
-    await moveOrg(id, parentId)
-    message.success('组织已移动')
-    await load()
+    try {
+      await moveOrg(id, parentId)
+      message.success('组织已移动')
+      await load()
+    } catch (error) {
+      message.error((error as Error).message || '组织移动失败，请重试')
+      throw error
+    }
   } })
 }
-async function remove() { if (!selected.value || selected.value.parentId == null || !canWrite.value) return; await deactivateOrg(selected.value.id); message.success('组织已停用'); selected.value = undefined; await load() }
+async function remove() { if (!selected.value || selected.value.parentId == null || !canWrite.value) return; try { await deactivateOrg(selected.value.id); message.success('组织已停用'); selected.value = undefined; await load() } catch (error) { message.error((error as Error).message || '组织停用失败，请重试') } }
 onMounted(load)
 </script>
 

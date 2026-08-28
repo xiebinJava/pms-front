@@ -1,8 +1,19 @@
 import { http } from '/@/plugins/http'
+import type { PageResult } from '/@/types/api'
 import type { Personnel } from '/@/types/domain'
+
+export interface PersonnelPageParams {
+  keyword?: string
+  currPage?: number
+  pageSize?: number
+}
 
 export function listPersonnel(keyword?: string): Promise<Personnel[]> {
   return http.get('/admin/users', { params: { keyword } })
+}
+
+export function listPersonnelPage(params: PersonnelPageParams = {}): Promise<PageResult<Personnel>> {
+  return http.get('/admin/users/page', { params, _silentError: true } as any)
 }
 
 export function inviteUser(payload: Record<string, unknown>) {

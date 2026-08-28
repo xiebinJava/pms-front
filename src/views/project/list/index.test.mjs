@@ -19,3 +19,16 @@ test('shows the same organization path and leader summary returned by project de
   assert.match(source, /record\.orgUnitPath \|\| record\.orgUnitName \|\| '未设置'/)
   assert.match(source, /负责人：\{\{ record\.orgUnitLeaderName \}\}/)
 })
+
+test('renders the project date range as a compact two-line value', () => {
+  assert.match(source, /class="pms-project-date-range"/)
+  assert.match(source, /class="pms-project-date-range__to"/)
+  assert.match(source, /formatDate\(record\.startDate\)/)
+  assert.match(source, /formatDate\(record\.endDate\)/)
+})
+
+test('uses shared filter geometry for project search controls', () => {
+  assert.match(source, /class="pms-search-input pms-filter-control"/)
+  assert.match(source, /class="pms-status-select pms-filter-control"/)
+  assert.match(source, /class="pms-secondary-button pms-filter-button"/)
+})

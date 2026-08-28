@@ -11,7 +11,7 @@ const instance = axios.create({
   withCredentials: true,
 })
 
-type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean; _skipAuthRefresh?: boolean; _raw?: boolean }
+type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean; _skipAuthRefresh?: boolean; _raw?: boolean; _silentError?: boolean }
 
 instance.interceptors.request.use((config) => {
   if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`
@@ -53,7 +53,7 @@ instance.interceptors.response.use(
           window.location.href = '/login'
         }
       }
-    } else if (error.response?.status !== 401 && !isAuthEndpoint) {
+    } else if (error.response?.status !== 401 && !isAuthEndpoint && !(config?._silentError)) {
       message.error(error.response?.data?.msg || '网络异常，请稍后重试')
     }
     return Promise.reject(error)

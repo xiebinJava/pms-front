@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { LogoutOutlined, ProjectOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, DashboardOutlined, MenuOutlined, DownOutlined } from '@ant-design/icons-vue'
+import { LogoutOutlined, ProjectOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, DashboardOutlined, MenuOutlined, DownOutlined, ExperimentOutlined, CloudUploadOutlined } from '@ant-design/icons-vue'
 import { useUserStore } from '/@/store/user'
 import { message } from 'ant-design-vue'
 
@@ -11,9 +11,14 @@ const userStore = useUserStore()
 const passwordOpen = ref(false)
 const passwordLoading = ref(false)
 const navOpen = ref(false)
+// Keep both workspace groups visible by default; users can collapse either group
+// without losing the active route or its permission-filtered child links.
+const projectNavOpen = ref(true)
+const configNavOpen = ref(true)
 const passwordForm = reactive({ currentPassword: '', newPassword: '', confirmPassword: '' })
 
 const selectedKeys = computed(() => {
+  if (route.path.startsWith('/dashboard')) return ['dashboard']
   if (route.path.startsWith('/projects')) return ['projects']
   if (route.path.startsWith('/admin/users')) return ['admin-users']
   if (route.path.startsWith('/admin/org')) return ['admin-org']
@@ -27,7 +32,7 @@ const can = (permission: string) => userStore.can(permission)
 const canConfig = computed(() => ['admin:user:read', 'admin:org:read', 'admin:role:read', 'admin:audit:read', 'admin:import:write'].some(can))
 
 const menuRoutes: Record<string, string> = {
-  dashboard: '/projects',
+  dashboard: '/dashboard',
   projects: '/projects',
   'admin-users': '/admin/users',
   'admin-org': '/admin/org',
@@ -121,34 +126,43 @@ onMounted(async () => {
       <aside class="pms-sidebar" :class="{ 'pms-sidebar--open': navOpen }">
         <nav class="pms-nav" @click="handleMenuClick">
           <div class="pms-nav-list">
-          <div class="pms-nav-group">
-            <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('dashboard') }" type="button" @click.stop="handleMenuClick({ key: 'dashboard' })">
-              <DashboardOutlined /><span>工作台</span>
-            </button>
-            <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('projects') }" type="button" @click.stop="handleMenuClick({ key: 'projects' })">
-              <ProjectOutlined /><span>项目管理</span>
-            </button>
-          </div>
-          <div v-if="canConfig" class="pms-nav-group pms-nav-group--configuration">
-            <div class="pms-nav-section-label"><SettingOutlined /><span>配置管理</span><DownOutlined class="pms-nav-section-label__arrow" /></div>
-            <div class="pms-nav-subnav">
-              <button v-if="can('admin:user:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-users') }" type="button" @click.stop="handleMenuClick({ key: 'admin-users' })">
-                <TeamOutlined /><span>人员与权限</span>
-              </button>
-              <button v-if="can('admin:org:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-org') }" type="button" @click.stop="handleMenuClick({ key: 'admin-org' })">
-                <ApartmentOutlined /><span>组织架构</span>
-              </button>
-              <button v-if="can('admin:role:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-roles') }" type="button" @click.stop="handleMenuClick({ key: 'admin-roles' })">
-                <SafetyCertificateOutlined /><span>角色管理</span>
-              </button>
-              <button v-if="can('admin:import:write')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-import') }" type="button" @click.stop="handleMenuClick({ key: 'admin-import' })">
-                <ApartmentOutlined /><span>批量导入</span>
-              </button>
-              <button v-if="can('admin:audit:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-audit') }" type="button" @click.stop="handleMenuClick({ key: 'admin-audit' })">
-                <AuditOutlined /><span>审计日志</span>
+            <div class="pms-nav-group">
+              <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('dashboard') }" type="button" @click.stop="handleMenuClick({ key: 'dashboard' })">
+                <DashboardOutlined /><span>工作台</span>
               </button>
             </div>
-          </div>
+            <div class="pms-nav-group pms-nav-group--projects">
+              <button class="pms-nav-section-label" :class="{ 'pms-nav-section-label--active': selectedKeys.includes('projects') }" type="button" aria-controls="pms-project-subnav" :aria-expanded="projectNavOpen" @click.stop="projectNavOpen = !projectNavOpen">
+                <ExperimentOutlined /><span>研发管理</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !projectNavOpen }" />
+              </button>
+              <div v-if="projectNavOpen" id="pms-project-subnav" class="pms-nav-subnav">
+                <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('projects') }" type="button" aria-label="项目管理子页签" @click.stop="handleMenuClick({ key: 'projects' })">
+                  <ProjectOutlined /><span>项目管理</span>
+                </button>
+              </div>
+            </div>
+            <div v-if="canConfig" class="pms-nav-group pms-nav-group--configuration">
+              <button class="pms-nav-section-label" :class="{ 'pms-nav-section-label--active': selectedKeys.some(key => key.startsWith('admin-')) }" type="button" aria-controls="pms-config-subnav" :aria-expanded="configNavOpen" @click.stop="configNavOpen = !configNavOpen">
+                <SettingOutlined /><span>配置管理</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !configNavOpen }" />
+              </button>
+              <div v-if="configNavOpen" id="pms-config-subnav" class="pms-nav-subnav">
+                <button v-if="can('admin:user:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-users') }" type="button" @click.stop="handleMenuClick({ key: 'admin-users' })">
+                  <TeamOutlined /><span>人员与权限</span>
+                </button>
+                <button v-if="can('admin:org:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-org') }" type="button" @click.stop="handleMenuClick({ key: 'admin-org' })">
+                  <ApartmentOutlined /><span>组织架构</span>
+                </button>
+                <button v-if="can('admin:role:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-roles') }" type="button" @click.stop="handleMenuClick({ key: 'admin-roles' })">
+                  <SafetyCertificateOutlined /><span>角色管理</span>
+                </button>
+                <button v-if="can('admin:import:write')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-import') }" type="button" @click.stop="handleMenuClick({ key: 'admin-import' })">
+                  <CloudUploadOutlined /><span>批量导入</span>
+                </button>
+                <button v-if="can('admin:audit:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-audit') }" type="button" @click.stop="handleMenuClick({ key: 'admin-audit' })">
+                  <AuditOutlined /><span>审计日志</span>
+                </button>
+              </div>
+            </div>
           </div>
         </nav>
       </aside>

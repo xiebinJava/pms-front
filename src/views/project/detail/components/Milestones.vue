@@ -102,7 +102,8 @@ onMounted(loadData)
     </a-button>
   </div>
 
-  <a-table :data-source="list" :columns="columns" :loading="loading" row-key="id" :pagination="false">
+  <div class="pms-table-scroll pms-milestone-table-scroll">
+    <a-table :data-source="list" :columns="columns" :loading="loading" row-key="id" :pagination="false">
     <template #bodyCell="{ column, record }">
       <template v-if="column.key === 'title'">
         <span class="pms-strong-text">{{ record.title }}</span>
@@ -130,7 +131,8 @@ onMounted(loadData)
         </div>
       </template>
     </template>
-  </a-table>
+    </a-table>
+  </div>
 
   <a-modal v-model:open="modalState.open" :title="modalState.editingId ? '编辑里程碑' : '新建里程碑'" @ok="onSave">
     <a-form ref="formRef" :model="form" :rules="rules" layout="vertical">

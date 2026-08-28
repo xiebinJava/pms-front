@@ -45,6 +45,9 @@ docker run --rm -p 5173:80 pms-front
 [docs/frontend-design-system.md](docs/frontend-design-system.md)。新增或修改界面时优先复用
 `--pms-*` 变量和共享样式，完成后执行 `pnpm typecheck`、`pnpm build` 与浏览器回归。
 
+页面职责、路由访问、人员/组织展示、项目交互和请求状态约定见
+[docs/design-logic.md](docs/design-logic.md)。
+
 ## 目录结构
 
 ```

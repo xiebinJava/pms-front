@@ -154,6 +154,18 @@ function resetView() {
   centerView()
 }
 
+function fitView() {
+  const viewport = viewportRef.value
+  if (!viewport || !props.units.length) {
+    resetView()
+    return
+  }
+  const horizontalScale = (viewport.clientWidth - PADDING * 2) / canvas.value.width
+  const verticalScale = (viewport.clientHeight - PADDING * 2) / canvas.value.height
+  zoom.value = clampZoom(Math.min(1, horizontalScale, verticalScale))
+  centerView()
+}
+
 function centerView() {
   const viewport = viewportRef.value
   if (!viewport) {
@@ -195,6 +207,7 @@ watch(() => [canvas.value.width, canvas.value.height], () => { if (!isPanning.va
       <span>{{ Math.round(zoom * 100) }}%</span>
       <button type="button" aria-label="放大画布" title="放大" @click="setZoom(zoom + 0.1)">＋</button>
       <button type="button" aria-label="恢复画布视图" title="恢复默认视图" @click="resetView">100%</button>
+      <button type="button" aria-label="适配画布" title="适配画布" @click="fitView">适配</button>
     </div>
 
     <div v-if="!props.units.length" class="org-canvas-empty">暂无组织单元</div>

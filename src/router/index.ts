@@ -27,7 +27,13 @@ const router = createRouter({
       path: '/',
       component: () => import('/@/layout/Index.vue'),
       children: [
-        { path: '', redirect: '/projects' },
+        { path: '', redirect: '/dashboard' },
+        {
+          path: 'dashboard',
+          name: 'dashboard',
+          component: () => import('/@/views/workbench/index.vue'),
+          meta: { title: '工作台' },
+        },
         {
           path: 'projects',
           name: 'project-list',

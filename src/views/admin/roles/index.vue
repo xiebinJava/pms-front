@@ -38,29 +38,40 @@ function scopeMeta(value?: string) {
   const code = option?.value || value || '—'
   return { label: option?.label || '未定义', code: code.toLowerCase() }
 }
-async function load() { loading.value = true; try { roles.value = await listRoles() } finally { loading.value = false } }
+async function load() {
+  loading.value = true
+  try {
+    roles.value = await listRoles()
+  } catch (error) {
+    message.error((error as Error).message || '角色列表加载失败，请重试')
+  } finally { loading.value = false }
+}
 function edit(role?: Role) { editing.value = role?.id; Object.assign(form, role ? { code: role.code, name: role.name, dataScopeType: role.dataScopeType, enabled: role.enabled, permissionCodes: [...role.permissionCodes], customOrgUnitIds: [...(role.customOrgUnitIds || [])] } : { code: '', name: '', dataScopeType: 'SELF', enabled: true, permissionCodes: [], customOrgUnitIds: [] }); open.value = true }
 async function save() {
   if (!form.name.trim()) { message.error('请输入角色名称'); return }
   if (!editing.value && !form.code.trim()) { message.error('请输入角色编码'); return }
   if (!form.permissionCodes.length) { message.error('至少选择一个权限点'); return }
   if (form.dataScopeType === 'CUSTOM_ORGS' && !form.customOrgUnitIds.length) { message.error('请选择自定义组织范围'); return }
-  await saveRole({ ...form, code: form.code.trim().toUpperCase() }, editing.value)
-  open.value = false; message.success('角色已保存'); await load()
+  try {
+    await saveRole({ ...form, code: form.code.trim().toUpperCase() }, editing.value)
+    open.value = false; message.success('角色已保存'); await load()
+  } catch (error) {
+    message.error((error as Error).message || '角色保存失败，请重试')
+  }
 }
-function remove(role: Role) { Modal.confirm({ title: `删除角色 ${role.name}？`, okType: 'danger', onOk: async () => { await deleteRole(role.id); message.success('角色已删除'); await load() } }) }
+function remove(role: Role) { Modal.confirm({ title: `删除角色 ${role.name}？`, okType: 'danger', onOk: async () => { try { await deleteRole(role.id); message.success('角色已删除'); await load() } catch (error) { message.error((error as Error).message || '角色删除失败，请重试'); throw error } } }) }
 onMounted(async () => { await Promise.all([load(), getOrgTree().then(tree => { orgOptions.value = flattenOrg(tree) }).catch(() => undefined)]) })
 </script>
 <template>
   <section class="admin-page pms-admin-page">
     <PmsPageHeader title="角色管理" description="按权限点与数据范围配置角色，内置角色由系统保护。"><template #actions><a-button v-if="canRoleWrite" class="pms-primary-button" @click="edit()">+ 新增角色</a-button></template></PmsPageHeader>
-    <a-table class="pms-admin-table" :data-source="roles" :loading="loading" row-key="id">
+    <div class="pms-table-scroll pms-roles-table-scroll"><a-table class="pms-admin-table" :data-source="roles" :loading="loading" row-key="id">
       <a-table-column title="角色" key="name"><template #default="{ record }"><strong>{{ record.name }}</strong><div class="muted role-code">{{ record.code.toLowerCase() }}</div></template></a-table-column>
       <a-table-column title="数据范围" key="dataScopeType"><template #default="{ record }"><div class="scope-label">{{ scopeMeta(record.dataScopeType).label }}</div><div class="muted scope-code">{{ scopeMeta(record.dataScopeType).code }}</div></template></a-table-column>
       <a-table-column title="权限点" key="permissions"><template #default="{ record }">{{ record.permissionCodes?.length || 0 }} 项</template></a-table-column>
       <a-table-column title="属性" key="builtin"><template #default="{ record }"><a-tag v-if="record.builtin" color="blue">内置</a-tag><a-tag v-if="!record.enabled">已停用</a-tag></template></a-table-column>
       <a-table-column title="操作" key="action"><template #default="{ record }"><a-button v-if="canRoleWrite" type="link" @click="edit(record)">编辑</a-button><a-button v-if="canRoleWrite && !record.builtin" type="link" danger @click="remove(record)">删除</a-button><span v-if="!canRoleWrite" class="muted">无操作权限</span></template></a-table-column>
-    </a-table>
+    </a-table></div>
     <a-modal v-model:open="open" :title="editing ? '编辑角色' : '新增角色'" ok-text="保存" cancel-text="取消" @ok="save"><a-form layout="vertical"><a-form-item label="角色编码" required><a-input v-model:value="form.code" :disabled="!!editing" class="role-code-input" placeholder="例如：project_reviewer" /></a-form-item><a-form-item label="角色名称" required><a-input v-model:value="form.name" /></a-form-item><a-form-item label="数据范围"><a-select v-model:value="form.dataScopeType" style="width:100%"><a-select-option v-for="option in dataScopeOptions" :key="option.value" :value="option.value"><div class="scope-option"><span>{{ option.label }}</span><small>{{ option.value.toLowerCase() }}</small></div></a-select-option></a-select><a-select v-if="form.dataScopeType === 'CUSTOM_ORGS'" v-model:value="form.customOrgUnitIds" mode="multiple" show-search option-filter-prop="label" placeholder="选择允许访问的组织" style="width:100%;margin-top:8px"><a-select-option v-for="org in orgOptions" :key="org.id" :value="org.id" :label="org.name">{{ '　'.repeat(org.level) }}{{ org.name }}</a-select-option></a-select></a-form-item><a-form-item label="权限点"><a-checkbox-group v-model:value="form.permissionCodes" class="permission-group"><a-checkbox v-for="option in permissionOptions" :key="option.value" :value="option.value"><span class="permission-option__label">{{ option.label }}</span><small class="permission-option__code">{{ option.value.toLowerCase() }}</small></a-checkbox></a-checkbox-group></a-form-item></a-form></a-modal>
   </section>
 </template>

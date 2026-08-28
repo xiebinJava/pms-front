@@ -26,7 +26,7 @@ const columns = [
   { title: '进度', key: 'progress', dataIndex: 'progress', width: 150 },
   { title: '任务', key: 'taskCount', dataIndex: 'taskCount', width: 80 },
   { title: '成员', key: 'memberCount', dataIndex: 'memberCount', width: 80 },
-  { title: '周期', key: 'dates', width: 210 },
+  { title: '周期', key: 'dates', width: 160 },
   { title: '操作', key: 'action', width: 140 },
 ]
 
@@ -64,6 +64,8 @@ async function loadData() {
     })
     dataSource.value = data.list
     pagination.total = data.total
+  } catch (error) {
+    message.error((error as Error).message || '项目列表加载失败，请重试')
   } finally {
     loading.value = false
   }
@@ -111,21 +113,25 @@ function openEdit(record: Project) {
 }
 
 async function onSave() {
-  await formRef.value.validate()
-  const payload = {
-    ...form,
-    startDate: form.startDate || undefined,
-    endDate: form.endDate || undefined,
+  try {
+    await formRef.value.validate()
+    const payload = {
+      ...form,
+      startDate: form.startDate || undefined,
+      endDate: form.endDate || undefined,
+    }
+    if (modalState.editingId) {
+      await updateProject(modalState.editingId, payload)
+      message.success('更新成功')
+    } else {
+      await createProject(payload)
+      message.success('创建成功')
+    }
+    modalState.open = false
+    await loadData()
+  } catch (error) {
+    message.error((error as Error).message || '项目保存失败，请重试')
   }
-  if (modalState.editingId) {
-    await updateProject(modalState.editingId, payload)
-    message.success('更新成功')
-  } else {
-    await createProject(payload)
-    message.success('创建成功')
-  }
-  modalState.open = false
-  loadData()
 }
 
 function onDelete(record: Project) {
@@ -140,9 +146,14 @@ function onDelete(record: Project) {
     okType: 'danger',
     cancelText: '取消',
     onOk: async () => {
-      await deleteProject(record.id)
-      message.success('删除成功')
-      loadData()
+      try {
+        await deleteProject(record.id)
+        message.success('删除成功')
+        await loadData()
+      } catch (error) {
+        message.error((error as Error).message || '项目删除失败，请重试')
+        throw error
+      }
     },
   })
 }
@@ -171,28 +182,29 @@ onMounted(loadData)
             v-model:value="query.keyword"
             placeholder="搜索项目名称"
             allow-clear
-            class="pms-search-input"
+            class="pms-search-input pms-filter-control"
             @press-enter="onSearch"
           >
             <template #prefix><SearchOutlined class="pms-muted-icon" /></template>
           </a-input>
-          <a-select v-model:value="query.status" placeholder="状态" allow-clear class="pms-status-select" @change="onSearch">
+          <a-select v-model:value="query.status" placeholder="状态" allow-clear class="pms-status-select pms-filter-control" @change="onSearch">
             <a-select-option v-for="opt in ProjectStatus.options()" :key="opt.value" :value="opt.value">
               {{ opt.label }}
             </a-select-option>
           </a-select>
-          <a-button class="pms-secondary-button" @click="onSearch"><ReloadOutlined /> 查询</a-button>
+          <a-button class="pms-secondary-button pms-filter-button" @click="onSearch"><ReloadOutlined /> 查询</a-button>
         </div>
       </div>
 
-      <a-table
-        :data-source="dataSource"
-        :columns="columns"
-        :loading="loading"
-        row-key="id"
-        :pagination="pagination"
-        @change="onTableChange"
-      >
+      <div class="pms-table-scroll pms-project-table-scroll">
+        <a-table
+          :data-source="dataSource"
+          :columns="columns"
+          :loading="loading"
+          row-key="id"
+          :pagination="pagination"
+          @change="onTableChange"
+        >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
             <a class="pms-project-link" @click="router.push(`/projects/${record.id}`)">
@@ -229,7 +241,10 @@ onMounted(loadData)
             />
           </template>
           <template v-else-if="column.key === 'dates'">
-            {{ formatDate(record.startDate) }} ~ {{ formatDate(record.endDate) }}
+            <div class="pms-project-date-range" aria-label="项目周期">
+              <span>{{ formatDate(record.startDate) }}</span>
+              <span class="pms-project-date-range__to">至 {{ formatDate(record.endDate) }}</span>
+            </div>
           </template>
           <template v-else-if="column.key === 'action'">
             <span class="pms-action-link" @click="router.push(`/projects/${record.id}`)">详情</span>
@@ -237,7 +252,8 @@ onMounted(loadData)
             <span v-if="record.permissions?.canDeleteProject" class="pms-action-link pms-action-link--danger" @click="onDelete(record)">删除</span>
           </template>
         </template>
-      </a-table>
+        </a-table>
+      </div>
     </a-card>
 
     <a-modal
@@ -349,8 +365,13 @@ onMounted(loadData)
 
 @media (max-width: 640px) {
   .pms-page-header, .pms-table-toolbar { align-items: stretch; flex-direction: column; }
-  .pms-table-toolbar__filters { flex-wrap: wrap; }
-  .pms-search-input { width: min(100%, 260px); }
+  .pms-table-toolbar__filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 96px;
+    width: 100%;
+  }
+  .pms-search-input { width: 100%; grid-column: 1 / -1; }
+  .pms-status-select, .pms-filter-button { width: 100%; }
   :deep(.ant-card-body) { padding: 14px; }
 }
 

@@ -186,6 +186,8 @@ async function loadData() {
     await onProfileUserSearch()
     const current = nodes.value.find((node) => node.status === 1)
     activeNodeId.value = (current || nodes.value[0])?.id ?? null
+  } catch (error) {
+    message.error((error as Error).message || '项目详情加载失败，请重试')
   } finally {
     loading.value = false
   }

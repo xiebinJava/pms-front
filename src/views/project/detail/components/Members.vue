@@ -90,7 +90,8 @@ onMounted(loadData)
     </a-button>
   </div>
 
-  <a-table :data-source="list" :columns="columns" :loading="loading" row-key="id" :pagination="false">
+  <div class="pms-table-scroll pms-members-table-scroll">
+    <a-table :data-source="list" :columns="columns" :loading="loading" row-key="id" :pagination="false">
     <template #bodyCell="{ column, record }">
       <template v-if="column.key === 'member'">
         <a-avatar :size="28" class="pms-avatar">{{ (record.nickname || record.username || '?').charAt(0) }}</a-avatar>
@@ -107,7 +108,8 @@ onMounted(loadData)
         <span v-else class="pms-faint-text">负责人不可移除</span>
       </template>
     </template>
-  </a-table>
+    </a-table>
+  </div>
 
   <a-modal v-model:open="modalState.open" title="添加成员" @ok="onSave">
     <a-form ref="formRef" :model="form" :rules="rules" layout="vertical">
