@@ -17,5 +17,24 @@ jobs:
           node-version: '22'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm test
       - run: pnpm typecheck
       - run: pnpm build
+      - name: Build frontend image for security scan
+        run: docker build --tag pms-front:ci .
+      - name: Scan frontend image (high and critical)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: pms-front:ci
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+      - name: Generate frontend SPDX SBOM
+        uses: anchore/sbom-action@v0.17.0
+        with:
+          image: pms-front:ci
+          format: spdx-json
+          output-file: frontend-sbom.spdx.json
+          artifact-name: frontend-sbom.spdx.json

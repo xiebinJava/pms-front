@@ -34,7 +34,7 @@ pnpm typecheck  # 仅类型检查
 
 ```bash
 docker build -t pms-front .
-docker run --rm -p 5173:80 pms-front
+docker run --rm -p 5173:8080 pms-front
 ```
 
 生产环境请通过反向代理限制来源，并将后端 `PMS_CORS_ALLOWED_ORIGINS` 配置为实际访问域名。
