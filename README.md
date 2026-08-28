@@ -78,6 +78,10 @@ src/
 企业管理接口与上线配置请参阅后端
 [`enterprise-upgrade-runbook.md`](../pms-backend/docs/operations/enterprise-upgrade-runbook.md)。
 
+企业级基础设施当前状态和分阶段执行计划请参阅后端
+[`infrastructure-status.md`](../pms-backend/docs/operations/infrastructure-status.md) 和
+[`enterprise-infrastructure-hardening.md`](../pms-backend/docs/superpowers/plans/2026-08-28-enterprise-infrastructure-hardening.md)。
+
 ## 环境变量
 
 `/.env.development`
