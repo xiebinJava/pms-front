@@ -17,14 +17,28 @@ test.describe('认证与项目主流程', () => {
     await page.locator('input[placeholder="密码"]').fill(password!)
     await page.getByRole('button', { name: /登\s*录/ }).click()
     await expect(page).toHaveURL(/\/(?:dashboard|projects)(?:\/)?$/)
+    await page.reload()
+    await expect(page.locator('body')).not.toContainText('Request failed with status code 500')
     await page.goto('/projects')
     await expect(page.getByRole('heading', { name: '项目管理' })).toBeVisible()
 
-    for (const path of ['/projects/1', '/admin/users', '/admin/org', '/admin/roles', '/admin/import']) {
+    const pages = [
+      ['/projects/1', '项目流程'],
+      ['/admin/users', '人员与权限'],
+      ['/admin/org', '组织架构'],
+      ['/admin/roles', '角色管理'],
+      ['/admin/import', '批量导入'],
+    ] as const
+    for (const [path, heading] of pages) {
       const response = await page.goto(path)
       expect(response?.status(), `${path} should return a successful document`).toBeLessThan(400)
+      await expect(page.getByRole('heading', { name: heading })).toBeVisible()
       await expect(page.locator('body')).not.toContainText('Request failed with status code 500')
     }
+
+    await page.getByRole('button', { name: /管理员/ }).click()
+    await page.getByRole('menuitem', { name: '退出登录' }).click()
+    await expect(page).toHaveURL(/\/login(?:\?.*)?$/)
   })
 })
 
