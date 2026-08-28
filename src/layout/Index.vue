@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { LogoutOutlined, ProjectOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, DashboardOutlined, MenuOutlined } from '@ant-design/icons-vue'
+import { LogoutOutlined, ProjectOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, DashboardOutlined, MenuOutlined, DownOutlined } from '@ant-design/icons-vue'
 import { useUserStore } from '/@/store/user'
 import { message } from 'ant-design-vue'
 
@@ -130,7 +130,7 @@ onMounted(async () => {
             </button>
           </div>
           <div v-if="canConfig" class="pms-nav-group pms-nav-group--configuration">
-            <div class="pms-nav-section-label"><SettingOutlined /><span>配置管理</span></div>
+            <div class="pms-nav-section-label"><SettingOutlined /><span>配置管理</span><DownOutlined class="pms-nav-section-label__arrow" /></div>
             <div class="pms-nav-subnav">
               <button v-if="can('admin:user:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-users') }" type="button" @click.stop="handleMenuClick({ key: 'admin-users' })">
                 <TeamOutlined /><span>人员与权限</span>

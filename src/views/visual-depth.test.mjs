@@ -42,3 +42,12 @@ test('deep visual layer defines control, section, and motion contracts', () => {
   assert.match(source, /\.pms-task-card__surface\s*\{/)
   assert.match(source, /prefers-reduced-motion/)
 })
+
+test('admin navigation keeps the group relationship legible and user control chrome clean', () => {
+  const layout = read('layout/Index.vue')
+  const source = read('styles/fs-insight.css')
+  assert.match(layout, /pms-nav-section-label__arrow/)
+  assert.match(source, /\.pms-user-menu\s*\{[\s\S]*border:\s*0;/)
+  assert.match(source, /\.pms-nav-section-label\s*\{[\s\S]*font-size:\s*13px;/)
+  assert.match(source, /\.pms-nav-subnav\s*\{[\s\S]*border-left:\s*1px solid var\(--pms-border\)/)
+})
