@@ -12,6 +12,7 @@ import { createProject, deleteProject, getProjectPage, updateProject } from '/@/
 import { getProjectStatusLabel, ProjectStatus, Priority, statusTagColor, priorityTagColor } from '/@/enums'
 import { formatDate } from '/@/utils/format'
 import { getProjectManagerDisplay } from '../detail/workflow'
+import PmsPageHeader from '/@/components/PmsPageHeader.vue'
 import type { Project } from '/@/types/domain'
 
 const router = useRouter()
@@ -152,19 +153,18 @@ onMounted(loadData)
 <template>
   <div>
     <!-- 页头 -->
-    <div class="pms-page-header">
-      <div>
-        <h1>项目管理</h1>
-        <p>
-          覆盖项目全生命周期，完成节点自动流转，让交付快人一步
-        </p>
-      </div>
-      <a-button type="primary" class="pms-primary-button" @click="openCreate">
-        <PlusOutlined /> 新建项目
-      </a-button>
-    </div>
+    <PmsPageHeader
+      title="项目管理"
+      description="覆盖项目全生命周期，完成节点自动流转，让交付快人一步"
+    >
+      <template #actions>
+        <a-button type="primary" class="pms-primary-button" @click="openCreate">
+          <PlusOutlined /> 新建项目
+        </a-button>
+      </template>
+    </PmsPageHeader>
 
-    <a-card :bordered="false" class="pms-table-card">
+    <a-card :bordered="false" class="pms-table-panel pms-table-card">
       <div class="pms-table-toolbar">
         <div class="pms-table-toolbar__filters">
           <a-input

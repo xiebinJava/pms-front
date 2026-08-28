@@ -555,7 +555,7 @@ onBeforeUnmount(() => {
       <span>项目详情</span>
     </div>
 
-    <section class="project-header card-surface">
+    <section class="project-header pms-detail-panel card-surface">
       <div class="project-header__main">
         <div class="project-title-row">
           <span class="project-status-icon" :class="`project-status-icon--${projectStatusTone}`">
@@ -651,7 +651,7 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <section class="flow-card card-surface">
+    <section class="flow-card pms-detail-panel card-surface">
       <div class="section-title-row">
         <div>
           <h2>项目流程</h2>
@@ -661,7 +661,7 @@ onBeforeUnmount(() => {
       <NodeNavigator :nodes="nodes" :active-id="activeNodeId ?? 0" @select="onSelectNode" />
     </section>
 
-    <section v-if="activeNode" class="node-detail-card card-surface">
+    <section v-if="activeNode" class="node-detail-card pms-detail-panel card-surface">
       <div class="node-detail-header">
         <div class="node-detail-title">
           <div class="node-detail-title__copy">
@@ -864,7 +864,7 @@ onBeforeUnmount(() => {
       </section>
     </section>
 
-    <section class="management-card card-surface">
+    <section class="management-card pms-detail-panel card-surface">
       <div class="section-title-row section-title-row--compact">
         <div>
           <h2>项目协作</h2>
@@ -913,7 +913,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .project-detail-page { max-width: 1440px; margin: 0 auto; }
 .detail-loading { display: flex; align-items: center; justify-content: center; min-height: 420px; }
-.card-surface { background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: 6px; box-shadow: 0 1px 3px rgb(16 34 63 / 4%); }
+.card-surface { background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); box-shadow: var(--pms-shadow-sm); }
 .detail-breadcrumb { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
 .detail-breadcrumb__back { color: var(--pms-text-muted); cursor: pointer; }
 .detail-breadcrumb__back:hover { color: var(--pms-primary); }
