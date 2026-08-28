@@ -7,7 +7,13 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
 
-FROM nginx:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.27-alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
+COPY healthcheck-frontend.sh /usr/local/bin/healthcheck-frontend.sh
+USER root
+RUN chmod 0755 /usr/local/bin/healthcheck-frontend.sh \
+    && chown -R nginx:nginx /usr/share/nginx/html /etc/nginx/conf.d /usr/local/bin/healthcheck-frontend.sh
+USER nginx
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD ["/usr/local/bin/healthcheck-frontend.sh"]
