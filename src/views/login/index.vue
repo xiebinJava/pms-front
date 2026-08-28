@@ -19,6 +19,8 @@ async function onFinish() {
     message.success('登录成功')
     const redirect = (route.query.redirect as string) || '/'
     router.push(redirect)
+  } catch (error) {
+    message.error((error as Error)?.message || '登录失败，请稍后重试')
   } finally {
     loading.value = false
   }
