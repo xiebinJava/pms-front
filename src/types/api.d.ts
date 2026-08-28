@@ -2,6 +2,7 @@ export interface ApiResult<T = unknown> {
   code: number
   msg: string
   data: T
+  requestId?: string
 }
 
 export interface PageResult<T = unknown> {

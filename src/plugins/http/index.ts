@@ -23,14 +23,17 @@ instance.interceptors.response.use(
     if ((response.config as RetryConfig)._raw) return response.data as any
     const res = response.data as ApiResult
     if (res.code !== 200) {
-      message.error(res.msg || '请求失败')
-      return Promise.reject(new Error(res.msg))
+      const businessError = new Error(res.msg || '请求失败') as Error & { _businessHandled?: boolean }
+      businessError._businessHandled = true
+      message.error(businessError.message)
+      return Promise.reject(businessError)
     }
     return res.data as any
   },
   async (error) => {
     const config = error.config as RetryConfig | undefined
-    const isAuthEndpoint = typeof config?.url === 'string' && ['/auth/login', '/auth/refresh', '/auth/activate'].some((path) => config.url?.includes(path))
+    const isAuthEndpoint = typeof config?.url === 'string'
+      && ['/auth/login', '/auth/refresh', '/auth/activate', '/auth/password-reset/'].some((path) => config.url?.includes(path))
     if (error.response?.status === 401 && config && !config._retry && !config._skipAuthRefresh && !isAuthEndpoint) {
       config._retry = true
       try {
@@ -50,11 +53,13 @@ instance.interceptors.response.use(
         accessToken = ''
         if (window.location.pathname !== '/login') {
           message.error('登录会话已失效，请重新登录')
-          window.location.href = '/login'
+          const redirect = `${window.location.pathname}${window.location.search}`
+          window.location.href = `/login?redirect=${encodeURIComponent(redirect)}`
         }
       }
-    } else if (error.response?.status !== 401 && !isAuthEndpoint && !(config?._silentError)) {
-      message.error(error.response?.data?.msg || '网络异常，请稍后重试')
+    } else if (!isAuthEndpoint && !(config?._silentError) && !(error as { _businessHandled?: boolean })._businessHandled) {
+      const backendMessage = error.response?.data?.msg
+      message.error(backendMessage || error.message || '网络异常，请稍后重试')
     }
     return Promise.reject(error)
   },
