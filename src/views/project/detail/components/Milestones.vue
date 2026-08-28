@@ -157,6 +157,30 @@ onMounted(loadData)
 </template>
 
 <style scoped>
-.milestone-actions { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
-.milestone-actions :deep(.ant-btn) { padding-inline: 0; }
+.milestone-actions { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.milestone-actions :deep(.ant-btn) {
+  min-height: 28px;
+  height: 28px;
+  padding: 0 7px;
+  color: var(--pms-primary);
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1;
+}
+.milestone-actions :deep(.ant-btn:hover),
+.milestone-actions :deep(.ant-btn:focus-visible) {
+  color: var(--pms-primary-dark);
+  background: var(--pms-primary-soft);
+  border-color: transparent;
+}
+.milestone-actions :deep(.ant-btn-dangerous) { color: var(--pms-danger); }
+.milestone-actions :deep(.ant-btn-dangerous:hover),
+.milestone-actions :deep(.ant-btn-dangerous:focus-visible) {
+  color: var(--pms-danger);
+  background: var(--pms-danger-soft);
+}
 </style>

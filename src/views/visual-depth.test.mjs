@@ -51,3 +51,10 @@ test('admin navigation keeps the group relationship legible and user control chr
   assert.match(source, /\.pms-nav-section-label\s*\{[\s\S]*font-size:\s*13px;/)
   assert.match(source, /\.pms-nav-subnav\s*\{[\s\S]*border-left:\s*1px solid var\(--pms-border\)/)
 })
+
+test('milestone actions use compact text controls instead of boxed buttons', () => {
+  const source = read('views/project/detail/components/Milestones.vue')
+  assert.match(source, /milestone-actions\s*:deep\(\.ant-btn\)/)
+  assert.match(source, /border:\s*0;/)
+  assert.match(source, /min-height:\s*28px;/)
+})
