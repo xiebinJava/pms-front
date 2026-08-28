@@ -32,4 +32,6 @@ export const designTokens = {
   },
   controlHeight: 36,
   radius: 8,
+  shadowSm: '0 1px 2px rgb(16 34 63 / 4%), 0 2px 8px rgb(16 34 63 / 4%)',
+  shadowMd: '0 10px 30px rgb(16 34 63 / 10%)',
 } as const

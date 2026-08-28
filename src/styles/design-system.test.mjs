@@ -1,15 +1,23 @@
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 import test from 'node:test'
 import { designTokens } from './design-system.ts'
 
+const globalStyles = fs.readFileSync(new URL('./fs-insight.css', import.meta.url), 'utf8')
+
 test('matches the PMS visual token contract', () => {
   assert.equal(designTokens.primary, '#0A5DC2')
+  assert.equal(designTokens.primaryDark, '#0847A0')
+  assert.equal(designTokens.primarySoft, '#EAF2FC')
   assert.equal(designTokens.background, '#F7F8FA')
   assert.equal(designTokens.surface, '#FFFFFF')
+  assert.equal(designTokens.surfaceMuted, '#F8FAFC')
   assert.equal(designTokens.border, '#E1E6ED')
+  assert.equal(designTokens.borderStrong, '#CBD4DF')
   assert.equal(designTokens.text, '#18212E')
   assert.equal(designTokens.radius, 8)
   assert.equal(designTokens.controlHeight, 36)
+  assert.match(designTokens.shadowSm, /0 1px 2px/)
   assert.deepEqual(designTokens.fontSize, {
     body: 13,
     compact: 12,
@@ -19,4 +27,11 @@ test('matches the PMS visual token contract', () => {
     display: 22,
   })
   assert.equal(designTokens.lineHeight.normal, 1.45)
+})
+
+test('exposes shared fs-insight visual primitives', () => {
+  assert.match(globalStyles, /\.pms-panel(?:\s*,|\s*\{)/)
+  assert.match(globalStyles, /\.pms-page-header(?:\s*,|\s*\{)/)
+  assert.match(globalStyles, /\.pms-button--primary(?:\s*,|\s*\{)/)
+  assert.match(globalStyles, /\.pms-state-card\s*\{/)
 })

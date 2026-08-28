@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { theme } from 'ant-design-vue'
 import { designTokens } from './styles/design-system'
+import './styles/fs-insight.css'
 
 const themeConfig = {
   algorithm: theme.defaultAlgorithm,
