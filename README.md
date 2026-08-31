@@ -4,7 +4,7 @@
 
 ## 技术栈
 
-- Vue 3.5 + TypeScript + Vite 6 + pnpm
+- Vue 3.5 + TypeScript + Vite 6 + pnpm 9.15.9（由 `packageManager` 固定）
 - ant-design-vue 4 + @ant-design/icons-vue
 - Pinia 状态管理 + vue-router 4
 - UnoCSS 原子类
@@ -36,6 +36,8 @@ pnpm typecheck  # 仅类型检查
 docker build -t pms-front .
 docker run --rm -p 5173:8080 pms-front
 ```
+
+最终 Nginx 运行层使用非 root 用户，并在构建时刷新 Alpine 安全包；CI 会执行 Trivy 高危/严重扫描和 SPDX SBOM 生成。
 
 生产环境请通过反向代理限制来源，并将后端 `PMS_CORS_ALLOWED_ORIGINS` 配置为实际访问域名。
 
