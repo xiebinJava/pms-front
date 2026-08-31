@@ -54,7 +54,11 @@ function handleMenuClick(payload: { key?: string } | string | Event) {
 async function logout() {
   await userStore.logout()
   message.success('已退出登录')
-  router.push('/login')
+  await router.replace('/login').catch(() => {
+    // If the login chunk cannot be loaded, force a fresh document navigation
+    // so the browser still leaves the authenticated application shell.
+    window.location.replace('/login')
+  })
 }
 
 async function submitPasswordChange() {
