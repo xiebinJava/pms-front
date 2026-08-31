@@ -16,7 +16,7 @@ importers:
         version: 4.2.6(vue@3.5.13(typescript@5.7.2))
       axios:
         specifier: 1.8.4
-        version: 1.8.4
+        version: 1.8.4(debug@4.4.3)
       dayjs:
         specifier: 1.11.13
         version: 1.11.13
@@ -46,8 +46,8 @@ importers:
         specifier: 5.2.1
         version: 5.2.1(vite@6.3.5(@types/node@22.20.1)(jiti@2.7.0)(tsx@4.23.12))(vue@3.5.13(typescript@5.7.2))
       prettier:
-        specifier: 3.5.3
-        version: 3.5.3
+        specifier: 3.9.6
+        version: 3.9.6
       typescript:
         specifier: 5.7.2
         version: 5.7.2
@@ -1201,8 +1201,8 @@ packages:
     resolution: {integrity: sha512-u82N74LFzG8ca+dD8puPnplTXoGH4fTPpVGuIbt36G3qvNlkvfD0lEAZSxaly3KX8TS/L1A1gsCEmvKmBcVbkQ==}
     engines: {node: ^10 || ^12 || >=14}
 
-  prettier@3.5.3:
-    resolution: {integrity: sha512-QQtaxnoDJeAkDvDKWCLiwIXkTgRhwYDEQCghU9Z6q03iyek/rxRh/2lC3HB7P8sWT2xC/y5JDctPLBIGzHKbhw==}
+  prettier@3.9.6:
+    resolution: {integrity: sha512-OpN0zzVdiaiAhxpuuj5efpIS4sY9j7bY6uR5mnj5yPzGkdkjNKSJeUThPb60Jw29QuAZgA4o+/iB49kFiaBX6g==}
     engines: {node: '>=14'}
     hasBin: true
 
@@ -2032,9 +2032,9 @@ snapshots:
 
   asynckit@0.4.0: {}
 
-  axios@1.8.4:
+  axios@1.8.4(debug@4.4.3):
     dependencies:
-      follow-redirects: 1.16.0
+      follow-redirects: 1.16.0(debug@4.4.3)
       form-data: 4.0.6
       proxy-from-env: 1.1.0
     transitivePeerDependencies:
@@ -2218,7 +2218,9 @@ snapshots:
     dependencies:
       to-regex-range: 5.0.1
 
-  follow-redirects@1.16.0: {}
+  follow-redirects@1.16.0(debug@4.4.3):
+    optionalDependencies:
+      debug: 4.4.3
 
   form-data@4.0.6:
     dependencies:
@@ -2425,7 +2427,7 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  prettier@3.5.3: {}
+  prettier@3.9.6: {}
 
   proxy-from-env@1.1.0: {}
 
