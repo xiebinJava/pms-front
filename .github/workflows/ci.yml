@@ -32,7 +32,7 @@ jobs:
           vuln-type: os,library
           severity: HIGH,CRITICAL
       - name: Generate frontend SPDX SBOM
-        uses: anchore/sbom-action@v0.17.0
+        uses: anchore/sbom-action@v0.24.2
         with:
           image: pms-front:ci
           format: spdx-json
