@@ -247,6 +247,12 @@ test('formats people consistently as name and account', () => {
   assert.equal(formatPersonLabel({ id: 3 }), '用户 3')
 })
 
+test('falls back to email when optional names are missing', () => {
+  assert.equal(formatPersonLabel({ id: 6, email: 'person@example.com' }), 'person@example.com')
+  assert.equal(formatPersonLabel({ id: 8, username: 'user-0123456789abcdef', email: 'person@example.com' }), 'person@example.com')
+  assert.equal(formatPersonLabel({ id: 7, nameZh: '谢斌', email: 'brad@example.com' }), '谢斌')
+})
+
 test('normalizes duplicate preformatted person display labels', () => {
   assert.deepEqual(getPersonDisplay({ label: '管理员（admin） (admin)', avatar: '/avatar.png' }), {
     label: '管理员（admin）',

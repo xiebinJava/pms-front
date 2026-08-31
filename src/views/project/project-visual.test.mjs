@@ -17,6 +17,13 @@ test('project detail cards use the shared panel visual layer', () => {
   assert.match(source, /var\(--pms-shadow-sm\)/)
 })
 
+test('project description image toolbar has an explicit action and responsive hint', () => {
+  const source = fs.readFileSync(path.join(root, 'views/project/detail/index.vue'), 'utf8')
+  assert.match(source, /project-description-toolbar__action/)
+  assert.match(source, /project-description-toolbar__hint/)
+  assert.match(source, /flex-wrap:\s*wrap/)
+})
+
 test('project list date cells allow the range to wrap into two lines', () => {
   const styleSource = fs.readFileSync(path.join(root, 'styles/fs-insight.css'), 'utf8')
   assert.match(styleSource, /\.pms-project-date-range\s*\{[\s\S]*white-space:\s*normal;/)

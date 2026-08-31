@@ -67,7 +67,7 @@ function onRemove(record: ProjectMember) {
   if (!props.canManage) return
   Modal.confirm({
     title: '移除成员',
-    content: `确定将「${record.nickname || record.username}」移出项目吗？`,
+    content: `确定将「${formatPersonLabel(record)}」移出项目吗？`,
     okText: '移除',
     okType: 'danger',
     cancelText: '取消',
@@ -94,9 +94,9 @@ onMounted(loadData)
     <a-table :data-source="list" :columns="columns" :loading="loading" row-key="id" :pagination="false">
     <template #bodyCell="{ column, record }">
       <template v-if="column.key === 'member'">
-        <a-avatar :size="28" class="pms-avatar">{{ (record.nickname || record.username || '?').charAt(0) }}</a-avatar>
-        <span class="ml-2 pms-strong-text">{{ record.nickname || '-' }}</span>
-        <span class="ml-1 pms-faint-text">@{{ record.username }}</span>
+        <a-avatar :size="28" class="pms-avatar">{{ formatPersonLabel(record).charAt(0) }}</a-avatar>
+        <span class="ml-2 pms-strong-text">{{ formatPersonLabel(record) }}</span>
+        <span v-if="record.email" class="ml-1 pms-faint-text">{{ record.email }}</span>
       </template>
       <template v-else-if="column.key === 'role'">
         <a-tag :color="roleTagColor[record.role]">{{ MemberRole.label(record.role) }}</a-tag>

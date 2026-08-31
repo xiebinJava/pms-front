@@ -108,7 +108,7 @@ const elapsedDays = computed(() => getElapsedDays(project.value?.startDate))
 const showKickoffProfile = computed(() => isKickoffNode(activeNode.value?.nodeKey))
 const nodeOwnerOptions = computed(() => members.value.map((member) => ({
   value: member.userId,
-  label: formatPersonLabel({ id: member.userId, nickname: member.nickname, username: member.username }),
+  label: formatPersonLabel({ id: member.userId, nickname: member.nickname, username: member.username, email: member.email }),
   avatar: member.avatar,
 })))
 const businessLineOptions = computed(() => {
@@ -232,6 +232,7 @@ async function onProfileUserSearch(keyword = '') {
     id: member.userId,
     username: member.username || '',
     nickname: member.nickname || '',
+    email: member.email,
     avatar: member.avatar,
   })), ...followers.value, ...users])
 }
@@ -764,10 +765,17 @@ onBeforeUnmount(() => {
                       accept="image/png,image/jpeg,image/gif,image/webp"
                       @change="onDescriptionImageSelected"
                     />
-                    <a-button type="text" size="small" :loading="descriptionImageUploading" :disabled="!canManageProject || activeNodeReadOnly" @click="openDescriptionImagePicker">
+                    <a-button
+                      type="default"
+                      size="small"
+                      class="project-description-toolbar__action"
+                      :loading="descriptionImageUploading"
+                      :disabled="!canManageProject || activeNodeReadOnly"
+                      @click="openDescriptionImagePicker"
+                    >
                       <PictureOutlined /> 插入图片
                     </a-button>
-                    <span>支持 PNG、JPG、GIF、WEBP，单张不超过 5MB</span>
+                    <span class="project-description-toolbar__hint">支持 PNG、JPG、GIF、WEBP，单张不超过 5MB</span>
                   </div>
                 </div>
                 <a-select
@@ -996,8 +1004,11 @@ onBeforeUnmount(() => {
 .project-profile-control :deep(.ant-select-selector), .project-profile-control :deep(.ant-picker), .project-profile-control :deep(.ant-input) { min-height: 36px; }
 .project-description-control { min-height: 96px; max-height: 320px; resize: vertical; }
 .project-description-editor { min-width: 0; }
-.project-description-toolbar { display: flex; align-items: center; gap: 8px; margin-top: 5px; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
-.project-description-toolbar :deep(.ant-btn) { padding-inline: 0; color: var(--pms-primary); }
+.project-description-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; padding-top: 8px; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-normal); border-top: 1px solid var(--pms-border); }
+.project-description-toolbar__action { display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding-inline: 10px; color: var(--pms-primary) !important; background: var(--pms-surface) !important; border-color: var(--pms-border-strong) !important; border-radius: var(--pms-radius-sm); box-shadow: none; font-weight: 600; }
+.project-description-toolbar__action:hover:not(:disabled) { color: var(--pms-primary-dark) !important; background: var(--pms-primary-soft) !important; border-color: var(--pms-primary) !important; }
+.project-description-toolbar__action:disabled { color: var(--pms-text-faint) !important; background: var(--pms-surface-muted) !important; border-color: var(--pms-border) !important; }
+.project-description-toolbar__hint { display: inline-flex; align-items: center; min-height: 30px; color: var(--pms-text-faint); }
 .project-description-file-input { display: none; }
 .project-members-control :deep(.ant-select-selector) { max-height: 36px; min-height: 36px; overflow: hidden; align-items: center; }
 .project-members-control :deep(.ant-select-selection-overflow) { flex-wrap: nowrap; overflow: hidden; }
@@ -1025,6 +1036,8 @@ onBeforeUnmount(() => {
   .node-owner-row__control, .node-owner-row__select { width: 100%; }
   .node-owner-row__control { flex-basis: auto; }
   .node-schedule-picker { width: 100%; }
+  .project-description-toolbar { align-items: flex-start; }
+  .project-description-toolbar__hint { flex: 1 1 220px; }
   .project-profile-grid, .project-people-grid { grid-template-columns: 1fr; }
   .project-profile-field--wide { grid-column: auto; }
   .summary-progress { grid-column: span 3; }

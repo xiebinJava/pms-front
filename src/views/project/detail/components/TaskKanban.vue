@@ -39,7 +39,7 @@ const groups = computed(() =>
 
 const taskMemberOptions = computed(() => members.value.map((member) => ({
   value: member.userId,
-  label: formatPersonLabel({ id: member.userId, nickname: member.nickname, username: member.username }),
+  label: formatPersonLabel({ id: member.userId, nickname: member.nickname, username: member.username, email: member.email }),
   avatar: member.avatar,
 })))
 const milestoneNameMap = computed(() => new Map(milestones.value.map((m) => [m.id, m.title])))

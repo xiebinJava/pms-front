@@ -10,12 +10,12 @@ export const useUserStore = defineStore('user', {
   }),
   getters: {
     isLogin: (state) => !!state.token,
-    displayName: (state) => state.user?.displayName || state.user?.nickname || state.user?.username || '未登录',
+    displayName: (state) => state.user?.displayName || state.user?.nickname || state.user?.nameZh || state.user?.email || state.user?.username || '未登录',
     can: (state) => (permission: string) => state.user?.systemRole === 1 || !!state.user?.permissionCodes?.includes(permission),
   },
   actions: {
-    async login(username: string, password: string) {
-      const data = await loginApi(username, password)
+    async login(email: string, password: string) {
+      const data = await loginApi(email, password)
       const token = data.accessToken || data.token || ''
       setAccessToken(token)
       this.token = token

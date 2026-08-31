@@ -54,7 +54,11 @@ function handleMenuClick(payload: { key?: string } | string | Event) {
 async function logout() {
   await userStore.logout()
   message.success('已退出登录')
-  router.push('/login')
+  await router.replace('/login').catch(() => {
+    // If the login chunk cannot be loaded, force a fresh document navigation
+    // so the browser still leaves the authenticated application shell.
+    window.location.replace('/login')
+  })
 }
 
 async function submitPasswordChange() {
@@ -104,7 +108,7 @@ onMounted(async () => {
       <a-dropdown>
         <button class="pms-user-menu" type="button">
           <a-avatar size="small" class="pms-user-menu__avatar">
-            {{ (userStore.user?.nickname || userStore.user?.username || 'U').charAt(0) }}
+            {{ (userStore.displayName || 'U').charAt(0) }}
           </a-avatar>
           <span>{{ userStore.displayName }}</span>
         </button>

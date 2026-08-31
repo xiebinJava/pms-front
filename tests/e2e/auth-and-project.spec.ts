@@ -13,7 +13,7 @@ test.describe('认证与项目主流程', () => {
 
   test('登录后可访问项目、组织和权限页面', async ({ page }) => {
     await page.goto('/login')
-    await page.locator('input[placeholder^="英文名"]').fill(username!)
+    await page.locator('input[placeholder^="邮箱"]').fill(username!)
     await page.locator('input[placeholder="密码"]').fill(password!)
     await page.getByRole('button', { name: /登\s*录/ }).click()
     await expect(page).toHaveURL(/\/(?:dashboard|projects)(?:\/)?$/)
