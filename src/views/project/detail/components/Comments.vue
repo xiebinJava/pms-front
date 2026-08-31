@@ -59,24 +59,24 @@ onMounted(loadData)
   <div class="max-w-[720px]">
     <div class="flex gap-2 mb-5">
       <a-textarea v-model:value="content" :rows="3" placeholder="记录进展、评论项目…" :maxlength="2000" />
-      <a-button type="primary" :loading="submitting" @click="onAdd" class="self-end">发布</a-button>
+      <a-button type="primary" class="pms-primary-button self-end" :loading="submitting" @click="onAdd">发布</a-button>
     </div>
 
     <a-spin :spinning="loading">
-      <div v-if="list.length === 0" class="text-center text-[#8895a7] py-10">暂无动态</div>
-      <div v-for="item in list" :key="item.id" class="flex gap-3 py-3 border-b border-[#f0f0f0] last:border-b-0">
-        <a-avatar :size="32" style="background-color: #378eef">
+      <div v-if="list.length === 0" class="pms-empty-text">暂无动态</div>
+      <div v-for="item in list" :key="item.id" class="pms-comment-item">
+        <a-avatar :size="32" class="pms-avatar">
           {{ (item.userNickname || '?').charAt(0) }}
         </a-avatar>
-        <div class="flex-1">
-          <div class="flex items-center justify-between">
-            <span class="font-medium text-[13px] text-[#18212e]">{{ item.userNickname }}</span>
-            <span class="flex items-center gap-2 text-[12px] text-[#8895a7]">
+        <div class="pms-comment-item__body">
+          <div class="pms-comment-item__meta">
+            <span class="pms-strong-text">{{ item.userNickname }}</span>
+            <span class="pms-faint-text pms-comment-item__time">
               {{ formatDateTime(item.createdAt) }}
-              <DeleteOutlined class="cursor-pointer hover:text-[#bc3038]" @click="onDelete(item)" />
+              <DeleteOutlined class="pms-delete-icon" @click="onDelete(item)" />
             </span>
           </div>
-          <p class="mt-1 mb-0 text-[13px] text-[#5d6b7e] whitespace-pre-wrap">{{ item.content }}</p>
+          <p class="pms-comment-item__content">{{ item.content }}</p>
         </div>
       </div>
     </a-spin>

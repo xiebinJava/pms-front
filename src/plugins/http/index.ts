@@ -1,40 +1,65 @@
-import axios, { AxiosRequestConfig } from 'axios'
+import axios, { AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios'
 import { message } from 'ant-design-vue'
 import type { ApiResult } from '/@/types/api'
 
-const TOKEN_KEY = 'pms_token'
+let accessToken = ''
+let refreshPromise: Promise<string> | null = null
 
 const instance = axios.create({
   baseURL: '/api',
   timeout: 15000,
+  withCredentials: true,
 })
 
+type RetryConfig = InternalAxiosRequestConfig & { _retry?: boolean; _skipAuthRefresh?: boolean; _raw?: boolean; _silentError?: boolean }
+
 instance.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY)
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
+  if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`
   return config
 })
 
 instance.interceptors.response.use(
   (response) => {
+    if ((response.config as RetryConfig)._raw) return response.data as any
     const res = response.data as ApiResult
     if (res.code !== 200) {
-      message.error(res.msg || '请求失败')
-      return Promise.reject(new Error(res.msg))
+      const businessError = new Error(res.msg || '请求失败') as Error & { _businessHandled?: boolean }
+      businessError._businessHandled = true
+      message.error(businessError.message)
+      return Promise.reject(businessError)
     }
     return res.data as any
   },
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem(TOKEN_KEY)
-      if (window.location.pathname !== '/login') {
-        message.error('未登录或登录已过期')
-        window.location.href = '/login'
+  async (error) => {
+    const config = error.config as RetryConfig | undefined
+    const isAuthEndpoint = typeof config?.url === 'string'
+      && ['/auth/login', '/auth/refresh', '/auth/activate', '/auth/password-reset/'].some((path) => config.url?.includes(path))
+    if (error.response?.status === 401 && config && !config._retry && !config._skipAuthRefresh && !isAuthEndpoint) {
+      config._retry = true
+      try {
+        if (!refreshPromise) {
+          refreshPromise = instance.post('/auth/refresh', undefined, { _skipAuthRefresh: true } as AxiosRequestConfig)
+            .then((data: any) => {
+              const token = data?.accessToken || data?.token || ''
+              if (!token) throw new Error('refresh token missing')
+              accessToken = token
+              return token
+            })
+            .finally(() => { refreshPromise = null })
+        }
+        await refreshPromise
+        return instance.request(config)
+      } catch {
+        accessToken = ''
+        if (window.location.pathname !== '/login') {
+          message.error('登录会话已失效，请重新登录')
+          const redirect = `${window.location.pathname}${window.location.search}`
+          window.location.href = `/login?redirect=${encodeURIComponent(redirect)}`
+        }
       }
-    } else {
-      message.error(error.response?.data?.msg || '网络异常，请稍后重试')
+    } else if (!isAuthEndpoint && !(config?._silentError) && !(error as { _businessHandled?: boolean })._businessHandled) {
+      const backendMessage = error.response?.data?.msg
+      message.error(backendMessage || error.message || '网络异常，请稍后重试')
     }
     return Promise.reject(error)
   },
@@ -49,6 +74,9 @@ export const http = {
   post: <T>(url: string, data?: unknown, config?: AxiosRequestConfig) => request<T>({ ...config, method: 'POST', url, data }),
   put: <T>(url: string, data?: unknown, config?: AxiosRequestConfig) => request<T>({ ...config, method: 'PUT', url, data }),
   delete: <T>(url: string, config?: AxiosRequestConfig) => request<T>({ ...config, method: 'DELETE', url }),
+  getBlob: (url: string) => request<Blob>({ method: 'GET', url, responseType: 'blob', _raw: true } as AxiosRequestConfig & { _raw: boolean }),
 }
 
-export { TOKEN_KEY }
+export function setAccessToken(token: string) { accessToken = token }
+export function getAccessToken() { return accessToken }
+export function clearAccessToken() { accessToken = '' }

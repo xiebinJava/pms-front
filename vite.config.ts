@@ -18,6 +18,12 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: env.VITE_PROXY_TARGET || 'http://localhost:8080',
           changeOrigin: true,
+          // The backend intentionally rejects unknown Origin values. During local
+          // development the proxy is same-origin, so do not forward the browser
+          // origin as a cross-site request.
+          configure: (proxy) => {
+            proxy.on('proxyReq', (request) => request.removeHeader('origin'))
+          },
         },
       },
     },

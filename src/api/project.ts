@@ -2,6 +2,11 @@ import { http } from '/@/plugins/http'
 import type { PageResult } from '/@/types/api'
 import type { Project } from '/@/types/domain'
 
+export interface ProjectUpdatePayload extends Partial<Project> {
+  memberIds?: number[]
+  followerIds?: number[]
+}
+
 export interface ProjectPageParams {
   currPage: number
   pageSize: number
@@ -21,10 +26,42 @@ export function createProject(data: Partial<Project>): Promise<Project> {
   return http.post('/projects', data)
 }
 
-export function updateProject(id: number | string, data: Partial<Project>): Promise<Project> {
+export function updateProject(id: number | string, data: ProjectUpdatePayload): Promise<Project> {
   return http.put(`/projects/${id}`, data)
+}
+
+export interface ProjectImageUpload {
+  name: string
+  url: string
+}
+
+export function uploadProjectImage(file: File): Promise<ProjectImageUpload> {
+  const formData = new FormData()
+  formData.append('file', file)
+  return http.post('/projects/images', formData)
 }
 
 export function deleteProject(id: number | string): Promise<void> {
   return http.delete(`/projects/${id}`)
+}
+
+export function terminateProject(id: number | string, reason: string): Promise<Project> {
+  return http.post(`/projects/${id}/terminate`, { reason })
+}
+
+export function restoreProject(id: number | string, reason: string): Promise<Project> {
+  return http.post(`/projects/${id}/restore`, { reason })
+}
+
+export interface ProjectStats {
+  total: number
+  active: number
+  completed: number
+  terminated: number
+  deleted: number
+  avgProgress: number
+}
+
+export function getProjectStats(): Promise<ProjectStats> {
+  return http.get('/projects/stats')
 }

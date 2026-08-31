@@ -9,7 +9,7 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 
-const form = reactive({ username: 'admin', password: 'admin123' })
+const form = reactive({ username: '', password: '' })
 const loading = ref(false)
 
 async function onFinish() {
@@ -19,6 +19,8 @@ async function onFinish() {
     message.success('登录成功')
     const redirect = (route.query.redirect as string) || '/'
     router.push(redirect)
+  } catch (error) {
+    message.error((error as Error)?.message || '登录失败，请稍后重试')
   } finally {
     loading.value = false
   }
@@ -26,29 +28,87 @@ async function onFinish() {
 </script>
 
 <template>
-  <div class="h-full min-h-screen flex items-center justify-center bg-gradient-to-br from-[#eef4ff] to-[#f7f9fc]">
-    <a-card class="w-[360px] shadow-lg" :bordered="false">
-      <div class="flex flex-col items-center mb-6">
-        <div class="w-12 h-12 rounded-xl bg-[#378eef] text-white flex items-center justify-center text-2xl font-bold mb-3">P</div>
-        <h1 class="text-[18px] font-semibold m-0 text-[#18212e]">PMS 项目管理系统</h1>
-        <p class="text-[12px] text-[#8895a7] mt-1 m-0">开源项目管理系统</p>
+  <div class="pms-auth-page pms-login-page">
+    <div class="pms-auth-card pms-login-card">
+      <div class="pms-login-heading">
+        <div class="pms-login-logo">P</div>
+        <h1>PMS 项目管理系统</h1>
+        <p>软件研发项目全流程管理</p>
       </div>
 
       <a-form layout="vertical" :model="form" @finish="onFinish">
-        <a-form-item name="username" :rules="[{ required: true, message: '请输入用户名' }]">
-          <a-input v-model:value="form.username" placeholder="用户名" size="large">
-            <template #prefix><UserOutlined /></template>
+        <a-form-item name="username" :rules="[{ required: true, message: '请输入英文名' }]">
+          <a-input v-model:value="form.username" placeholder="英文名（如 Brad.Xie）" size="large">
+            <template #prefix><UserOutlined class="pms-login-icon" /></template>
           </a-input>
         </a-form-item>
         <a-form-item name="password" :rules="[{ required: true, message: '请输入密码' }]">
           <a-input-password v-model:value="form.password" placeholder="密码" size="large">
-            <template #prefix><LockOutlined /></template>
+            <template #prefix><LockOutlined class="pms-login-icon" /></template>
           </a-input-password>
         </a-form-item>
-        <a-button type="primary" html-type="submit" block size="large" :loading="loading">登 录</a-button>
+        <a-button
+          type="primary"
+          html-type="submit"
+          block
+          size="large"
+          :loading="loading"
+          class="pms-primary-button pms-login-submit"
+        >
+          登 录
+        </a-button>
       </a-form>
 
-      <p class="text-[12px] text-[#8895a7] text-center mt-4 mb-0">默认账号 admin / admin123</p>
-    </a-card>
+      <p class="pms-login-hint">请输入管理员邀请的英文名，英文名不区分大小写</p>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.pms-login-card {
+  position: relative;
+  width: min(400px, 100%);
+}
+
+.pms-login-heading {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  margin-bottom: 28px;
+}
+
+.pms-login-logo {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 14px;
+  place-items: center;
+  color: #fff;
+  background: var(--pms-primary);
+  border-radius: 8px;
+  font-size: var(--pms-font-size-title);
+  font-weight: 750;
+}
+
+.pms-login-heading h1 {
+  margin: 0;
+  color: var(--pms-text);
+  font-size: var(--pms-font-size-title);
+  font-weight: 720;
+}
+
+.pms-login-heading p {
+  margin: 5px 0 0;
+  color: var(--pms-text-faint);
+  font-size: var(--pms-font-size-compact);
+}
+
+.pms-login-icon { color: var(--pms-text-faint); }
+.pms-login-submit { height: 42px; border-radius: 6px !important; font-weight: 650; }
+.pms-login-hint { margin: 16px 0 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); text-align: center; }
+
+@media (max-width: 480px) {
+  .pms-login-page { padding: 16px; }
+  .pms-login-card { padding: 24px 20px; }
+}
+</style>

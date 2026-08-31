@@ -1,7 +1,9 @@
 node_modules/
 dist/
 dist-ssr/
+test-results/
 *.local
+.env
 .DS_Store
 *.log
 .vscode/*
