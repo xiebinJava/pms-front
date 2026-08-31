@@ -79,16 +79,21 @@ export function formatPersonLabel(user: {
   displayName?: string
   nickname?: string
   username?: string
+  email?: string
 }): string {
   const username = user.username?.trim()
-  const candidates = [user.nameZh, user.nickname, user.displayName]
+  const generatedUsername = Boolean(username && /^user-[a-f0-9]{16}$/i.test(username))
+  const explicitName = [user.nameZh, user.nickname]
     .map((value) => value?.trim())
     .filter((value): value is string => Boolean(value))
-  const name = candidates
+  const name = explicitName
     .map((value) => stripUsernameSuffix(value, username))
     .find((value) => value && value.toLocaleLowerCase() !== username?.toLocaleLowerCase())
-  if (name && username) return `${name}（${username}）`
-  return normalizePersonDisplayLabel(name || username || `用户 ${user.id}`) || `用户 ${user.id}`
+  if (name && username && !generatedUsername) return `${name}（${username}）`
+  if (name) return name
+  const displayName = normalizePersonDisplayLabel(user.displayName)
+  if (displayName && displayName.toLocaleLowerCase() !== username?.toLocaleLowerCase()) return displayName
+  return normalizePersonDisplayLabel((username && !generatedUsername ? username : undefined) || user.email || username || `用户 ${user.id}`) || `用户 ${user.id}`
 }
 
 export function getPersonDisplay(

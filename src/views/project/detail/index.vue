@@ -108,7 +108,7 @@ const elapsedDays = computed(() => getElapsedDays(project.value?.startDate))
 const showKickoffProfile = computed(() => isKickoffNode(activeNode.value?.nodeKey))
 const nodeOwnerOptions = computed(() => members.value.map((member) => ({
   value: member.userId,
-  label: formatPersonLabel({ id: member.userId, nickname: member.nickname, username: member.username }),
+  label: formatPersonLabel({ id: member.userId, nickname: member.nickname, username: member.username, email: member.email }),
   avatar: member.avatar,
 })))
 const businessLineOptions = computed(() => {
@@ -232,6 +232,7 @@ async function onProfileUserSearch(keyword = '') {
     id: member.userId,
     username: member.username || '',
     nickname: member.nickname || '',
+    email: member.email,
     avatar: member.avatar,
   })), ...followers.value, ...users])
 }

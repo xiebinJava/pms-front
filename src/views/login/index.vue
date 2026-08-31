@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { LockOutlined, UserOutlined } from '@ant-design/icons-vue'
+import { LockOutlined, MailOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { useUserStore } from '/@/store/user'
 
@@ -9,13 +9,13 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 
-const form = reactive({ username: '', password: '' })
+const form = reactive({ email: '', password: '' })
 const loading = ref(false)
 
 async function onFinish() {
   loading.value = true
   try {
-    await userStore.login(form.username, form.password)
+    await userStore.login(form.email, form.password)
     message.success('登录成功')
     const redirect = (route.query.redirect as string) || '/'
     router.push(redirect)
@@ -37,9 +37,9 @@ async function onFinish() {
       </div>
 
       <a-form layout="vertical" :model="form" @finish="onFinish">
-        <a-form-item name="username" :rules="[{ required: true, message: '请输入英文名' }]">
-          <a-input v-model:value="form.username" placeholder="英文名（如 Brad.Xie）" size="large">
-            <template #prefix><UserOutlined class="pms-login-icon" /></template>
+        <a-form-item name="email" :rules="[{ required: true, type: 'email', message: '请输入有效邮箱' }]">
+          <a-input v-model:value="form.email" placeholder="邮箱（如 name@example.com）" size="large">
+            <template #prefix><MailOutlined class="pms-login-icon" /></template>
           </a-input>
         </a-form-item>
         <a-form-item name="password" :rules="[{ required: true, message: '请输入密码' }]">
@@ -59,7 +59,7 @@ async function onFinish() {
         </a-button>
       </a-form>
 
-      <p class="pms-login-hint">请输入管理员邀请的英文名，英文名不区分大小写</p>
+      <p class="pms-login-hint">请输入管理员邀请的邮箱，邮箱不区分大小写</p>
     </div>
   </div>
 </template>

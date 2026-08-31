@@ -8,8 +8,8 @@ export interface LoginResult {
   user: User
 }
 
-export function login(username: string, password: string): Promise<LoginResult> {
-  return http.post('/auth/login', { username, password })
+export function login(email: string, password: string): Promise<LoginResult> {
+  return http.post('/auth/login', { email, password })
 }
 
 export function getMe(): Promise<User> {
@@ -28,5 +28,5 @@ export function changePassword(currentPassword: string, newPassword: string) {
   return http.post('/auth/password/change', { currentPassword, newPassword })
 }
 
-export function requestPasswordReset(username: string) { return http.post<{ resetUrl: string; expiresAt: string }>('/auth/password-reset/request', { username }) }
+export function requestPasswordReset(email: string) { return http.post<{ resetUrl: string; expiresAt: string }>('/auth/password-reset/request', { email }) }
 export function confirmPasswordReset(token: string, password: string) { return http.post('/auth/password-reset/confirm', { token, password }) }

@@ -1,9 +1,9 @@
 export interface User {
   id: number
-  username: string
+  username?: string
   nameZh?: string
   displayName?: string
-  nickname: string
+  nickname?: string
   email?: string
   phone?: string
   avatar?: string
@@ -72,6 +72,7 @@ export interface ProjectMember {
   projectId: number
   userId: number
   username?: string
+  email?: string
   nickname?: string
   displayName?: string
   avatar?: string
@@ -94,9 +95,9 @@ export interface OrgUnit {
 
 export interface Personnel {
   id: number
-  username: string
-  nameZh: string
-  displayName: string
+  username?: string
+  nameZh?: string
+  displayName?: string
   email?: string
   phone?: string
   status: string

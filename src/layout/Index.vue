@@ -104,7 +104,7 @@ onMounted(async () => {
       <a-dropdown>
         <button class="pms-user-menu" type="button">
           <a-avatar size="small" class="pms-user-menu__avatar">
-            {{ (userStore.user?.nickname || userStore.user?.username || 'U').charAt(0) }}
+            {{ (userStore.displayName || 'U').charAt(0) }}
           </a-avatar>
           <span>{{ userStore.displayName }}</span>
         </button>
