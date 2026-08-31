@@ -24,7 +24,7 @@
     "@playwright/test": "1.52.0",
     "@types/node": "^22.10.0",
     "@types/nprogress": "^0.2.3",
-    "@vitejs/plugin-vue": "5.2.1",
+    "@vitejs/plugin-vue": "6.0.8",
     "prettier": "3.5.3",
     "typescript": "5.7.2",
     "unocss": "0.65.2",
