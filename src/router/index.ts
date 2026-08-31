@@ -35,6 +35,12 @@ const router = createRouter({
           meta: { title: '工作台' },
         },
         {
+          path: 'manual',
+          name: 'manual',
+          component: () => import('/@/views/manual/index.vue'),
+          meta: { title: '使用手册' },
+        },
+        {
           path: 'projects',
           name: 'project-list',
           component: () => import('/@/views/project/list/index.vue'),

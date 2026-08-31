@@ -50,6 +50,10 @@ docker run --rm -p 5173:8080 pms-front
 页面职责、路由访问、人员/组织展示、项目交互和请求状态约定见
 [docs/design-logic.md](docs/design-logic.md)。
 
+面向最终用户的模块化操作说明见
+[docs/user-manual.md](docs/user-manual.md)，应用内也提供“使用手册”页签；截图、GIF 和 MP4/WebM
+素材可放入 `public/manual/` 并在手册页面的媒体清单中启用。
+
 ## 目录结构
 
 ```
