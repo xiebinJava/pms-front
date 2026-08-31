@@ -7,7 +7,7 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
 
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 USER root
 # Refresh the Alpine security packages in the final runtime image. The
 # application is static, so only the runtime layer needs the upgrade.
