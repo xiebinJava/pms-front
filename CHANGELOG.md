@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Release-closure snapshot (2026-09-01): `pnpm test` 111/111 passed; `pnpm typecheck` and `pnpm build` passed. Local `main` commit: `eb8e4e8eb78057097b1b4441d3df499b88727b7b`.
 - Load the workbench from `GET /workbench` instead of fanning out project, task, and comment requests.
 - Open a task detail from the kanban or workbench with subtasks, comments, and attachments.
 - Add header search (projects, tasks, milestones, comments) and an in-app notification bell. Project comments now reach followers; completing or rolling back a node opens the matching stage.
