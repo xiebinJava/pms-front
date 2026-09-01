@@ -226,7 +226,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </div>
-      <div class="pms-topbar__center">
+      <div class="pms-topbar__center" :class="{ 'pms-topbar__center--search': canReadProjects }">
         <span class="pms-topbar__title">{{ pageTitle }}</span>
         <div v-if="canReadProjects" class="pms-global-search">
           <a-input

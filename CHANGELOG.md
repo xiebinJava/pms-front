@@ -8,6 +8,7 @@
 - Point local contributors at the sibling MySQL 8 start path.
 - Add Chinese / English UI switching for the shell, sign-in, and workbench. Preference is stored in localStorage.
 - Extend locale coverage to project list, task board, task detail, and collaboration tabs. Status and priority labels follow the active language.
+- Show OIDC / LDAP buttons on the sign-in page when the backend enables those providers.
 
 ## 1.0.0
 

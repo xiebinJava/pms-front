@@ -6,7 +6,7 @@ export function getNotifications(limit = 20): Promise<UserNotification[]> {
 }
 
 export function getUnreadNotificationCount(): Promise<{ unreadCount: number }> {
-  return http.get('/notifications/unread-count')
+  return http.get('/notifications/unread-count', { _silentError: true } as never)
 }
 
 export function markNotificationRead(id: number): Promise<void> {

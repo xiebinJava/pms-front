@@ -34,7 +34,7 @@ instance.interceptors.response.use(
   async (error) => {
     const config = error.config as RetryConfig | undefined
     const isAuthEndpoint = typeof config?.url === 'string'
-      && ['/auth/login', '/auth/refresh', '/auth/activate', '/auth/password-reset/'].some((path) => config.url?.includes(path))
+      && ['/auth/login', '/auth/refresh', '/auth/activate', '/auth/password-reset/', '/auth/providers', '/auth/oidc', '/auth/ldap'].some((path) => config.url?.includes(path))
     if (error.response?.status === 401 && config && !config._retry && !config._skipAuthRefresh && !isAuthEndpoint) {
       config._retry = true
       try {
@@ -60,7 +60,7 @@ instance.interceptors.response.use(
       }
     } else if (!isAuthEndpoint && !(config?._silentError) && !(error as { _businessHandled?: boolean })._businessHandled) {
       const backendMessage = error.response?.data?.msg
-      message.error(backendMessage || error.message || t('http.networkError'))
+      message.error(backendMessage || (error.response ? error.message : t('http.networkError')))
     }
     return Promise.reject(error)
   },
@@ -76,6 +76,13 @@ export const http = {
   put: <T>(url: string, data?: unknown, config?: AxiosRequestConfig) => request<T>({ ...config, method: 'PUT', url, data }),
   delete: <T>(url: string, config?: AxiosRequestConfig) => request<T>({ ...config, method: 'DELETE', url }),
   getBlob: (url: string) => request<Blob>({ method: 'GET', url, responseType: 'blob', _raw: true } as AxiosRequestConfig & { _raw: boolean }),
+}
+
+export function apiErrorMessage(error: unknown, fallback: string): string {
+  const err = error as { response?: { data?: { msg?: string } }; message?: string }
+  if (err.response?.data?.msg) return err.response.data.msg
+  if (!err.response) return fallback
+  return fallback
 }
 
 export function setAccessToken(token: string) { accessToken = token }

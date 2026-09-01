@@ -8,6 +8,7 @@ test('refreshes only on HTTP 401 and preserves backend business messages', () =>
   assert.match(source, /error\.response\?\.status === 401/)
   assert.match(source, /_skipAuthRefresh/)
   assert.match(source, /const backendMessage = error\.response\?\.data\?\.msg/)
+  assert.match(source, /function apiErrorMessage/)
   assert.match(source, /message\.error\(backendMessage \|\|/)
 })
 

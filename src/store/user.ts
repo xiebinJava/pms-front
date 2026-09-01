@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { login as loginApi, getMe, refreshSession, logout as logoutApi, changePassword as changePasswordApi } from '/@/api/auth'
+import { login as loginApi, loginLdap as loginLdapApi, loginOidc as loginOidcApi, getMe, refreshSession, logout as logoutApi, changePassword as changePasswordApi } from '/@/api/auth'
 import { clearAccessToken, getAccessToken, setAccessToken } from '/@/plugins/http'
 import type { User } from '/@/types/domain'
 
@@ -14,12 +14,20 @@ export const useUserStore = defineStore('user', {
     can: (state) => (permission: string) => state.user?.systemRole === 1 || !!state.user?.permissionCodes?.includes(permission),
   },
   actions: {
-    async login(email: string, password: string) {
-      const data = await loginApi(email, password)
+    applySession(data: { accessToken?: string; token?: string; user: User }) {
       const token = data.accessToken || data.token || ''
       setAccessToken(token)
       this.token = token
       this.user = data.user
+    },
+    async login(email: string, password: string) {
+      this.applySession(await loginApi(email, password))
+    },
+    async loginLdap(email: string, password: string) {
+      this.applySession(await loginLdapApi(email, password))
+    },
+    async loginOidc(code: string, state: string) {
+      this.applySession(await loginOidcApi(code, state))
     },
     async fetchMe() {
       this.user = await getMe()

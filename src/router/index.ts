@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '/@/store/user'
+import { isPublicAuthPath } from '/@/auth/sso'
 import { canAccessAdminRoute } from './admin-guard'
 
 const router = createRouter({
@@ -9,6 +10,12 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: () => import('/@/views/login/index.vue'),
+      meta: { titleKey: 'route.login' },
+    },
+    {
+      path: '/login/oidc/callback',
+      name: 'oidc-callback',
+      component: () => import('/@/views/login/oidc-callback.vue'),
       meta: { titleKey: 'route.login' },
     },
     {
@@ -64,7 +71,7 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   const store = useUserStore()
-  if (!['/login', '/auth/activate', '/auth/reset-password'].includes(to.path) && !store.isLogin) {
+  if (!isPublicAuthPath(to.path) && !store.isLogin) {
     try {
       await store.restore()
     } catch {

@@ -88,6 +88,10 @@ const zhCN = {
     hint: '请输入管理员邀请的邮箱，邮箱不区分大小写',
     success: '登录成功',
     failed: '登录失败，请稍后重试',
+    oidc: '使用 {name} 登录',
+    ldap: '使用 {name} 登录',
+    oidcPending: '正在完成单点登录…',
+    oidcFailed: '单点登录失败，请重试或使用邮箱登录',
   },
   auth: {
     activateTitle: '激活账号',

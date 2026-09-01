@@ -61,3 +61,10 @@ test('uses the fs-insight application shell geometry and mobile navigation hooks
   assert.match(source, /class="pms-mobile-menu"/)
   assert.match(styleSource, /--pms-sidebar-width: 236px/)
 })
+
+test('keeps the topbar search inside the 62px bar without covering the divider', () => {
+  assert.match(source, /pms-topbar__center--search/)
+  assert.match(styleSource, /--pms-topbar-height:\s*62px/)
+  assert.match(styleSource, /\.pms-topbar__center--search\s+\.pms-topbar__title\s*\{[\s\S]*position:\s*absolute;/)
+  assert.match(styleSource, /\.pms-topbar\s+\.pms-global-search[\s\S]*height:\s*32px/)
+})

@@ -90,6 +90,10 @@ const enUS: MessageSchema = {
     hint: 'Use the email from your invitation. Email is case-insensitive.',
     success: 'Signed in',
     failed: 'Sign-in failed. Please try again',
+    oidc: 'Sign in with {name}',
+    ldap: 'Sign in with {name}',
+    oidcPending: 'Finishing single sign-on…',
+    oidcFailed: 'Single sign-on failed. Try again or use email',
   },
   auth: {
     activateTitle: 'Activate account',

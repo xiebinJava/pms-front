@@ -8,8 +8,36 @@ export interface LoginResult {
   user: User
 }
 
+export interface AuthProvider {
+  type: string
+  enabled: boolean
+  displayName?: string
+  startPath?: string | null
+}
+
+export interface OidcStart {
+  authorizationUrl: string
+  state: string
+}
+
 export function login(email: string, password: string): Promise<LoginResult> {
   return http.post('/auth/login', { email, password })
+}
+
+export function listAuthProviders(): Promise<AuthProvider[]> {
+  return http.get('/auth/providers', { _silentError: true } as never)
+}
+
+export function startOidc(): Promise<OidcStart> {
+  return http.get('/auth/oidc/start')
+}
+
+export function loginOidc(code: string, state: string): Promise<LoginResult> {
+  return http.post('/auth/oidc/callback', { code, state })
+}
+
+export function loginLdap(email: string, password: string): Promise<LoginResult> {
+  return http.post('/auth/ldap/login', { email, password })
 }
 
 export function getMe(): Promise<User> {

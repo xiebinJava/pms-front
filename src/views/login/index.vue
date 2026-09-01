@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { LockOutlined, MailOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import LocaleSwitch from '/@/components/LocaleSwitch.vue'
+import { listAuthProviders, startOidc } from '/@/api/auth'
+import { apiErrorMessage } from '/@/plugins/http'
+import { ldapEnabled, localPasswordEnabled, oidcProvider, rememberOidcRedirect } from '/@/auth/sso'
+import type { AuthProvider } from '/@/auth/sso'
 import { useUserStore } from '/@/store/user'
 
 const router = useRouter()
@@ -14,20 +18,59 @@ const userStore = useUserStore()
 
 const form = reactive({ email: '', password: '' })
 const loading = ref(false)
+const ssoLoading = ref(false)
+const providers = ref<AuthProvider[]>([])
 const emailRules = computed(() => [{ required: true, type: 'email' as const, message: t('login.emailRequired') }])
 const passwordRules = computed(() => [{ required: true, message: t('login.passwordRequired') }])
+const showLocal = computed(() => localPasswordEnabled(providers.value))
+const showLdap = computed(() => ldapEnabled(providers.value))
+const oidc = computed(() => oidcProvider(providers.value))
 
-async function onFinish() {
+onMounted(async () => {
+  try {
+    providers.value = await listAuthProviders()
+  } catch {
+    providers.value = []
+  }
+})
+
+async function completeLogin(action: () => Promise<void>) {
   loading.value = true
   try {
-    await userStore.login(form.email, form.password)
+    await action()
     message.success(t('login.success'))
     const redirect = (route.query.redirect as string) || '/'
     router.push(redirect)
   } catch (error) {
-    message.error((error as Error)?.message || t('login.failed'))
+    message.error(apiErrorMessage(error, t('login.failed')))
   } finally {
     loading.value = false
+  }
+}
+
+async function onFinish() {
+  if (showLocal.value) {
+    await completeLogin(() => userStore.login(form.email, form.password))
+    return
+  }
+  if (showLdap.value) {
+    await completeLogin(() => userStore.loginLdap(form.email, form.password))
+  }
+}
+
+async function onLdap() {
+  await completeLogin(() => userStore.loginLdap(form.email, form.password))
+}
+
+async function onOidc() {
+  ssoLoading.value = true
+  try {
+    rememberOidcRedirect((route.query.redirect as string) || '/')
+    const start = await startOidc()
+    window.location.assign(start.authorizationUrl)
+  } catch (error) {
+    message.error((error as Error)?.message || t('login.oidcFailed'))
+    ssoLoading.value = false
   }
 }
 </script>
@@ -44,7 +87,7 @@ async function onFinish() {
         <p>{{ $t('login.subtitle') }}</p>
       </div>
 
-      <a-form layout="vertical" :model="form" @finish="onFinish">
+      <a-form v-if="showLocal || showLdap" layout="vertical" :model="form" @finish="onFinish">
         <a-form-item name="email" :rules="emailRules">
           <a-input v-model:value="form.email" :placeholder="$t('login.emailPlaceholder')" size="large">
             <template #prefix><MailOutlined class="pms-login-icon" /></template>
@@ -56,6 +99,7 @@ async function onFinish() {
           </a-input-password>
         </a-form-item>
         <a-button
+          v-if="showLocal"
           type="primary"
           html-type="submit"
           block
@@ -65,7 +109,31 @@ async function onFinish() {
         >
           {{ $t('login.submit') }}
         </a-button>
+        <a-button
+          v-if="showLdap && showLocal"
+          type="default"
+          html-type="button"
+          block
+          size="large"
+          :loading="loading"
+          class="pms-login-secondary"
+          @click="onLdap"
+        >
+          {{ $t('login.ldap', { name: providers.find((item) => item.type === 'ldap')?.displayName || 'Directory' }) }}
+        </a-button>
       </a-form>
+
+      <a-button
+        v-if="oidc"
+        :type="showLocal || showLdap ? 'default' : 'primary'"
+        block
+        size="large"
+        :loading="ssoLoading"
+        class="pms-login-secondary"
+        @click="onOidc"
+      >
+        {{ $t('login.oidc', { name: oidc.displayName || 'SSO' }) }}
+      </a-button>
 
       <p class="pms-login-hint">{{ $t('login.hint') }}</p>
     </div>
@@ -113,6 +181,7 @@ async function onFinish() {
 
 .pms-login-icon { color: var(--pms-text-faint); }
 .pms-login-submit { height: 42px; border-radius: 6px !important; font-weight: 650; }
+.pms-login-secondary { height: 42px; margin-top: 12px; border-radius: 6px !important; font-weight: 650; }
 .pms-login-hint { margin: 16px 0 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); text-align: center; }
 
 @media (max-width: 480px) {
