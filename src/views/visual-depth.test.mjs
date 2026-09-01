@@ -18,16 +18,24 @@ test('project detail uses component-level section primitives', () => {
   assert.match(source, /pms-detail-hero/)
   assert.match(source, /pms-section-heading/)
   assert.match(source, /pms-assignment-grid/)
+  assert.match(source, /key="gantt"/)
+  assert.match(source, /key="calendar"/)
+  assert.match(source, /detail\.collaboration/)
+  assert.doesNotMatch(source, /work-view-switch/)
 })
 
 test('project workflow and kanban expose visual states for deeper styling', () => {
   const navigator = read('views/project/detail/components/NodeNavigator.vue')
   const kanban = read('views/project/detail/components/TaskKanban.vue')
+  const gantt = read('views/project/detail/components/ProjectScheduleChart.vue')
   assert.match(navigator, /flow-track__item/)
   assert.match(kanban, /pms-task-column__header/)
   assert.match(kanban, /pms-task-card__surface/)
   assert.match(kanban, /TaskWorkPanel/)
   assert.match(kanban, /task\.detail/)
+  assert.match(gantt, /--pms-primary/)
+  assert.match(gantt, /gantt-bar--project/)
+  assert.match(gantt, /gantt__today-line/)
 })
 
 test('admin surfaces use the shared visual workspace primitives', () => {

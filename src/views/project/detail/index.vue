@@ -12,7 +12,8 @@ import {
 import { Modal, message } from 'ant-design-vue'
 import { getFollowers } from '/@/api/follower'
 import { addMember, getMembers } from '/@/api/member'
-import { getTask } from '/@/api/task'
+import { getTask, getTasks } from '/@/api/task'
+import { getMilestones } from '/@/api/milestone'
 import { getProject, restoreProject, terminateProject, updateProject, uploadProjectImage } from '/@/api/project'
 import { completeNode, getNodes, rollbackNode, updateNodeOwner, updateNodeSchedule } from '/@/api/node'
 import { getProjectOrgTree } from '/@/api/admin-org'
@@ -41,12 +42,14 @@ import {
 } from './workflow'
 import NodeNavigator from './components/NodeNavigator.vue'
 import TaskKanban from './components/TaskKanban.vue'
+import ProjectScheduleChart from './components/ProjectScheduleChart.vue'
+import ProjectScheduleCalendar from './components/ProjectScheduleCalendar.vue'
 import Milestones from './components/Milestones.vue'
 import Members from './components/Members.vue'
 import Comments from './components/Comments.vue'
 import PersonSelect from './components/PersonSelect.vue'
 import type { PersonOption } from './workflow'
-import type { OrgUnit, Project, ProjectMember, ProjectNode, User } from '/@/types/domain'
+import type { Milestone, OrgUnit, Project, ProjectMember, ProjectNode, Task, User } from '/@/types/domain'
 
 const route = useRoute()
 const router = useRouter()
@@ -84,6 +87,10 @@ const profileUserOptions = ref<PersonOption[]>([])
 const orgTree = ref<OrgUnit[]>([])
 const nodeSchedule = ref<string[]>([])
 const nodeScheduleSaving = ref(false)
+const scheduleTasks = ref<Task[]>([])
+const scheduleMilestones = ref<Milestone[]>([])
+const scheduleLoading = ref(false)
+const scheduleLoaded = ref(false)
 type ReasonAction = 'terminate' | 'restore' | 'rollback'
 
 const reasonModal = reactive({
@@ -199,6 +206,10 @@ async function loadData() {
     const current = nodes.value.find((node) => node.status === 1)
     activeNodeId.value = (current || nodes.value[0])?.id ?? null
     await applyFocusTask()
+    if (isScheduleSection(activeSection.value)) {
+      scheduleLoaded.value = false
+      void loadSchedule()
+    }
   } catch (error) {
     message.error((error as Error).message || '项目详情加载失败，请重试')
   } finally {
@@ -227,6 +238,52 @@ function onTaskFocusConsumed() {
 function onSelectNode(node: ProjectNode) {
   if (profileDirty.value) void onSaveProfile()
   activeNodeId.value = node.id
+}
+
+function isScheduleSection(section: string) {
+  return section === 'gantt' || section === 'calendar'
+}
+
+async function loadSchedule() {
+  if (!scheduleLoaded.value) scheduleLoading.value = true
+  try {
+    const [taskData, milestoneData] = await Promise.all([
+      getTasks(projectId.value),
+      getMilestones(projectId.value),
+    ])
+    scheduleTasks.value = taskData
+    scheduleMilestones.value = milestoneData
+    scheduleLoaded.value = true
+  } catch (error) {
+    message.error((error as Error).message || t('schedule.empty'))
+  } finally {
+    scheduleLoading.value = false
+  }
+}
+
+watch(activeSection, (section) => {
+  if (isScheduleSection(section)) void loadSchedule()
+})
+
+watch(projectId, () => {
+  scheduleLoaded.value = false
+  scheduleTasks.value = []
+  scheduleMilestones.value = []
+})
+
+function onScheduleSelectNode(nodeId: number) {
+  const node = nodes.value.find((item) => item.id === nodeId)
+  if (node) onSelectNode(node)
+}
+
+function onScheduleOpenTask(taskId: number, nodeId?: number) {
+  if (nodeId) activeNodeId.value = nodeId
+  void router.replace({ query: { ...route.query, task: String(taskId) } })
+  document.querySelector('.node-task-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function onScheduleOpenMilestone() {
+  activeSection.value = 'milestones'
 }
 
 function resetProfileForm() {
@@ -922,6 +979,34 @@ onBeforeUnmount(() => {
         <a-tab-pane key="milestones" :tab="$t('detail.milestones')">
           <Milestones :project-id="projectId" :can-manage="canManageProject" />
         </a-tab-pane>
+        <a-tab-pane key="gantt" :tab="$t('detail.viewGantt')">
+          <div v-if="scheduleLoading" class="schedule-loading"><a-spin /></div>
+          <ProjectScheduleChart
+            v-else
+            :project="project"
+            :nodes="nodes"
+            :tasks="scheduleTasks"
+            :milestones="scheduleMilestones"
+            :selected-node-id="activeNodeId"
+            @select-node="onScheduleSelectNode"
+            @open-task="onScheduleOpenTask"
+            @open-milestone="onScheduleOpenMilestone"
+          />
+        </a-tab-pane>
+        <a-tab-pane key="calendar" :tab="$t('detail.viewCalendar')">
+          <div v-if="scheduleLoading" class="schedule-loading"><a-spin /></div>
+          <ProjectScheduleCalendar
+            v-else
+            :project="project"
+            :nodes="nodes"
+            :tasks="scheduleTasks"
+            :milestones="scheduleMilestones"
+            :selected-node-id="activeNodeId"
+            @select-node="onScheduleSelectNode"
+            @open-task="onScheduleOpenTask"
+            @open-milestone="onScheduleOpenMilestone"
+          />
+        </a-tab-pane>
         <a-tab-pane key="members" :tab="$t('detail.memberTab')">
           <Members :project-id="projectId" :can-manage="canManageProject" />
         </a-tab-pane>
@@ -1055,6 +1140,7 @@ onBeforeUnmount(() => {
 .project-people-item .project-profile-field__label { flex: 0 0 auto; }
 .project-people-control { min-width: 0; flex: 1; }
 .section-title-row--compact { margin-bottom: 6px; }
+.schedule-loading { display: grid; place-items: center; min-height: 220px; }
 .reason-modal__description { margin: 0 0 16px; color: var(--pms-text-muted); font-size: var(--pms-font-size-body); line-height: var(--pms-line-height-normal); }
 .reason-modal__field { display: grid; gap: 7px; }
 .reason-modal__label { color: var(--pms-text); font-size: var(--pms-font-size-body); }
