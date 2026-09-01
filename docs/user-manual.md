@@ -26,13 +26,13 @@ public/manual/
 └── import-preview.webm
 ```
 
-仓库当前已附带一组可直接预览的示例素材：`workbench.jpg`、`project-list.jpg`、`organization-canvas.jpg`、`manual-navigation.webm`、`project-operations.webm` 和 `configuration-tour.webm`。其中配置操作视频串联了组织架构、批量导入和审计页面；这些素材只用于说明操作路径，企业部署时可以替换为自己的脱敏截图或录屏。
+仓库当前已附带一组可直接预览的脱敏截图素材：`workbench.jpg`、`project-list.jpg` 和 `organization-canvas.jpg`。复杂操作的视频只有在真实录屏素材准备好后才会展示；当前版本不放置占位视频，避免把示意动画误认为实际操作。企业部署时可以继续补充自己的脱敏截图、GIF 或录屏。
 
 素材建议使用模块前缀命名，例如 `project-*`、`organization-*`、`import-*`。截图推荐 PNG/JPG，动画推荐 GIF，视频推荐 MP4 或 WebM。视频应包含字幕或在文档中同步写出关键步骤，不要录入密码、Token、验证码或不必要的个人信息。
 
 ### 2.2 页面接入方式
 
-`src/views/manual/index.vue` 中的 `media` 数组就是媒体清单。简单功能保留 `image` 插槽；复杂功能可把 `video` 插槽的 `src` 填为文件名，并可用 `poster` 指定视频封面。没有素材时会显示友好的占位说明，不影响文字内容阅读。
+`src/views/manual/index.vue` 中的 `media` 数组就是媒体清单。简单功能保留 `image` 或 `gif` 插槽；复杂功能只有在有真实录屏文件时才填写 `video` 插槽的 `src`，并可用 `poster` 指定视频封面。没有真实素材时不渲染视频卡片，只保留文字步骤，避免展示占位内容。
 
 ## 3. 快速开始
 

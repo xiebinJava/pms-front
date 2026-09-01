@@ -26,19 +26,24 @@ test('user manual exposes the navigation-aligned module catalog', () => {
   }
   assert.match(layoutSource, /使用手册/)
   assert.match(layoutSource, /manual#quick-start/)
-  assert.match(layoutSource, /manual#workbench/)
+  assert.doesNotMatch(layoutSource, /pms-manual-subnav/)
+  assert.doesNotMatch(layoutSource, /manualNavItems/)
+  assert.doesNotMatch(layoutSource, /manualNavOpen/)
+  assert.match(layoutSource, /menuRoutes[\s\S]*manual: '\/manual#quick-start'/)
+  assert.equal((layoutSource.match(/pms-nav-group--manual/g) || []).length, 1)
+  assert.ok(layoutSource.indexOf('pms-nav-group--manual') > layoutSource.indexOf('pms-nav-group--configuration'))
   assert.match(routerSource, /path: 'manual'/)
 })
 
-test('user manual provides reusable screenshot, gif and video slots', () => {
+test('user manual provides screenshots and keeps video slots opt-in', () => {
   assert.match(viewSource, /manual-media-placeholder/)
   assert.match(viewSource, /<img/)
   assert.match(viewSource, /<video/)
   assert.match(viewSource, /public\/manual/)
-  assert.match(viewSource, /manual-navigation\.webm|project-operations\.webm/)
+  assert.doesNotMatch(viewSource, /src: '[^']+\.webm'/)
   assert.match(docsSource, /截图/)
   assert.match(docsSource, /GIF/)
-  assert.match(docsSource, /MP4|WebM/)
+  assert.match(docsSource, /不放置占位视频/)
 })
 
 test('user manual ships the referenced example media assets', () => {
@@ -46,9 +51,6 @@ test('user manual ships the referenced example media assets', () => {
     'workbench.jpg',
     'project-list.jpg',
     'organization-canvas.jpg',
-    'manual-navigation.webm',
-    'project-operations.webm',
-    'configuration-tour.webm',
   ]) {
     const stat = fs.statSync(new URL(asset, mediaRoot))
     assert.ok(stat.size > 0, `${asset} should not be empty`)

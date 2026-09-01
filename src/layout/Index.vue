@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { LogoutOutlined, ProjectOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, DashboardOutlined, MenuOutlined, DownOutlined, ExperimentOutlined, CloudUploadOutlined, BookOutlined, CheckCircleOutlined, ToolOutlined, QuestionCircleOutlined } from '@ant-design/icons-vue'
+import { LogoutOutlined, ProjectOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, DashboardOutlined, MenuOutlined, DownOutlined, ExperimentOutlined, CloudUploadOutlined, BookOutlined } from '@ant-design/icons-vue'
 import { useUserStore } from '/@/store/user'
 import { message } from 'ant-design-vue'
 
@@ -15,15 +15,11 @@ const navOpen = ref(false)
 // without losing the active route or its permission-filtered child links.
 const projectNavOpen = ref(true)
 const configNavOpen = ref(true)
-const manualNavOpen = ref(route.path.startsWith('/manual'))
 const passwordForm = reactive({ currentPassword: '', newPassword: '', confirmPassword: '' })
 
 const selectedKeys = computed(() => {
   if (route.path.startsWith('/dashboard')) return ['dashboard']
-  if (route.path.startsWith('/manual')) {
-    const section = route.hash.replace(/^#/, '') || 'quick-start'
-    return [`manual-${section}`]
-  }
+  if (route.path.startsWith('/manual')) return ['manual']
   if (route.path.startsWith('/projects')) return ['projects']
   if (route.path.startsWith('/admin/users')) return ['admin-users']
   if (route.path.startsWith('/admin/org')) return ['admin-org']
@@ -38,17 +34,7 @@ const canConfig = computed(() => ['admin:user:read', 'admin:org:read', 'admin:ro
 
 const menuRoutes: Record<string, string> = {
   dashboard: '/dashboard',
-  'manual-quick-start': '/manual#quick-start',
-  'manual-workbench': '/manual#workbench',
-  'manual-rd-management': '/manual#rd-management',
-  'manual-projects': '/manual#projects',
-  'manual-configuration': '/manual#configuration',
-  'manual-users': '/manual#users',
-  'manual-organization': '/manual#organization',
-  'manual-roles': '/manual#roles',
-  'manual-import': '/manual#import',
-  'manual-audit': '/manual#audit',
-  'manual-faq': '/manual#faq',
+  manual: '/manual#quick-start',
   projects: '/projects',
   'admin-users': '/admin/users',
   'admin-org': '/admin/org',
@@ -56,20 +42,6 @@ const menuRoutes: Record<string, string> = {
   'admin-import': '/admin/import',
   'admin-audit': '/admin/audit',
 }
-
-const manualNavItems = [
-  { key: 'manual-quick-start', label: '快速开始', icon: CheckCircleOutlined },
-  { key: 'manual-workbench', label: '工作台', icon: ToolOutlined },
-  { key: 'manual-rd-management', label: '研发管理', icon: ExperimentOutlined },
-  { key: 'manual-projects', label: '项目管理', icon: ProjectOutlined },
-  { key: 'manual-configuration', label: '配置管理', icon: SettingOutlined },
-  { key: 'manual-users', label: '人员与权限', icon: TeamOutlined },
-  { key: 'manual-organization', label: '组织架构', icon: ApartmentOutlined },
-  { key: 'manual-roles', label: '角色管理', icon: SafetyCertificateOutlined },
-  { key: 'manual-import', label: '批量导入', icon: CloudUploadOutlined },
-  { key: 'manual-audit', label: '审计日志', icon: AuditOutlined },
-  { key: 'manual-faq', label: '常见问题', icon: QuestionCircleOutlined },
-]
 
 function handleMenuClick(payload: { key?: string } | string | Event) {
   const key = typeof payload === 'string'
@@ -118,9 +90,6 @@ onMounted(async () => {
   }
 })
 
-watch(() => route.path, (path) => {
-  manualNavOpen.value = path.startsWith('/manual')
-})
 </script>
 
 <template>
@@ -169,16 +138,6 @@ watch(() => route.path, (path) => {
                 <DashboardOutlined /><span>工作台</span>
               </button>
             </div>
-            <div class="pms-nav-group pms-nav-group--manual">
-              <button class="pms-nav-section-label" :class="{ 'pms-nav-section-label--active': selectedKeys.some(key => key.startsWith('manual-')) }" type="button" aria-controls="pms-manual-subnav" :aria-expanded="manualNavOpen" @click.stop="manualNavOpen = !manualNavOpen">
-                <BookOutlined /><span>使用手册</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !manualNavOpen }" />
-              </button>
-              <div v-if="manualNavOpen" id="pms-manual-subnav" class="pms-nav-subnav">
-                <button v-for="item in manualNavItems" :key="item.key" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes(item.key) }" type="button" @click.stop="handleMenuClick({ key: item.key })">
-                  <component :is="item.icon" /><span>{{ item.label }}</span>
-                </button>
-              </div>
-            </div>
             <div class="pms-nav-group pms-nav-group--projects">
               <button class="pms-nav-section-label" :class="{ 'pms-nav-section-label--active': selectedKeys.includes('projects') }" type="button" aria-controls="pms-project-subnav" :aria-expanded="projectNavOpen" @click.stop="projectNavOpen = !projectNavOpen">
                 <ExperimentOutlined /><span>研发管理</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !projectNavOpen }" />
@@ -210,6 +169,11 @@ watch(() => route.path, (path) => {
                   <AuditOutlined /><span>审计日志</span>
                 </button>
               </div>
+            </div>
+            <div class="pms-nav-group pms-nav-group--manual">
+              <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('manual') }" type="button" @click.stop="handleMenuClick({ key: 'manual' })">
+                <BookOutlined /><span>使用手册</span>
+              </button>
             </div>
           </div>
         </nav>

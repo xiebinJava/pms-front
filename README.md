@@ -51,8 +51,8 @@ docker run --rm -p 5173:8080 pms-front
 [docs/design-logic.md](docs/design-logic.md)。
 
 面向最终用户的模块化操作说明见
-[docs/user-manual.md](docs/user-manual.md)，应用内也提供“使用手册”页签；截图、GIF 和 MP4/WebM
-素材可放入 `public/manual/` 并在手册页面的媒体清单中启用。
+[docs/user-manual.md](docs/user-manual.md)，应用内也提供“使用手册”页签；截图和 GIF 可直接放入
+`public/manual/`，真实录屏准备好后再在手册页面的媒体清单中启用 MP4/WebM，禁止提交示意视频。
 
 ## 目录结构
 

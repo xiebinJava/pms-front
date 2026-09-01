@@ -39,7 +39,7 @@ type ManualSection = {
   checklist: string[]
 }
 
-const MEDIA_ROOT = '/manual/' // 将 PNG、GIF、MP4 或 WebM 放入 public/manual/ 后填写 src
+const MEDIA_ROOT = '/manual/' // 将 PNG、JPG 或 GIF 放入 public/manual/ 后填写 src；真实视频准备好后再启用 video 插槽
 
 const sections: ManualSection[] = [
   {
@@ -51,7 +51,6 @@ const sections: ManualSection[] = [
     relatedPath: '/login',
     media: [
       { kind: 'image', label: '登录页截图', caption: '建议展示邮箱输入、错误提示和登录成功后的页面。' },
-      { kind: 'video', src: 'manual-navigation.webm', label: '快速开始视频', caption: '视频演示手册入口与模块定位；复杂操作应包含字幕或操作说明。' },
     ],
     purpose: '新成员先确认邮箱、密码和可访问范围，再从工作台查看自己的任务与项目。',
     steps: [
@@ -123,7 +122,6 @@ const sections: ManualSection[] = [
     relatedPath: '/projects',
     media: [
       { kind: 'image', src: 'project-list.jpg', label: '项目列表截图', caption: '建议展示业务线、项目经理、状态、优先级和日期两行展示。' },
-      { kind: 'video', src: 'project-operations.webm', label: '项目详情视频', caption: '演示节点排期、任务卡片、里程碑和终止项目按钮。' },
     ],
     purpose: '项目列表用于全局查找，项目详情用于执行；两处展示的数据来自同一项目记录。',
     steps: [
@@ -199,7 +197,6 @@ const sections: ManualSection[] = [
     relatedPath: '/admin/org',
     media: [
       { kind: 'image', src: 'organization-canvas.jpg', label: '组织架构截图', caption: '建议展示节点连线、负责人、缩放和右侧属性面板。' },
-      { kind: 'video', src: 'configuration-tour.webm', label: '组织架构视频', caption: '演示组织架构画布、节点和属性面板操作。' },
     ],
     purpose: '组织架构是业务线选择和数据范围的基础。画布只改变组织关系，不直接改变员工主归属。',
     steps: [
@@ -250,7 +247,6 @@ const sections: ManualSection[] = [
     relatedPath: '/admin/import',
     media: [
       { kind: 'image', label: '批量导入截图', caption: '建议展示模板、上传、预览校验、错误下载和提交结果。' },
-      { kind: 'video', src: 'configuration-tour.webm', label: '批量导入视频', caption: '演示批量导入入口，并提示预览、错误下载、回滚和重新提交流程。' },
     ],
     purpose: '批量导入适合初始化和大批量调整，提交前必须完成预览校验，避免脏数据进入组织和人员关系。',
     steps: [
@@ -276,7 +272,6 @@ const sections: ManualSection[] = [
     relatedPath: '/admin/audit',
     media: [
       { kind: 'image', label: '审计日志截图', caption: '建议展示动作、资源、操作人、请求 ID 和查看差异。' },
-      { kind: 'video', src: 'configuration-tour.webm', label: '审计追踪视频', caption: '演示审计日志入口，并提示按请求 ID 查看变更前后差异。' },
     ],
     purpose: '审计日志回答“谁在什么时候对什么资源做了什么”，用于排障、合规和责任追踪。',
     steps: [
@@ -453,7 +448,7 @@ onBeforeUnmount(() => window.scrollTo({ top: 0, behavior: 'auto' }))
             <div class="manual-media__heading">
               <div>
                 <h3>配套操作素材</h3>
-                <p>可放截图、GIF 或操作视频；没有素材时保留占位，不影响正文阅读。</p>
+                <p>简单功能使用截图或 GIF；复杂功能仅在真实录屏素材准备好后展示视频，不放置占位视频。</p>
               </div>
               <span>素材目录：public/manual/</span>
             </div>
