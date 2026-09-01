@@ -9,6 +9,7 @@
 - Add Chinese / English UI switching for the shell, sign-in, and workbench. Preference is stored in localStorage.
 - Extend locale coverage to project list, task board, task detail, and collaboration tabs. Status and priority labels follow the active language.
 - Show OIDC / LDAP buttons on the sign-in page when the backend enables those providers.
+- Refresh the README so the workbench, search, notifications, locale switch, and SSO callback are documented. Kubernetes install stays in the backend Helm chart.
 
 ## 1.0.0
 

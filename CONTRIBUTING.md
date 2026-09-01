@@ -13,5 +13,6 @@ Local API: start the sibling `pms-backend` with `./scripts/start-local-mysql.sh`
 
 UI copy for the shell, sign-in, and workbench lives in `src/locales/zh-CN.ts` and `src/locales/en-US.ts`. Keep both trees in sync.
 OIDC/LDAP buttons stay hidden until `GET /auth/providers` reports them enabled.
+Kubernetes install lives in the backend Helm chart; do not add a second chart here.
 
 Use `张伟` / `Alex.Zhang` / `alex.zhang@example.com` for examples. Do not add company brand names, internal hostnames, or real employee identities.
