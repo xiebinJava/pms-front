@@ -1,5 +1,9 @@
 import { expect, test } from '@playwright/test'
 
+// The product supports both locales; keep this acceptance suite deterministic
+// and aligned with the Chinese labels asserted below.
+test.use({ locale: 'zh-CN' })
+
 const username = process.env.E2E_USERNAME
 const password = process.env.E2E_PASSWORD
 const baseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:57979'

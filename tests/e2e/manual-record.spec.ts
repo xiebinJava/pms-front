@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+test.use({ locale: 'zh-CN' })
+
 const username = process.env.E2E_USERNAME
 const password = process.env.E2E_PASSWORD
 const baseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:57979'
