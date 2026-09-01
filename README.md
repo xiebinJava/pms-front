@@ -25,6 +25,7 @@ pnpm dev
 ```bash
 pnpm build      # 类型检查 + 生产构建
 pnpm typecheck  # 仅类型检查
+./scripts/check-privacy.sh
 ```
 
 ### Docker Compose

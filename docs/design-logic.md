@@ -58,7 +58,7 @@
 
 ```text
 中文名（English.Name）
-示例：谢斌（Brad.Xie）
+示例：张伟（Alex.Zhang）
 ```
 
 规则：
