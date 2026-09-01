@@ -9,7 +9,7 @@ test('import page exposes upload, preview, completion steps and error download',
   assert.match(source, /previewImport/)
   assert.match(source, /downloadErrors/)
   assert.match(source, /import-errors\.csv/)
-  assert.match(source, /导入完成/)
+  assert.match(source, /admin\.import\.done/)
 })
 
 test('import page resets the file input so the same file can be retried', () => {

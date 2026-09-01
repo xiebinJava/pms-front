@@ -12,15 +12,16 @@ test('user manual exposes the navigation-aligned module catalog', () => {
   for (const section of [
     'quick-start',
     'workbench',
-    '研发管理',
-    '项目管理',
-    '配置管理',
-    '人员与权限',
-    '组织架构',
-    '角色管理',
-    '批量导入',
-    '审计日志',
-    '常见问题',
+    'rd-management',
+    'manual.sections.rdManagement',
+    'manual.sections.projects',
+    'manual.sections.configuration',
+    'manual.sections.users',
+    'manual.sections.organization',
+    'manual.sections.roles',
+    'manual.sections.import',
+    'manual.sections.audit',
+    'manual.sections.faq',
   ]) {
     assert.match(viewSource, new RegExp(section))
   }
@@ -36,18 +37,35 @@ test('user manual exposes the navigation-aligned module catalog', () => {
 })
 
 test('user manual provides screenshots and keeps video slots opt-in', () => {
-  assert.match(viewSource, /manual-media-placeholder/)
   assert.match(viewSource, /<img/)
   assert.match(viewSource, /<video/)
-  assert.match(viewSource, /public\/manual/)
+  assert.match(viewSource, /manual\.mediaDir|public\/manual/)
   assert.doesNotMatch(viewSource, /src: '[^']+\.webm'/)
   assert.match(docsSource, /截图/)
   assert.match(docsSource, /GIF/)
   assert.match(docsSource, /不放置占位视频/)
 })
 
+test('user manual resolves section copy through locale keys', () => {
+  assert.match(viewSource, /titleKey:/)
+  assert.match(viewSource, /leadKey:/)
+  assert.match(viewSource, /tagKeys:/)
+  assert.match(viewSource, /section\.titleKey/)
+  assert.match(viewSource, /section\.stepsKey/)
+  assert.doesNotMatch(viewSource, /title: '快速开始'/)
+  assert.doesNotMatch(viewSource, /purpose: '新成员先用邀请邮箱登录/)
+})
+
+test('current manual media cards only render real assets', () => {
+  const entries = [...viewSource.matchAll(/\{ kind: '(image|video|gif)'([^}]*)\}/g)]
+  assert.ok(entries.length > 0)
+  assert.ok(entries.every((entry) => /\bsrc:/.test(entry[0])), 'every current media card should have a real src')
+  assert.doesNotMatch(viewSource, /manual-media-placeholder/)
+})
+
 test('user manual ships the referenced example media assets', () => {
   for (const asset of [
+    'quick-start-login.png',
     'workbench.jpg',
     'project-list.jpg',
     'organization-canvas.jpg',
@@ -58,8 +76,8 @@ test('user manual ships the referenced example media assets', () => {
 })
 
 test('user manual explains the email-first identity and independent ownership rules', () => {
-  assert.match(viewSource, /邮箱登录/)
-  assert.match(viewSource, /组织负责人.{0,24}员工主归属.{0,12}(独立|两套)/)
+  assert.match(viewSource, /manual\.sections\.quickStart\.steps/)
+  assert.match(viewSource, /manual\.sections\.users\.purpose/)
   assert.match(docsSource, /邮箱为唯一登录凭据核心/)
   assert.match(docsSource, /组织负责人.*主归属独立/)
 })

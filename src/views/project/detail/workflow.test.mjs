@@ -33,32 +33,32 @@ import { getProjectStatusLabel, ProjectStatus, statusTagColor } from '../../../e
 
 test('maps node status to the visual state used by the flow', () => {
   assert.deepEqual(getFlowNodeState(2), {
-    label: '已完成',
+    label: 'enum.nodeStatus.2',
     tone: 'completed',
     canSelect: true,
   })
   assert.deepEqual(getFlowNodeState(1), {
-    label: '进行中',
+    label: 'enum.nodeStatus.1',
     tone: 'active',
     canSelect: true,
   })
   assert.deepEqual(getFlowNodeState(0), {
-    label: '未开始',
+    label: 'enum.nodeStatus.0',
     tone: 'locked',
     canSelect: true,
   })
   assert.deepEqual(getFlowNodeState(3), {
-    label: '已终止',
+    label: 'enum.nodeStatus.3',
     tone: 'terminated',
     canSelect: true,
   })
 })
 
 test('uses the shared node status metadata and lock rule', () => {
-  assert.deepEqual(getNodeStatusMeta(0), { label: '未开始', tone: 'locked', readOnly: false })
-  assert.deepEqual(getNodeStatusMeta(1), { label: '进行中', tone: 'active', readOnly: false })
-  assert.deepEqual(getNodeStatusMeta(2), { label: '已完成', tone: 'completed', readOnly: true })
-  assert.deepEqual(getNodeStatusMeta(3), { label: '已终止', tone: 'terminated', readOnly: true })
+  assert.deepEqual(getNodeStatusMeta(0), { label: 'enum.nodeStatus.0', tone: 'locked', readOnly: false })
+  assert.deepEqual(getNodeStatusMeta(1), { label: 'enum.nodeStatus.1', tone: 'active', readOnly: false })
+  assert.deepEqual(getNodeStatusMeta(2), { label: 'enum.nodeStatus.2', tone: 'completed', readOnly: true })
+  assert.deepEqual(getNodeStatusMeta(3), { label: 'enum.nodeStatus.3', tone: 'terminated', readOnly: true })
   assert.equal(isNodeReadOnly(0), false)
   assert.equal(isNodeReadOnly(1), false)
   assert.equal(isNodeReadOnly(2), true)
@@ -146,8 +146,8 @@ test('only exposes configured fields for the selected node', () => {
     deliverable: '项目章程、范围基线',
     roles: '',
   }), [
-    { key: 'description', label: '节点说明', value: '确认项目目标', wide: true },
-    { key: 'deliverable', label: '交付物', items: ['项目章程', '范围基线'] },
+    { key: 'description', label: 'detail.nodeDescription', value: '确认项目目标', wide: true },
+    { key: 'deliverable', label: 'task.deliverable', items: ['项目章程', '范围基线'] },
   ])
   assert.deepEqual(getNodeDetailFields({}), [])
 })
@@ -208,7 +208,7 @@ test('requires all kickoff profile fields except followers', () => {
     schedule: ['2026-08-01'],
     memberIds: [],
     followerIds: [],
-  }), ['项目描述', '优先级', '项目经理', '项目排期', '项目成员'])
+  }), ['detail.profileDescription', 'detail.profilePriority', 'detail.manager', 'detail.profileSchedule', 'detail.members'])
 
   assert.deepEqual(getMissingKickoffProfileFields({
     description: '项目说明',
@@ -220,10 +220,10 @@ test('requires all kickoff profile fields except followers', () => {
 })
 
 test('shows an unassigned project manager as pending assignment', () => {
-  assert.equal(getProjectManagerDisplay(undefined), '待分配')
-  assert.equal(getProjectManagerDisplay('  '), '待分配')
-  assert.equal(getProjectManagerDisplay('待确认'), '待分配')
-  assert.equal(getProjectManagerDisplay('未设置'), '待分配')
+  assert.equal(getProjectManagerDisplay(undefined), '')
+  assert.equal(getProjectManagerDisplay('  '), '')
+  assert.equal(getProjectManagerDisplay('待确认'), '')
+  assert.equal(getProjectManagerDisplay('未设置'), '')
   assert.equal(getProjectManagerDisplay('张三'), '张三')
 })
 
@@ -234,8 +234,8 @@ test('uses the server project progress so list and detail share one source', () 
 })
 
 test('shows an unassigned node owner as pending assignment', () => {
-  assert.equal(getNodeOwnerDisplay(undefined), '待分配')
-  assert.equal(getNodeOwnerDisplay('  '), '待分配')
+  assert.equal(getNodeOwnerDisplay(undefined), '')
+  assert.equal(getNodeOwnerDisplay('  '), '')
   assert.equal(getNodeOwnerDisplay('李四'), '李四')
 })
 

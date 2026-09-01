@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { DeleteOutlined } from '@ant-design/icons-vue'
 import { Modal, message } from 'ant-design-vue'
 import { addComment, deleteComment, getComments } from '/@/api/comment'
@@ -7,6 +8,7 @@ import { formatDateTime } from '/@/utils/format'
 import type { Comment } from '/@/types/domain'
 
 const props = defineProps<{ projectId: number }>()
+const { t } = useI18n()
 
 const list = ref<Comment[]>([])
 const content = ref('')
@@ -24,7 +26,7 @@ async function loadData() {
 
 async function onAdd() {
   if (!content.value.trim()) {
-    message.warning('请输入评论内容')
+    message.warning(t('task.commentRequired'))
     return
   }
   submitting.value = true
@@ -39,14 +41,14 @@ async function onAdd() {
 
 function onDelete(record: Comment) {
   Modal.confirm({
-    title: '删除动态',
-    content: '确定删除这条动态吗？',
-    okText: '删除',
+    title: t('detail.deleteActivity'),
+    content: t('detail.deleteActivityContent'),
+    okText: t('common.delete'),
     okType: 'danger',
-    cancelText: '取消',
+    cancelText: t('common.cancel'),
     onOk: async () => {
       await deleteComment(record.id)
-      message.success('删除成功')
+      message.success(t('common.deleted'))
       loadData()
     },
   })
@@ -58,12 +60,12 @@ onMounted(loadData)
 <template>
   <div class="max-w-[720px]">
     <div class="flex gap-2 mb-5">
-      <a-textarea v-model:value="content" :rows="3" placeholder="记录进展、评论项目…" :maxlength="2000" />
-      <a-button type="primary" class="pms-primary-button self-end" :loading="submitting" @click="onAdd">发布</a-button>
+      <a-textarea v-model:value="content" :rows="3" :placeholder="$t('detail.activityPlaceholder')" :maxlength="2000" />
+      <a-button type="primary" class="pms-primary-button self-end" :loading="submitting" @click="onAdd">{{ $t('task.publish') }}</a-button>
     </div>
 
     <a-spin :spinning="loading">
-      <div v-if="list.length === 0" class="pms-empty-text">暂无动态</div>
+      <div v-if="list.length === 0" class="pms-empty-text">{{ $t('detail.noActivity') }}</div>
       <div v-for="item in list" :key="item.id" class="pms-comment-item">
         <a-avatar :size="32" class="pms-avatar">
           {{ (item.userNickname || '?').charAt(0) }}

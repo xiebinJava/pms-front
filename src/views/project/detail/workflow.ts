@@ -117,10 +117,10 @@ export function isKickoffNode(nodeKey?: string): boolean {
 
 export function getProjectProfileFields(): ProjectProfileFieldDefinition[] {
   return [
-    { key: 'description', label: '项目描述', wide: true, multiline: true },
-    { key: 'priority', label: '优先级' },
-    { key: 'schedule', label: '项目排期' },
-    { key: 'businessLine', label: '业务线' },
+    { key: 'description', label: 'detail.profileDescription', wide: true, multiline: true },
+    { key: 'priority', label: 'detail.profilePriority' },
+    { key: 'schedule', label: 'detail.profileSchedule' },
+    { key: 'businessLine', label: 'detail.businessLine' },
   ]
 }
 
@@ -165,17 +165,17 @@ export function getMissingKickoffProfileFields(profile: {
   memberIds?: number[]
 }): string[] {
   const missing: string[] = []
-  if (!profile.description?.trim()) missing.push('项目描述')
-  if (profile.priority == null) missing.push('优先级')
-  if (profile.projectManagerId == null) missing.push('项目经理')
-  if (profile.schedule?.length !== 2) missing.push('项目排期')
-  if (!profile.memberIds?.length) missing.push('项目成员')
+  if (!profile.description?.trim()) missing.push('detail.profileDescription')
+  if (profile.priority == null) missing.push('detail.profilePriority')
+  if (profile.projectManagerId == null) missing.push('detail.manager')
+  if (profile.schedule?.length !== 2) missing.push('detail.profileSchedule')
+  if (!profile.memberIds?.length) missing.push('detail.members')
   return missing
 }
 
 export function getProjectManagerDisplay(name?: string): string {
   const normalized = name?.trim()
-  if (!normalized || ['待确认', '未设置', '未分配'].includes(normalized)) return '待分配'
+  if (!normalized || ['待确认', '未设置', '未分配'].includes(normalized)) return ''
   return normalized
 }
 
@@ -198,7 +198,7 @@ export function getProjectStatusTone(status?: number): ProjectStatusTone {
 }
 
 export function getNodeOwnerDisplay(name?: string): string {
-  return name?.trim() || '待分配'
+  return name?.trim() || ''
 }
 
 export function buildTaskPayload(form: TaskFormDraft, nodeId: number) {
@@ -218,18 +218,18 @@ export function getNodeDetailFields(
   const deliverables = splitNodeItems(node.deliverable)
   const roles = splitNodeItems(node.roles)
 
-  if (description) fields.push({ key: 'description', label: '节点说明', value: description, wide: true })
-  if (deliverables.length) fields.push({ key: 'deliverable', label: '交付物', items: deliverables })
-  if (roles.length) fields.push({ key: 'roles', label: '参与角色', items: roles })
+  if (description) fields.push({ key: 'description', label: 'detail.nodeDescription', value: description, wide: true })
+  if (deliverables.length) fields.push({ key: 'deliverable', label: 'task.deliverable', items: deliverables })
+  if (roles.length) fields.push({ key: 'roles', label: 'detail.nodeRoles', items: roles })
 
   return fields
 }
 
 export function getNodeStatusMeta(status: number): NodeStatusMeta {
-  if (status === 1) return { label: '进行中', tone: 'active', readOnly: false }
-  if (status === 2) return { label: '已完成', tone: 'completed', readOnly: true }
-  if (status === 3) return { label: '已终止', tone: 'terminated', readOnly: true }
-  return { label: '未开始', tone: 'locked', readOnly: false }
+  if (status === 1) return { label: 'enum.nodeStatus.1', tone: 'active', readOnly: false }
+  if (status === 2) return { label: 'enum.nodeStatus.2', tone: 'completed', readOnly: true }
+  if (status === 3) return { label: 'enum.nodeStatus.3', tone: 'terminated', readOnly: true }
+  return { label: 'enum.nodeStatus.0', tone: 'locked', readOnly: false }
 }
 
 export function isNodeReadOnly(status: number): boolean {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { CloseOutlined } from '@ant-design/icons-vue'
 import { formatPersonLabel, getSinglePersonSelection, normalizePersonDisplayLabel } from '../workflow'
 import type { PersonOption } from '../workflow'
@@ -15,7 +16,7 @@ const props = withDefaults(defineProps<{
   disabled?: boolean
 }>(), {
   multiple: false,
-  placeholder: '请选择人员',
+  placeholder: '',
   loading: false,
   remoteSearch: false,
   maxTagCount: 2,
@@ -27,6 +28,9 @@ const emit = defineEmits<{
   (event: 'change', value: number | number[] | undefined): void
   (event: 'search', value: string): void
 }>()
+
+const { t } = useI18n()
+const resolvedPlaceholder = computed(() => props.placeholder || t('detail.selectPerson'))
 
 const selectedValues = computed<number[]>(() => {
   if (Array.isArray(props.modelValue)) return props.modelValue
@@ -68,7 +72,7 @@ function onChange(values: number[]) {
     show-search
     :filter-option="remoteSearch ? false : true"
     option-filter-prop="label"
-    :placeholder="placeholder"
+    :placeholder="resolvedPlaceholder"
     :disabled="disabled"
     @change="onChange"
     @search="(value: string) => emit('search', value)"

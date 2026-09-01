@@ -16,7 +16,6 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const userStore = useUserStore()
-const pageTitle = computed(() => (route.meta.titleKey ? t(route.meta.titleKey) : ''))
 const passwordOpen = ref(false)
 const passwordLoading = ref(false)
 const navOpen = ref(false)
@@ -28,7 +27,7 @@ const passwordForm = reactive({ currentPassword: '', newPassword: '', confirmPas
 const searchQuery = ref('')
 const searchOpen = ref(false)
 const searchLoading = ref(false)
-const searchResult = ref<SearchResult>({ projects: [], tasks: [], comments: [] })
+const searchResult = ref<SearchResult>({ projects: [], tasks: [], milestones: [], comments: [] })
 const notifyOpen = ref(false)
 const notifyLoading = ref(false)
 const notifications = ref<UserNotification[]>([])
@@ -36,10 +35,13 @@ const unreadCount = ref(0)
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 let unreadTimer: ReturnType<typeof setInterval> | null = null
 
-const emptySearch = (): SearchResult => ({ projects: [], tasks: [], comments: [] })
+const emptySearch = (): SearchResult => ({ projects: [], tasks: [], milestones: [], comments: [] })
 const can = (permission: string) => userStore.can(permission)
 const searchHasHits = computed(() => Boolean(
-  searchResult.value.projects.length || searchResult.value.tasks.length || searchResult.value.comments.length,
+  searchResult.value.projects.length
+  || searchResult.value.tasks.length
+  || searchResult.value.milestones.length
+  || searchResult.value.comments.length,
 ))
 const canReadProjects = computed(() => can('project:read'))
 
@@ -227,7 +229,6 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <div class="pms-topbar__center" :class="{ 'pms-topbar__center--search': canReadProjects }">
-        <span class="pms-topbar__title">{{ pageTitle }}</span>
         <div v-if="canReadProjects" class="pms-global-search">
           <a-input
             :value="searchQuery"
@@ -255,6 +256,13 @@ onBeforeUnmount(() => {
                 <section v-if="searchResult.tasks.length">
                   <h3>{{ $t('layout.searchTasks') }}</h3>
                   <button v-for="hit in searchResult.tasks" :key="`t-${hit.id}`" type="button" @mousedown.prevent="openSearchHit(hit)">
+                    <strong>{{ hit.title }}</strong>
+                    <small>{{ hit.projectName }}</small>
+                  </button>
+                </section>
+                <section v-if="searchResult.milestones.length">
+                  <h3>{{ $t('layout.searchMilestones') }}</h3>
+                  <button v-for="hit in searchResult.milestones" :key="`m-${hit.id}`" type="button" @mousedown.prevent="openSearchHit(hit)">
                     <strong>{{ hit.title }}</strong>
                     <small>{{ hit.projectName }}</small>
                   </button>

@@ -53,10 +53,20 @@ import type { Milestone, OrgUnit, Project, ProjectMember, ProjectNode, Task, Use
 
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const projectId = computed(() => Number(route.params.id))
 const focusTaskId = computed(() => {
   const raw = route.query.task
+  const value = Number(Array.isArray(raw) ? raw[0] : raw)
+  return Number.isFinite(value) && value > 0 ? value : null
+})
+const focusNodeId = computed(() => {
+  const raw = route.query.node
+  const value = Number(Array.isArray(raw) ? raw[0] : raw)
+  return Number.isFinite(value) && value > 0 ? value : null
+})
+const focusMilestoneId = computed(() => {
+  const raw = route.query.milestone
   const value = Number(Array.isArray(raw) ? raw[0] : raw)
   return Number.isFinite(value) && value > 0 ? value : null
 })
@@ -98,7 +108,7 @@ const reasonModal = reactive({
   action: null as ReasonAction | null,
   title: '',
   description: '',
-  okText: '确认',
+  okText: '',
   okType: 'primary' as 'primary' | 'danger',
 })
 const reasonValue = ref('')
@@ -154,12 +164,13 @@ const projectManagerOption = computed(() => {
 })
 const projectCreatorDisplay = computed(() => getPersonDisplay(
   projectCreatorOption.value,
-  project.value?.createdByName || '未记录',
+  project.value?.createdByName || t('detail.unrecorded'),
 ))
 const projectManagerDisplay = computed(() => {
   const managerName = projectManagerOption.value?.label || project.value?.projectManagerName
   const display = getPersonDisplay(projectManagerOption.value, managerName)
-  return { ...display, label: getProjectManagerDisplay(managerName) }
+  const assigned = getProjectManagerDisplay(managerName)
+  return { ...display, label: assigned || t('detail.unassigned'), pending: !assigned }
 })
 const projectStatusTone = computed(() => {
   return getProjectStatusTone(project.value?.status)
@@ -182,7 +193,11 @@ const canRollbackActiveNode = computed(() => Boolean(
 ))
 
 function getNodeStatusLabel(status: number): string {
-  return getNodeStatusMeta(status).label
+  return t(getNodeStatusMeta(status).label)
+}
+
+function joinLocalizedFields(keys: string[]): string {
+  return keys.map((key) => t(key)).join(locale.value.startsWith('zh') ? '、' : ', ')
 }
 
 async function loadData() {
@@ -206,12 +221,13 @@ async function loadData() {
     const current = nodes.value.find((node) => node.status === 1)
     activeNodeId.value = (current || nodes.value[0])?.id ?? null
     await applyFocusTask()
+    applyFocusNode()
     if (isScheduleSection(activeSection.value)) {
       scheduleLoaded.value = false
       void loadSchedule()
     }
   } catch (error) {
-    message.error((error as Error).message || '项目详情加载失败，请重试')
+    message.error((error as Error).message || t('detail.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -225,6 +241,13 @@ async function applyFocusTask() {
     if (task.nodeId) activeNodeId.value = task.nodeId
   } catch {
     // Keep the default node when the focused task is gone or unreadable.
+  }
+}
+
+function applyFocusNode() {
+  if (focusTaskId.value || !focusNodeId.value) return
+  if (nodes.value.some((node) => node.id === focusNodeId.value)) {
+    activeNodeId.value = focusNodeId.value
   }
 }
 
@@ -270,6 +293,18 @@ watch(projectId, () => {
   scheduleTasks.value = []
   scheduleMilestones.value = []
 })
+
+watch(focusTaskId, (taskId) => {
+  if (taskId) void applyFocusTask()
+})
+
+watch(focusNodeId, () => {
+  applyFocusNode()
+})
+
+watch(focusMilestoneId, (milestoneId) => {
+  if (milestoneId) activeSection.value = 'milestones'
+}, { immediate: true })
 
 function onScheduleSelectNode(nodeId: number) {
   const node = nodes.value.find((item) => item.id === nodeId)
@@ -336,7 +371,7 @@ function getPersonInitials(name?: string): string {
 
 async function onNodeOwnerChange(ownerId: number | undefined) {
   if (!activeNode.value || !canAssignNodeOwner.value) {
-    message.info('当前用户没有分配节点负责人的权限')
+    message.info(t('detail.noAssignOwner'))
     return
   }
   nodeOwnerSaving.value = true
@@ -344,9 +379,9 @@ async function onNodeOwnerChange(ownerId: number | undefined) {
     const updatedNode = await updateNodeOwner(projectId.value, activeNode.value.id, ownerId)
     const index = nodes.value.findIndex((node) => node.id === updatedNode.id)
     if (index >= 0) nodes.value[index] = updatedNode
-    message.success('节点负责人已更新')
+    message.success(t('detail.ownerUpdated'))
   } catch {
-    message.error('节点负责人保存失败，请重试')
+    message.error(t('detail.ownerSaveFailed'))
   } finally {
     nodeOwnerSaving.value = false
   }
@@ -372,7 +407,7 @@ async function onBusinessLineChange(value: Array<number | string> | undefined) {
     }
     await onNodeOwnerChange(leaderId)
   } catch {
-    message.error('业务线负责人自动分配失败，请检查项目成员权限')
+    message.error(t('detail.autoAssignFailed'))
   }
 }
 
@@ -384,12 +419,12 @@ async function onNodeScheduleChange(value: unknown, dateStrings?: string[] | str
       ? value as string[]
       : []).filter(Boolean)
   if (next.length === 1) {
-    message.warning('请选择完整的节点排期')
+    message.warning(t('detail.scheduleIncomplete'))
     nodeSchedule.value = [activeNode.value.startDate, activeNode.value.endDate].filter(Boolean) as string[]
     return
   }
   if (!canEditActiveNode.value || activeNodeReadOnly.value) {
-    message.info('当前用户没有编辑节点排期的权限')
+    message.info(t('detail.noEditSchedule'))
     return
   }
   nodeScheduleSaving.value = true
@@ -401,10 +436,10 @@ async function onNodeScheduleChange(value: unknown, dateStrings?: string[] | str
     const index = nodes.value.findIndex((node) => node.id === updated.id)
     if (index >= 0) nodes.value[index] = updated
     nodeSchedule.value = next
-    message.success('节点排期已更新')
+    message.success(t('detail.scheduleUpdated'))
   } catch {
     nodeSchedule.value = [activeNode.value.startDate, activeNode.value.endDate].filter(Boolean) as string[]
-    message.error('节点排期保存失败，请重试')
+    message.error(t('detail.scheduleSaveFailed'))
   } finally {
     nodeScheduleSaving.value = false
   }
@@ -420,11 +455,11 @@ async function onDescriptionImageSelected(event: Event) {
   input.value = ''
   if (!file) return
   if (!file.type.startsWith('image/')) {
-    message.warning('请选择图片文件')
+    message.warning(t('detail.imageRequired'))
     return
   }
   if (file.size > 5 * 1024 * 1024) {
-    message.warning('图片大小不能超过 5MB')
+    message.warning(t('detail.imageTooLarge'))
     return
   }
 
@@ -433,7 +468,7 @@ async function onDescriptionImageSelected(event: Event) {
     const uploaded = await uploadProjectImage(file)
     profileForm.description = `${profileForm.description.trimEnd()}${profileForm.description.trim() ? '\n' : ''}![${uploaded.name}](${uploaded.url})`
     markProfileDirty()
-    message.success('图片已插入，点击外部空白区域后保存')
+    message.success(t('detail.imageInserted'))
   } finally {
     descriptionImageUploading.value = false
   }
@@ -457,7 +492,7 @@ async function onSaveProfile() {
   if (!project.value || !profileDirty.value || profileSaving.value) return
   if (!canManageProject.value || activeNodeReadOnly.value) {
     profileDirty.value = false
-    message.info('当前项目节点只读，暂不支持修改')
+    message.info(t('detail.profileReadonly'))
     return
   }
   profileDirty.value = false
@@ -480,7 +515,7 @@ async function onSaveProfile() {
       resetProfileForm()
     } catch {
       profileDirty.value = true
-      message.error('项目资料保存失败，请重试')
+      message.error(t('detail.profileSaveFailed'))
     } finally {
       profileSaving.value = false
     }
@@ -495,21 +530,21 @@ async function onSaveProfile() {
 
 function onComplete() {
   if (!activeNode.value || !canCompleteActiveNode.value) {
-    message.info('当前节点暂不可完成')
+    message.info(t('detail.cannotComplete'))
     return
   }
   if (showKickoffProfile.value) {
     const missingFields = getMissingKickoffProfileFields(profileForm)
     if (missingFields.length) {
-      message.warning(`请先完善${missingFields.join('、')}`)
+      message.warning(t('detail.completeMissing', { fields: joinLocalizedFields(missingFields) }))
       return
     }
   }
   Modal.confirm({
-    title: '完成当前节点',
-    content: `确定完成「${activeNode.value.name}」节点吗？完成后将自动解锁下一节点。`,
-    okText: '完成',
-    cancelText: '取消',
+    title: t('detail.completeTitle'),
+    content: t('detail.completeContent', { name: activeNode.value.name }),
+    okText: t('detail.completeOk'),
+    cancelText: t('common.cancel'),
     onOk: async () => {
       if (profileSavePromise) await profileSavePromise
       submitting.value = true
@@ -519,7 +554,7 @@ function onComplete() {
         project.value = await getProject(projectId.value)
         const current = nextNodes.find((node) => node.status === 1)
         activeNodeId.value = current?.id ?? activeNodeId.value
-        message.success('节点已完成，下一节点已解锁')
+        message.success(t('detail.completeSuccess'))
       } finally {
         submitting.value = false
       }
@@ -539,13 +574,13 @@ function openReasonModal(action: ReasonAction, targetNode?: ProjectNode) {
   Object.assign(reasonModal, {
     open: true,
     action,
-    title: action === 'terminate' ? '终止项目' : action === 'restore' ? '恢复项目' : '回滚节点',
+    title: action === 'terminate' ? t('detail.terminateTitle') : action === 'restore' ? t('detail.restoreTitle') : t('detail.rollbackTitle'),
     description: action === 'terminate'
-      ? '终止后当前节点会标记为已终止，后续节点保持未开始，项目数据仍会保留。'
+      ? t('detail.terminateHint')
       : action === 'restore'
-        ? '恢复后将从终止节点继续推进，终止节点会重新进入进行中。'
-        : `确定将项目回滚至「${targetNode?.name || ''}」吗？该节点之后的节点会恢复为待开始。`,
-    okText: action === 'terminate' ? '终止项目' : action === 'restore' ? '恢复项目' : '确认回滚',
+        ? t('detail.restoreHint')
+        : t('detail.rollbackHint', { name: targetNode?.name || '' }),
+    okText: action === 'terminate' ? t('detail.terminateTitle') : action === 'restore' ? t('detail.restoreTitle') : t('detail.rollbackOk'),
     okType: action === 'terminate' ? 'danger' : 'primary',
   })
 }
@@ -561,7 +596,7 @@ function closeReasonModal() {
 async function onReasonModalOk() {
   const reason = normalizeRequiredReason(reasonValue.value)
   if (!reason) {
-    message.warning('请输入原因后再提交')
+    message.warning(t('detail.reasonRequired'))
     return
   }
 
@@ -576,29 +611,29 @@ async function onReasonModalOk() {
     if (action === 'terminate') {
       await terminateProject(projectId.value, reason)
       await refreshAfterLifecycle(3)
-      message.success('项目已终止')
+      message.success(t('detail.terminated'))
     } else if (action === 'restore') {
       await restoreProject(projectId.value, reason)
       await refreshAfterLifecycle(1)
-      message.success('项目已恢复')
+      message.success(t('detail.restored'))
     } else {
       const targetNode = rollbackTargetNode.value
       if (!targetNode) {
-        message.error('未找到待回滚节点，请刷新后重试')
+        message.error(t('detail.rollbackMissing'))
         return
       }
       const nextNodes = await rollbackNode(projectId.value, targetNode.id, reason)
       nodes.value = nextNodes
       project.value = await getProject(projectId.value)
       activeNodeId.value = targetNode.id
-      message.success(`已回滚至「${targetNode.name}」`)
+      message.success(t('detail.rollbackSuccess', { name: targetNode.name }))
     }
     reasonModal.open = false
     reasonModal.action = null
     rollbackTargetNode.value = null
     reasonValue.value = ''
   } catch {
-    message.error(action === 'rollback' ? '节点回滚失败，请检查权限或稍后重试' : '项目状态更新失败，请稍后重试')
+    message.error(action === 'rollback' ? t('detail.rollbackFailed') : t('detail.lifecycleFailed'))
   } finally {
     reasonSubmitting.value = false
     rollingBack.value = false
@@ -619,7 +654,7 @@ function onRestore() {
 function onRollback() {
   const targetNode = activeNode.value
   if (!targetNode || !canRollbackActiveNode.value) {
-    message.info('当前节点暂不可回滚')
+    message.info(t('detail.cannotRollback'))
     return
   }
   openReasonModal('rollback', targetNode)
@@ -702,7 +737,7 @@ onBeforeUnmount(() => {
               :src="projectManagerDisplay.avatar || project.projectManagerAvatar"
               :size="32"
               class="project-person__avatar"
-              :class="{ 'project-person__avatar--pending': projectManagerDisplay.label === '待分配' }"
+              :class="{ 'project-person__avatar--pending': projectManagerDisplay.pending }"
             >
               {{ getPersonInitials(projectManagerDisplay.label) }}
             </a-avatar>
@@ -794,7 +829,7 @@ onBeforeUnmount(() => {
               :options="nodeOwnerOptions"
               :loading="nodeOwnerSaving"
               :disabled="!canAssignNodeOwner || activeNodeReadOnly"
-              :placeholder="getNodeOwnerDisplay(activeNode.ownerName)"
+              :placeholder="getNodeOwnerDisplay(activeNode.ownerName) || $t('detail.unassigned')"
               @change="onNodeOwnerSelection"
             />
           </div>
@@ -821,8 +856,8 @@ onBeforeUnmount(() => {
       <div v-if="showKickoffProfile" ref="profileContainer" class="node-tab-profile">
         <div class="project-profile-section">
           <div class="profile-section-title-row">
-            <div class="profile-section-title">项目基本信息</div>
-            <span v-if="profileSaving" class="profile-save-state">正在保存…</span>
+            <div class="profile-section-title">{{ $t('detail.profileBasics') }}</div>
+            <span v-if="profileSaving" class="profile-save-state">{{ $t('detail.profileSaving') }}</span>
           </div>
           <div class="project-profile-grid">
             <template
@@ -836,7 +871,7 @@ onBeforeUnmount(() => {
                   'project-profile-field--multiline': field.multiline,
                 }"
               >
-                <span class="project-profile-field__label project-profile-field__label--required">{{ field.label }}</span>
+                <span class="project-profile-field__label project-profile-field__label--required">{{ $t(field.label) }}</span>
                 <div v-if="field.key === 'description'" class="project-description-editor">
                   <a-textarea
                     v-model:value="profileForm.description"
@@ -861,9 +896,9 @@ onBeforeUnmount(() => {
                       :disabled="!canManageProject || activeNodeReadOnly"
                       @click="openDescriptionImagePicker"
                     >
-                      <PictureOutlined /> 插入图片
+                      <PictureOutlined /> {{ $t('detail.insertImage') }}
                     </a-button>
-                    <span class="project-description-toolbar__hint">支持 PNG、JPG、GIF、WEBP，单张不超过 5MB</span>
+                    <span class="project-description-toolbar__hint">{{ $t('detail.insertImageHint') }}</span>
                   </div>
                 </div>
                 <a-select
@@ -881,7 +916,7 @@ onBeforeUnmount(() => {
                   :options="businessLineOptions"
                   :change-on-select="true"
                   allow-clear
-                  placeholder="选择业务线"
+                  :placeholder="$t('detail.selectBusinessLine')"
                   :disabled="!canManageProject || activeNodeReadOnly"
                   @change="onBusinessLineChange"
                 />
@@ -890,7 +925,7 @@ onBeforeUnmount(() => {
                   v-model:value="profileForm.schedule"
                   value-format="YYYY-MM-DD"
                   class="project-profile-control"
-                  :placeholder="['开始日期', '结束日期']"
+                  :placeholder="[$t('project.startDate'), $t('project.endDate')]"
                   :disabled="!canManageProject || activeNodeReadOnly"
                   @change="markProfileDirty"
                 />
@@ -902,10 +937,10 @@ onBeforeUnmount(() => {
         <a-divider />
 
         <div class="project-profile-section">
-          <div class="profile-section-title">角色与人员</div>
+          <div class="profile-section-title">{{ $t('detail.profilePeople') }}</div>
           <div class="project-people-grid">
             <div class="project-people-item">
-              <span class="project-profile-field__label project-profile-field__label--required">项目经理</span>
+              <span class="project-profile-field__label project-profile-field__label--required">{{ $t('detail.manager') }}</span>
               <PersonSelect
                 v-model="profileForm.projectManagerId"
                 class="project-profile-control project-people-control"
@@ -915,14 +950,14 @@ onBeforeUnmount(() => {
               />
             </div>
             <div class="project-people-item">
-              <span class="project-profile-field__label project-profile-field__label--required">项目成员</span>
+              <span class="project-profile-field__label project-profile-field__label--required">{{ $t('detail.members') }}</span>
               <PersonSelect
                 v-model="profileForm.memberIds"
                 class="project-profile-control project-people-control project-members-control"
                 multiple
                 :max-tag-count="2"
                 :options="profileUserOptions"
-                placeholder="请选择项目成员"
+                :placeholder="$t('detail.selectMembers')"
                 remote-search
                 :disabled="!canManageProject || activeNodeReadOnly"
                 @search="onProfileUserSearch"
@@ -930,14 +965,14 @@ onBeforeUnmount(() => {
               />
             </div>
             <div class="project-people-item">
-              <span class="project-profile-field__label">关注人</span>
+              <span class="project-profile-field__label">{{ $t('detail.followers') }}</span>
               <PersonSelect
                 v-model="profileForm.followerIds"
                 class="project-profile-control project-people-control project-members-control"
                 multiple
                 :max-tag-count="2"
                 :options="profileUserOptions"
-                placeholder="请选择关注人"
+                :placeholder="$t('detail.selectFollowers')"
                 remote-search
                 :disabled="!canManageProject || activeNodeReadOnly"
                 @search="onProfileUserSearch"
@@ -1029,14 +1064,14 @@ onBeforeUnmount(() => {
     >
       <p class="reason-modal__description">{{ reasonModal.description }}</p>
       <div class="reason-modal__field">
-        <div class="reason-modal__label"><span>*</span> 原因</div>
+        <div class="reason-modal__label"><span>*</span> {{ $t('detail.reason') }}</div>
         <a-textarea
           v-model:value="reasonValue"
           :rows="4"
           :maxlength="200"
           show-count
           :disabled="reasonSubmitting"
-          placeholder="请输入原因"
+          :placeholder="$t('detail.reasonPlaceholder')"
         />
       </div>
     </a-modal>

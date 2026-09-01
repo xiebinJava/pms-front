@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import test from 'node:test'
 
 const source = fs.readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+const visualStyle = fs.readFileSync(new URL('../../../styles/fs-insight.css', import.meta.url), 'utf8')
 
 test('keeps the project list free of the temporary overview statistics block', () => {
   assert.equal(source.includes('class="pms-stat-grid"'), false)
@@ -31,4 +32,10 @@ test('uses shared filter geometry for project search controls', () => {
   assert.match(source, /class="pms-search-input pms-filter-control"/)
   assert.match(source, /class="pms-status-select pms-filter-control"/)
   assert.match(source, /class="pms-secondary-button pms-filter-button"/)
+})
+
+test('keeps project search controls close to the toolbar divider', () => {
+  const toolbarRule = visualStyle.match(/\.pms-table-panel \.pms-table-toolbar\s*\{([^}]*)\}/)?.[1] ?? ''
+  assert.match(toolbarRule, /padding:\s*14px 16px 4px/)
+  assert.match(toolbarRule, /border-bottom:\s*1px solid var\(--pms-border\)/)
 })

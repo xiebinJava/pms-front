@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { createI18n } from 'vue-i18n'
 import { isAppLocale, localeToHtmlLang, resolveLocale } from './locale.ts'
 import enUS from '../locales/en-US.ts'
 import zhCN from '../locales/zh-CN.ts'
@@ -23,4 +24,21 @@ test('resolveLocale prefers a stored choice then English browsers', () => {
   assert.equal(resolveLocale(undefined, 'zh-CN'), 'zh-CN')
   assert.equal(isAppLocale('fr-FR'), false)
   assert.equal(localeToHtmlLang('en-US'), 'en')
+})
+
+test('email examples render without Vue-i18n linked-message compilation errors', () => {
+  const messages = { 'zh-CN': zhCN, 'en-US': enUS }
+  for (const locale of Object.keys(messages)) {
+    const instance = createI18n({ legacy: false, locale, messages })
+    const errors = []
+    const originalError = console.error
+    console.error = (...args) => errors.push(args)
+    try {
+      assert.match(instance.global.t('login.emailPlaceholder'), /name@example\.com/)
+      assert.match(instance.global.t('admin.users.emailPlaceholder'), /name@example\.com/)
+    } finally {
+      console.error = originalError
+    }
+    assert.deepEqual(errors, [], `${locale} should not emit message compilation errors`)
+  }
 })

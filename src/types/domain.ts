@@ -202,7 +202,12 @@ export interface ProjectNode {
   permissions?: NodePermissions
 }
 
-export type NotificationType = 'TASK_ASSIGNED' | 'TASK_COMMENTED' | 'PROJECT_COMMENTED'
+export type NotificationType =
+  | 'TASK_ASSIGNED'
+  | 'TASK_COMMENTED'
+  | 'PROJECT_COMMENTED'
+  | 'NODE_COMPLETED'
+  | 'NODE_ROLLED_BACK'
 
 export interface UserNotification {
   id: number
@@ -211,6 +216,7 @@ export interface UserNotification {
   content?: string
   projectId?: number
   taskId?: number
+  nodeId?: number
   actorId?: number
   actorName?: string
   readAt?: string | null
@@ -224,10 +230,12 @@ export interface SearchHit {
   title: string
   snippet?: string
   taskId?: number
+  milestoneId?: number
 }
 
 export interface SearchResult {
   projects: SearchHit[]
   tasks: SearchHit[]
+  milestones: SearchHit[]
   comments: SearchHit[]
 }

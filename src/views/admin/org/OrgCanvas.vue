@@ -203,14 +203,14 @@ watch(() => [canvas.value.width, canvas.value.height], () => { if (!isPanning.va
     @wheel.prevent="handleWheel"
   >
     <div class="org-canvas-toolbar" @pointerdown.stop>
-      <button type="button" aria-label="缩小画布" title="缩小" @click="setZoom(zoom - 0.1)">−</button>
+      <button type="button" :aria-label="$t('admin.org.zoomOut')" :title="$t('admin.org.zoomOut')" @click="setZoom(zoom - 0.1)">−</button>
       <span>{{ Math.round(zoom * 100) }}%</span>
-      <button type="button" aria-label="放大画布" title="放大" @click="setZoom(zoom + 0.1)">＋</button>
-      <button type="button" aria-label="恢复画布视图" title="恢复默认视图" @click="resetView">100%</button>
-      <button type="button" aria-label="适配画布" title="适配画布" @click="fitView">适配</button>
+      <button type="button" :aria-label="$t('admin.org.zoomIn')" :title="$t('admin.org.zoomIn')" @click="setZoom(zoom + 0.1)">＋</button>
+      <button type="button" :aria-label="$t('admin.org.resetView')" :title="$t('admin.org.resetView')" @click="resetView">100%</button>
+      <button type="button" :aria-label="$t('admin.org.fitView')" :title="$t('admin.org.fitView')" @click="fitView">{{ $t('admin.org.fit') }}</button>
     </div>
 
-    <div v-if="!props.units.length" class="org-canvas-empty">暂无组织单元</div>
+    <div v-if="!props.units.length" class="org-canvas-empty">{{ $t('admin.org.empty') }}</div>
     <div v-else class="org-canvas-stage" :style="stageStyle">
       <svg class="org-links" :width="canvas.width" :height="canvas.height" :viewBox="`0 0 ${canvas.width} ${canvas.height}`" aria-hidden="true">
         <path v-for="link in canvas.links" :key="link.id" :d="link.path" />
@@ -232,7 +232,7 @@ watch(() => [canvas.value.width, canvas.value.height], () => { if (!isPanning.va
       >
         <strong>{{ node.unit.name }}</strong>
         <span class="org-node__type">{{ (node.unit.typeCode || node.unit.code || '').toLowerCase() }}</span>
-        <span class="org-node__leader">负责人：{{ node.unit.leaderDisplayName || '未设置' }}</span>
+        <span class="org-node__leader">{{ $t('admin.org.leaderLabel', { name: node.unit.leaderDisplayName || $t('common.unset') }) }}</span>
       </button>
     </div>
   </div>

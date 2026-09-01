@@ -2,6 +2,7 @@ import axios, { AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios'
 import { message } from 'ant-design-vue'
 import type { ApiResult } from '/@/types/api'
 import { t } from '/@/i18n'
+import { requestErrorMessage } from './request-error'
 
 let accessToken = ''
 let refreshPromise: Promise<string> | null = null
@@ -59,8 +60,12 @@ instance.interceptors.response.use(
         }
       }
     } else if (!isAuthEndpoint && !(config?._silentError) && !(error as { _businessHandled?: boolean })._businessHandled) {
-      const backendMessage = error.response?.data?.msg
-      message.error(backendMessage || (error.response ? error.message : t('http.networkError')))
+      message.error(requestErrorMessage(error, {
+        timeout: t('http.timeout'),
+        unreachable: t('http.backendUnreachable'),
+        server: t('http.serverError'),
+        fallback: error.response?.data?.msg || error.message || t('http.requestFailed'),
+      }))
     }
     return Promise.reject(error)
   },
@@ -79,10 +84,12 @@ export const http = {
 }
 
 export function apiErrorMessage(error: unknown, fallback: string): string {
-  const err = error as { response?: { data?: { msg?: string } }; message?: string }
-  if (err.response?.data?.msg) return err.response.data.msg
-  if (!err.response) return fallback
-  return fallback
+  return requestErrorMessage(error, {
+    timeout: t('http.timeout'),
+    unreachable: t('http.backendUnreachable'),
+    server: t('http.serverError'),
+    fallback,
+  })
 }
 
 export function setAccessToken(token: string) { accessToken = token }

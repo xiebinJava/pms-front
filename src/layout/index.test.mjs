@@ -62,9 +62,13 @@ test('uses the fs-insight application shell geometry and mobile navigation hooks
   assert.match(styleSource, /--pms-sidebar-width: 236px/)
 })
 
-test('keeps the topbar search inside the 62px bar without covering the divider', () => {
+test('keeps the topbar search inside the 62px bar without duplicating the page title', () => {
   assert.match(source, /pms-topbar__center--search/)
   assert.match(styleSource, /--pms-topbar-height:\s*62px/)
-  assert.match(styleSource, /\.pms-topbar__center--search\s+\.pms-topbar__title\s*\{[\s\S]*position:\s*absolute;/)
+  assert.doesNotMatch(source, /pms-topbar__title/)
+  assert.doesNotMatch(source, /const pageTitle/)
+  assert.doesNotMatch(styleSource, /pms-topbar__center--search\s+\.pms-topbar__title/)
   assert.match(styleSource, /\.pms-topbar\s+\.pms-global-search[\s\S]*height:\s*32px/)
+  assert.match(styleSource, /\.pms-shell\s+\.pms-filter-control\.ant-input-affix-wrapper\s*\{[\s\S]*border:\s*1px solid var\(--pms-border-strong\);/)
+  assert.match(styleSource, /\.pms-shell\s+\.pms-filter-control\.ant-input-affix-wrapper\s*\{[\s\S]*border-bottom:\s*1px solid var\(--pms-border-strong\);/)
 })

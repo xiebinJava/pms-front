@@ -24,11 +24,6 @@ body { font-family: var(--pms-font-family); background: var(--pms-bg); }
   border-bottom: 1px solid var(--pms-border);
 }
 .pms-topbar__left { display: flex; min-width: 0; align-items: center; gap: 8px; }
-.pms-topbar__title {
-  color: var(--pms-text-muted);
-  font-size: 11px;
-  line-height: 1;
-}
 .pms-brand { display: flex; align-items: center; gap: 10px; min-width: 236px; }
 .pms-brand__logo { display: grid; width: 30px; height: 30px; place-items: center; color: #fff; background: var(--pms-primary); border-radius: 6px; font-size: 14px; font-weight: 750; }
 .pms-brand__copy { display: grid; line-height: 1.12; }
@@ -43,15 +38,6 @@ body { font-family: var(--pms-font-family); background: var(--pms-bg); }
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-}
-.pms-topbar__center--search .pms-topbar__title {
-  position: absolute;
-  top: 4px;
-  left: 50%;
-  z-index: 1;
-  white-space: nowrap;
-  pointer-events: none;
-  transform: translateX(-50%);
 }
 .pms-topbar__right { display: inline-flex; justify-self: end; align-items: center; gap: 8px; }
 .pms-locale-switch {
@@ -371,8 +357,6 @@ body { font-family: var(--pms-font-family); background: var(--pms-bg); }
 }
 
 .pms-brand__copy strong { letter-spacing: .01em; }
-.pms-topbar__title { color: var(--pms-text-faint); font-weight: 560; }
-
 .pms-user-menu {
   min-height: 36px;
   padding: 3px 6px 3px 4px;
@@ -722,7 +706,8 @@ body { font-family: var(--pms-font-family); background: var(--pms-bg); }
 .pms-detail-panel,
 .pms-admin-table { background: var(--pms-surface); }
 .pms-table-panel .ant-card-body { padding: 0; }
-.pms-table-panel .pms-table-toolbar { padding: 14px 16px 12px; margin: 0; border-bottom: 1px solid var(--pms-border); }
+/* Keep the filter row visually attached to its divider instead of leaving a large blank band below it. */
+.pms-table-panel .pms-table-toolbar { padding: 14px 16px 4px; margin: 0; border-bottom: 1px solid var(--pms-border); }
 .pms-table-toolbar__filters { gap: 8px; }
 
 /* Filter controls share one geometry so search, select and action buttons align. */
@@ -736,6 +721,8 @@ body { font-family: var(--pms-font-family); background: var(--pms-bg); }
 .pms-shell .pms-filter-control.ant-input-affix-wrapper {
   padding-top: 0;
   padding-bottom: 0;
+  border: 1px solid var(--pms-border-strong);
+  border-bottom: 1px solid var(--pms-border-strong);
 }
 .pms-shell .pms-filter-control.ant-select {
   height: var(--pms-control-height);

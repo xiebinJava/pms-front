@@ -41,7 +41,7 @@ test('auth and import failures provide explicit user feedback', () => {
 
   const importSource = fs.readFileSync(path.join(root, 'views/admin/import/index.vue'), 'utf8')
   assert.match(importSource, /catch \(error\)/)
-  assert.match(importSource, /导入失败/)
+  assert.match(importSource, /admin\.import\.commitFailed/)
 })
 
 test('organization canvas exposes a fit-to-view action', () => {
@@ -51,6 +51,8 @@ test('organization canvas exposes a fit-to-view action', () => {
 
 test('audit log actions are localized with secondary codes', () => {
   const source = fs.readFileSync(path.join(root, 'views/admin/audit/index.vue'), 'utf8')
-  assert.match(source, /auditActionLabel|操作中文|动作中文/)
-  assert.match(source, /USER_PRIMARY_POSITION_CHANGED/)
+  const locale = fs.readFileSync(path.join(root, 'locales/zh-CN.ts'), 'utf8')
+  assert.match(source, /auditActionLabel/)
+  assert.match(source, /admin\.audit\.\$\{action\}/)
+  assert.match(locale, /USER_PRIMARY_POSITION_CHANGED/)
 })
