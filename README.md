@@ -1,6 +1,6 @@
 # PMS Front — 项目管理系统前端
 
-基于 Vue 3 + Vite + ant-design-vue 的开源项目管理系统前端，工程规范参考业界主流 Vue3 中后台工程骨架精简而来。
+基于 Vue 3 + Vite + ant-design-vue 的开源项目管理系统前端，工程规范参考业界主流 Vue3 中后台工程骨架精简而来。许可证为 Apache-2.0，贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 技术栈
 
