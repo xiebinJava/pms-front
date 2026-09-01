@@ -38,6 +38,7 @@ export interface TaskFormDraft {
   assigneeId?: number
   milestoneId?: number
   dueDate?: string | null
+  parentId?: number
 }
 
 export interface PersonOption {
@@ -204,6 +205,7 @@ export function buildTaskPayload(form: TaskFormDraft, nodeId: number) {
   return {
     ...form,
     dueDate: form.dueDate || undefined,
+    parentId: form.parentId || undefined,
     nodeId,
   }
 }

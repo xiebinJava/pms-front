@@ -49,7 +49,7 @@ async function downloadTemplate() {
 </script>
 <template>
   <section class="admin-page pms-admin-page">
-    <PmsPageHeader title="批量导入" description="支持 CSV / Excel；先预览校验，错误为零后一次性提交。">
+    <PmsPageHeader :title="$t('route.adminImport')" description="支持 CSV / Excel；先预览校验，错误为零后一次性提交。">
       <template #actions><a-space><a-button class="pms-secondary-button" @click="downloadTemplate">下载当前模板</a-button><a-radio-group v-model:value="type" button-style="solid"><a-radio-button value="organizations">组织</a-radio-button><a-radio-button value="users">员工</a-radio-button></a-radio-group></a-space></template>
     </PmsPageHeader>
     <a-steps :current="step" size="small"><a-step title="上传" /><a-step title="预览校验" /><a-step title="完成" /></a-steps>

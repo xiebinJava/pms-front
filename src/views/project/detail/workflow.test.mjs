@@ -319,6 +319,7 @@ test('keeps task deliverables in the task payload', () => {
     assigneeId: 1,
     milestoneId: undefined,
     dueDate: undefined,
+    parentId: undefined,
     nodeId: 12,
   })
 })

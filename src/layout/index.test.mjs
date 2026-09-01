@@ -19,16 +19,16 @@ test('project management and configuration are interactive navigation groups', (
   assert.match(source, /configNavOpen/)
   assert.match(source, /aria-expanded=/)
   assert.match(source, /pms-nav-group--projects/)
-  assert.match(source, /pms-nav-section-label[\s\S]*?<ExperimentOutlined \/><span>研发管理<\/span>/)
-  assert.match(source, /pms-nav-subnav[\s\S]*?<span>项目管理<\/span>/)
+  assert.match(source, /pms-nav-section-label[\s\S]*?<ExperimentOutlined \/><span>\{\{ \$t\('nav.rdManagement'\) \}\}<\/span>/)
+  assert.match(source, /pms-nav-subnav[\s\S]*?<span>\{\{ \$t\('nav.projects'\) \}\}<\/span>/)
   assert.match(source, /v-if="projectNavOpen"/)
   assert.match(source, /v-if="configNavOpen"/)
 })
 
 test('routes workbench separately from project management', () => {
   assert.match(source, /dashboard:\s*'\/dashboard'/)
-  assert.match(source, /研发管理/)
-  assert.match(source, /aria-label="项目管理子页签"/)
+  assert.match(source, /\$t\('nav.rdManagement'\)/)
+  assert.match(source, /:aria-label="\$t\('nav.projectsTab'\)"/)
   assert.match(routerSource, /path:\s*'dashboard'/)
   assert.match(routerSource, /redirect:\s*'\/dashboard'/)
 })
@@ -36,11 +36,21 @@ test('routes workbench separately from project management', () => {
 test('uses distinct icons for each navigation meaning', () => {
   assert.match(source, /ExperimentOutlined/)
   assert.match(source, /CloudUploadOutlined/)
-  assert.match(source, /<ExperimentOutlined \/><span>研发管理<\/span>/)
-  assert.match(source, /<ProjectOutlined \/><span>项目管理<\/span>/)
-  assert.match(source, /<ApartmentOutlined \/><span>组织架构<\/span>/)
-  assert.match(source, /<CloudUploadOutlined \/><span>批量导入<\/span>/)
-  assert.doesNotMatch(source, /<ApartmentOutlined \/><span>批量导入<\/span>/)
+  assert.match(source, /<ExperimentOutlined \/><span>\{\{ \$t\('nav.rdManagement'\) \}\}<\/span>/)
+  assert.match(source, /<ProjectOutlined \/><span>\{\{ \$t\('nav.projects'\) \}\}<\/span>/)
+  assert.match(source, /<ApartmentOutlined \/><span>\{\{ \$t\('nav.org'\) \}\}<\/span>/)
+  assert.match(source, /<CloudUploadOutlined \/><span>\{\{ \$t\('nav.import'\) \}\}<\/span>/)
+  assert.doesNotMatch(source, /<ApartmentOutlined \/><span>\{\{ \$t\('nav.import'\) \}\}<\/span>/)
+})
+
+test('topbar exposes scoped search and an in-app notification inbox', () => {
+  assert.match(source, /SearchOutlined/)
+  assert.match(source, /BellOutlined/)
+  assert.match(source, /searchWorkspace/)
+  assert.match(source, /getNotifications/)
+  assert.match(source, /pms-global-search/)
+  assert.match(source, /pms-notify-bell/)
+  assert.match(source, /LocaleSwitch/)
 })
 
 test('uses the fs-insight application shell geometry and mobile navigation hooks', () => {

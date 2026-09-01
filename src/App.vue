@@ -1,7 +1,15 @@
 <script setup lang="ts">
+import { computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { theme } from 'ant-design-vue'
+import { useLocaleStore } from '/@/store/locale'
 import { designTokens } from './styles/design-system'
 import './styles/fs-insight.css'
+
+const route = useRoute()
+const { t, locale } = useI18n()
+const localeStore = useLocaleStore()
 
 const themeConfig = {
   algorithm: theme.defaultAlgorithm,
@@ -28,10 +36,21 @@ const themeConfig = {
     fontSize: designTokens.fontSize.body,
   },
 }
+
+const antdLocale = computed(() => localeStore.antdLocale)
+
+watch(
+  [() => route.meta.titleKey, locale],
+  () => {
+    const titleKey = route.meta.titleKey
+    document.title = titleKey ? `${t(titleKey)} · ${t('app.titleSuffix')}` : t('app.name')
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
-  <a-config-provider :theme="themeConfig">
+  <a-config-provider :theme="themeConfig" :locale="antdLocale">
     <router-view />
   </a-config-provider>
 </template>

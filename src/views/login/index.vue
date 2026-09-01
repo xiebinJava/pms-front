@@ -1,26 +1,31 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { LockOutlined, MailOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
+import LocaleSwitch from '/@/components/LocaleSwitch.vue'
 import { useUserStore } from '/@/store/user'
 
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
 const userStore = useUserStore()
 
 const form = reactive({ email: '', password: '' })
 const loading = ref(false)
+const emailRules = computed(() => [{ required: true, type: 'email' as const, message: t('login.emailRequired') }])
+const passwordRules = computed(() => [{ required: true, message: t('login.passwordRequired') }])
 
 async function onFinish() {
   loading.value = true
   try {
     await userStore.login(form.email, form.password)
-    message.success('登录成功')
+    message.success(t('login.success'))
     const redirect = (route.query.redirect as string) || '/'
     router.push(redirect)
   } catch (error) {
-    message.error((error as Error)?.message || '登录失败，请稍后重试')
+    message.error((error as Error)?.message || t('login.failed'))
   } finally {
     loading.value = false
   }
@@ -29,21 +34,24 @@ async function onFinish() {
 
 <template>
   <div class="pms-auth-page pms-login-page">
+    <div class="pms-auth-locale">
+      <LocaleSwitch />
+    </div>
     <div class="pms-auth-card pms-login-card">
       <div class="pms-login-heading">
         <div class="pms-login-logo">P</div>
-        <h1>PMS 项目管理系统</h1>
-        <p>软件研发项目全流程管理</p>
+        <h1>{{ $t('login.title') }}</h1>
+        <p>{{ $t('login.subtitle') }}</p>
       </div>
 
       <a-form layout="vertical" :model="form" @finish="onFinish">
-        <a-form-item name="email" :rules="[{ required: true, type: 'email', message: '请输入有效邮箱' }]">
-          <a-input v-model:value="form.email" placeholder="邮箱（如 name@example.com）" size="large">
+        <a-form-item name="email" :rules="emailRules">
+          <a-input v-model:value="form.email" :placeholder="$t('login.emailPlaceholder')" size="large">
             <template #prefix><MailOutlined class="pms-login-icon" /></template>
           </a-input>
         </a-form-item>
-        <a-form-item name="password" :rules="[{ required: true, message: '请输入密码' }]">
-          <a-input-password v-model:value="form.password" placeholder="密码" size="large">
+        <a-form-item name="password" :rules="passwordRules">
+          <a-input-password v-model:value="form.password" :placeholder="$t('login.passwordPlaceholder')" size="large">
             <template #prefix><LockOutlined class="pms-login-icon" /></template>
           </a-input-password>
         </a-form-item>
@@ -55,11 +63,11 @@ async function onFinish() {
           :loading="loading"
           class="pms-primary-button pms-login-submit"
         >
-          登 录
+          {{ $t('login.submit') }}
         </a-button>
       </a-form>
 
-      <p class="pms-login-hint">请输入管理员邀请的邮箱，邮箱不区分大小写</p>
+      <p class="pms-login-hint">{{ $t('login.hint') }}</p>
     </div>
   </div>
 </template>

@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { CloseOutlined, ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import { Modal, message } from 'ant-design-vue'
-import { createTask, deleteTask, getTasks, moveTask, updateTask } from '/@/api/task'
+import { createTask, deleteTask, getTask, getTasks, moveTask, updateTask } from '/@/api/task'
 import { getMembers } from '/@/api/member'
 import { getMilestones } from '/@/api/milestone'
-import { Priority, TaskStatus, priorityTagColor } from '/@/enums'
+import { priorityKey, taskStatusKey, Priority, TaskStatus, priorityTagColor } from '/@/enums'
 import { formatDate } from '/@/utils/format'
-import type { Milestone, Project, ProjectMember, ProjectNode, Task } from '/@/types/domain'
+import type { Milestone, Project, ProjectMember, ProjectNode, Task, TaskDetail } from '/@/types/domain'
 import {
   buildTaskPayload,
   formatPersonLabel,
@@ -18,8 +19,17 @@ import {
   sortTasksByPriority,
 } from '../workflow'
 import PersonSelect from './PersonSelect.vue'
+import TaskWorkPanel from './TaskWorkPanel.vue'
 
-const props = defineProps<{ projectId: number; nodeId: number; project: Project; node: ProjectNode }>()
+const props = defineProps<{
+  projectId: number
+  nodeId: number
+  project: Project
+  node: ProjectNode
+  focusTaskId?: number | null
+}>()
+const emit = defineEmits<{ focused: [] }>()
+const { t } = useI18n()
 
 const tasks = ref<Task[]>([])
 const members = ref<ProjectMember[]>([])
@@ -32,7 +42,7 @@ const STATUS_COLUMNS = [0, 1, 2]
 const groups = computed(() =>
   STATUS_COLUMNS.map((status) => ({
     status,
-    label: TaskStatus.label(status),
+    label: t(`enum.taskStatus.${status}`),
     list: sortTasksByPriority(tasks.value.filter((t) => t.status === status)),
   })),
 )
@@ -45,6 +55,8 @@ const taskMemberOptions = computed(() => members.value.map((member) => ({
 const milestoneNameMap = computed(() => new Map(milestones.value.map((m) => [m.id, m.title])))
 
 const modalState = reactive({ open: false, editingId: null as number | null, presetStatus: 0 })
+const detail = ref<TaskDetail | null>(null)
+const consumedFocusId = ref<number | null>(null)
 const formRef = ref()
 const form = reactive({
   title: '',
@@ -56,7 +68,7 @@ const form = reactive({
   milestoneId: undefined as number | undefined,
   dueDate: null as string | null,
 })
-const rules = { title: [{ required: true, message: '请输入任务标题' }] }
+const rules = computed(() => ({ title: [{ required: true, message: t('task.titleRequired') }] }))
 
 const nodeReadOnly = computed(() => props.node.permissions?.readOnly ?? isNodeReadOnly(props.node.status))
 const taskScope = computed(() => ({
@@ -67,7 +79,7 @@ const taskScope = computed(() => ({
 const canManageTasks = computed(() => props.node.permissions?.canManageTasks ?? !nodeReadOnly.value)
 const editingTask = computed(() => modalState.editingId == null
   ? null
-  : tasks.value.find((task) => task.id === modalState.editingId) || null)
+  : tasks.value.find((task) => task.id === modalState.editingId) || detail.value || null)
 const canEditModal = computed(() => modalState.editingId == null
   ? canManageTasks.value
   : Boolean(editingTask.value?.permissions?.canEdit))
@@ -86,13 +98,32 @@ async function loadAll() {
     tasks.value = taskList
     members.value = memberList
     milestones.value = milestoneList
+    await maybeOpenFocusedTask()
   } finally {
     loading.value = false
   }
 }
 
+async function loadDetail(taskId: number) {
+  detail.value = await getTask(taskId)
+}
+
+async function maybeOpenFocusedTask() {
+  if (!props.focusTaskId || consumedFocusId.value === props.focusTaskId) return
+  try {
+    const focused = await getTask(props.focusTaskId)
+    if (focused.nodeId && focused.nodeId !== props.nodeId) return
+    consumedFocusId.value = props.focusTaskId
+    openEdit(focused)
+    emit('focused')
+  } catch {
+    consumedFocusId.value = props.focusTaskId
+  }
+}
+
 function openCreate(status: number) {
   modalState.editingId = null
+  detail.value = null
   modalState.presetStatus = status
   Object.assign(form, {
     title: '',
@@ -120,23 +151,30 @@ function openEdit(task: Task) {
     dueDate: task.dueDate || null,
   })
   modalState.open = true
+  void loadDetail(task.id)
 }
 
 async function onSave() {
   if (!canEditModal.value) {
-    message.info('当前节点或任务只读，暂不支持修改')
+    message.info(t('task.readonlyHint'))
     return
   }
   await formRef.value.validate()
   const payload = buildTaskPayload(form, props.nodeId)
   if (modalState.editingId) {
     await updateTask(modalState.editingId, payload)
-    message.success('更新成功')
+    message.success(t('common.updated'))
   } else {
     await createTask(props.projectId, payload)
-    message.success('创建成功')
+    message.success(t('common.created'))
   }
   modalState.open = false
+  detail.value = null
+  loadAll()
+}
+
+async function onWorkPanelChanged() {
+  if (modalState.editingId) await loadDetail(modalState.editingId)
   loadAll()
 }
 
@@ -148,7 +186,7 @@ async function onDrop(status: number) {
   const task = tasks.value.find((item) => item.id === taskId)
   if (!task || task.status === status) return
   if (!task.permissions?.canMove || nodeReadOnly.value) {
-    message.info('当前节点或任务只读，暂不支持移动')
+    message.info(t('task.moveReadonly'))
     return
   }
 
@@ -168,14 +206,16 @@ function clearDrag() {
 
 function onDelete(task: Task) {
   Modal.confirm({
-    title: '删除任务',
-    content: `确定删除任务「${task.title}」吗？`,
-    okText: '删除',
+    title: t('task.deleteTitle'),
+    content: task.subtaskCount
+      ? t('task.deleteWithSubtasks', { title: task.title, count: task.subtaskCount })
+      : t('task.deleteOne', { title: task.title }),
+    okText: t('common.delete'),
     okType: 'danger',
-    cancelText: '取消',
+    cancelText: t('common.cancel'),
     onOk: async () => {
       await deleteTask(task.id)
-      message.success('删除成功')
+      message.success(t('common.deleted'))
       modalState.open = false
       loadAll()
     },
@@ -219,8 +259,8 @@ watch(taskScope, (next, previous) => {
           v-if="task.permissions?.canDelete"
           type="button"
           class="pms-task-card__delete"
-          aria-label="删除任务"
-          title="删除任务"
+          :aria-label="$t('task.deleteAria')"
+          :title="$t('task.deleteAria')"
           @click.stop="onDelete(task)"
         >
           <CloseOutlined />
@@ -233,76 +273,86 @@ watch(taskScope, (next, previous) => {
             :class="{ 'pms-priority-tag--urgent': task.priority === 3 }"
           >
             <ExclamationCircleOutlined v-if="task.priority === 3" />
-            {{ Priority.label(task.priority) }}
+            {{ $t(priorityKey(task.priority)) }}
           </a-tag>
         </div>
         <div class="pms-task-card__meta">
-          <span>{{ normalizePersonDisplayLabel(task.assigneeName) || '未指派' }}</span>
+          <span>{{ normalizePersonDisplayLabel(task.assigneeName) || $t('task.unassigned') }}</span>
           <span>{{ milestoneNameMap.get(task.milestoneId ?? 0) || '' }}</span>
           <span>{{ formatDate(task.dueDate) }}</span>
+          <span v-if="task.subtaskCount">{{ $t('task.subtaskCount', { count: task.subtaskCount }) }}</span>
         </div>
       </div>
 
       <a-button v-if="canManageTasks" type="text" block size="small" class="text-[12px]" @click="openCreate(col.status)">
-        <PlusOutlined /> 添加任务
+        <PlusOutlined /> {{ $t('task.add') }}
       </a-button>
     </div>
   </div>
 
   <a-modal
     v-model:open="modalState.open"
-    :title="modalState.editingId ? '编辑任务' : '新建任务'"
-    :width="520"
+    :title="modalState.editingId ? $t('task.detail') : $t('task.create')"
+    :width="modalState.editingId ? 720 : 520"
   >
     <a-form ref="formRef" :model="form" :rules="rules" layout="vertical">
-      <a-form-item label="任务标题" name="title">
-        <a-input v-model:value="form.title" :disabled="!canEditModal" placeholder="请输入任务标题" />
+      <a-form-item :label="$t('task.title')" name="title">
+        <a-input v-model:value="form.title" :disabled="!canEditModal" :placeholder="$t('task.titlePlaceholder')" />
       </a-form-item>
-      <a-form-item label="描述">
-        <a-textarea v-model:value="form.description" :rows="3" :disabled="!canEditModal" placeholder="任务描述" />
+      <a-form-item :label="$t('task.description')">
+        <a-textarea v-model:value="form.description" :rows="3" :disabled="!canEditModal" :placeholder="$t('task.descriptionPlaceholder')" />
       </a-form-item>
-      <a-form-item label="交付物">
-        <a-input v-model:value="form.deliverable" :disabled="!canEditModal" placeholder="请输入任务交付物" />
+      <a-form-item :label="$t('task.deliverable')">
+        <a-input v-model:value="form.deliverable" :disabled="!canEditModal" :placeholder="$t('task.deliverablePlaceholder')" />
       </a-form-item>
       <div class="grid grid-cols-2 gap-3">
-        <a-form-item label="状态">
+        <a-form-item :label="$t('common.status')">
           <a-select v-model:value="form.status" :disabled="!canEditModal">
             <a-select-option v-for="opt in TaskStatus.options()" :key="opt.value" :value="opt.value">
-              {{ opt.label }}
+              {{ $t(taskStatusKey(opt.value)) }}
             </a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="优先级">
+        <a-form-item :label="$t('common.priority')">
           <a-select v-model:value="form.priority" :disabled="!canManageModal">
             <a-select-option v-for="opt in Priority.options()" :key="opt.value" :value="opt.value">
-              {{ opt.label }}
+              {{ $t(priorityKey(opt.value)) }}
             </a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="负责人">
+        <a-form-item :label="$t('task.assignee')">
           <PersonSelect
             v-model="form.assigneeId"
             :options="taskMemberOptions"
             :disabled="!canManageModal"
-            placeholder="选择成员"
+            :placeholder="$t('task.assigneePlaceholder')"
           />
         </a-form-item>
-        <a-form-item label="里程碑（可选）">
-          <a-select v-model:value="form.milestoneId" :disabled="!canManageModal" allow-clear placeholder="选择里程碑">
+        <a-form-item :label="$t('task.milestone')">
+          <a-select v-model:value="form.milestoneId" :disabled="!canManageModal" allow-clear :placeholder="$t('task.milestonePlaceholder')">
             <a-select-option v-for="m in milestones" :key="m.id" :value="m.id">{{ m.title }}</a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="截止日期">
-          <a-date-picker v-model:value="form.dueDate" :disabled="!canEditModal" value-format="YYYY-MM-DD" placeholder="截止日期" style="width: 100%" />
+        <a-form-item :label="$t('task.dueDate')">
+          <a-date-picker v-model:value="form.dueDate" :disabled="!canEditModal" value-format="YYYY-MM-DD" :placeholder="$t('task.dueDate')" style="width: 100%" />
         </a-form-item>
       </div>
     </a-form>
+    <TaskWorkPanel
+      v-if="modalState.editingId && detail"
+      :project-id="projectId"
+      :node-id="nodeId"
+      :detail="detail"
+      :can-edit="canEditModal"
+      :can-manage="canManageModal"
+      @changed="onWorkPanelChanged"
+    />
     <template #footer>
       <a-button v-if="modalState.editingId && editingTask?.permissions?.canDelete" danger @click="onDelete({ id: modalState.editingId, title: form.title } as Task)">
-        删除
+        {{ $t('common.delete') }}
       </a-button>
-      <a-button @click="modalState.open = false">取消</a-button>
-      <a-button v-if="canEditModal" type="primary" class="pms-primary-button" @click="onSave">保存</a-button>
+      <a-button @click="modalState.open = false">{{ $t('common.cancel') }}</a-button>
+      <a-button v-if="canEditModal" type="primary" class="pms-primary-button" @click="onSave">{{ $t('common.save') }}</a-button>
     </template>
   </a-modal>
 </template>

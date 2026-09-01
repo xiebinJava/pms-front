@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
   ExclamationCircleOutlined,
@@ -9,26 +10,27 @@ import {
 } from '@ant-design/icons-vue'
 import { Modal, message } from 'ant-design-vue'
 import { createProject, deleteProject, getProjectPage, updateProject } from '/@/api/project'
-import { getProjectStatusLabel, ProjectStatus, Priority, statusTagColor, priorityTagColor } from '/@/enums'
+import { projectStatusKey, priorityKey, ProjectStatus, Priority, statusTagColor, priorityTagColor } from '/@/enums'
 import { formatDate } from '/@/utils/format'
 import { getProjectManagerDisplay } from '../detail/workflow'
 import PmsPageHeader from '/@/components/PmsPageHeader.vue'
 import type { Project } from '/@/types/domain'
 
 const router = useRouter()
+const { t } = useI18n()
 
-const columns = [
-  { title: '项目名称', key: 'name', dataIndex: 'name' },
-  { title: '业务线', key: 'orgUnitPath', dataIndex: 'orgUnitPath', width: 190 },
-  { title: '项目经理', key: 'projectManagerName', dataIndex: 'projectManagerName', width: 130 },
-  { title: '状态', key: 'status', dataIndex: 'status', width: 90 },
-  { title: '优先级', key: 'priority', dataIndex: 'priority', width: 90 },
-  { title: '进度', key: 'progress', dataIndex: 'progress', width: 150 },
-  { title: '任务', key: 'taskCount', dataIndex: 'taskCount', width: 80 },
-  { title: '成员', key: 'memberCount', dataIndex: 'memberCount', width: 80 },
-  { title: '周期', key: 'dates', width: 160 },
-  { title: '操作', key: 'action', width: 140 },
-]
+const columns = computed(() => [
+  { title: t('project.name'), key: 'name', dataIndex: 'name' },
+  { title: t('project.businessLine'), key: 'orgUnitPath', dataIndex: 'orgUnitPath', width: 190 },
+  { title: t('project.manager'), key: 'projectManagerName', dataIndex: 'projectManagerName', width: 130 },
+  { title: t('common.status'), key: 'status', dataIndex: 'status', width: 90 },
+  { title: t('common.priority'), key: 'priority', dataIndex: 'priority', width: 90 },
+  { title: t('detail.overall'), key: 'progress', dataIndex: 'progress', width: 150 },
+  { title: t('project.tasks'), key: 'taskCount', dataIndex: 'taskCount', width: 80 },
+  { title: t('project.members'), key: 'memberCount', dataIndex: 'memberCount', width: 80 },
+  { title: t('project.cycle'), key: 'dates', width: 160 },
+  { title: t('common.actions'), key: 'action', width: 140 },
+])
 
 const query = reactive({ keyword: '', status: undefined as number | undefined })
 const dataSource = ref<Project[]>([])
@@ -49,9 +51,9 @@ const form = reactive({
   ownerId: undefined as number | undefined,
 })
 
-const rules = {
-  name: [{ required: true, message: '请输入项目名称' }],
-}
+const rules = computed(() => ({
+  name: [{ required: true, message: t('project.nameRequired') }],
+}))
 
 async function loadData() {
   loading.value = true
@@ -65,7 +67,7 @@ async function loadData() {
     dataSource.value = data.list
     pagination.total = data.total
   } catch (error) {
-    message.error((error as Error).message || '项目列表加载失败，请重试')
+    message.error((error as Error).message || t('project.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -97,7 +99,7 @@ function openCreate() {
 
 function openEdit(record: Project) {
   if (!record.permissions?.canManageProject) {
-    message.info('当前用户没有编辑该项目的权限')
+    message.info(t('project.noEditPermission'))
     return
   }
   modalState.editingId = record.id
@@ -122,36 +124,36 @@ async function onSave() {
     }
     if (modalState.editingId) {
       await updateProject(modalState.editingId, payload)
-      message.success('更新成功')
+      message.success(t('common.updated'))
     } else {
       await createProject(payload)
-      message.success('创建成功')
+      message.success(t('common.created'))
     }
     modalState.open = false
     await loadData()
   } catch (error) {
-    message.error((error as Error).message || '项目保存失败，请重试')
+    message.error((error as Error).message || t('project.saveFailed'))
   }
 }
 
 function onDelete(record: Project) {
   if (!record.permissions?.canDeleteProject) {
-    message.info('当前用户没有删除该项目的权限')
+    message.info(t('project.noDeletePermission'))
     return
   }
   Modal.confirm({
-    title: '删除项目',
-    content: `确定删除项目「${record.name}」吗？其下任务、里程碑、成员将一并删除。`,
-    okText: '删除',
+    title: t('project.deleteTitle'),
+    content: t('project.deleteContent', { name: record.name }),
+    okText: t('common.delete'),
     okType: 'danger',
-    cancelText: '取消',
+    cancelText: t('common.cancel'),
     onOk: async () => {
       try {
         await deleteProject(record.id)
-        message.success('删除成功')
+        message.success(t('common.deleted'))
         await loadData()
       } catch (error) {
-        message.error((error as Error).message || '项目删除失败，请重试')
+        message.error((error as Error).message || t('project.deleteFailed'))
         throw error
       }
     },
@@ -165,12 +167,12 @@ onMounted(loadData)
   <div>
     <!-- 页头 -->
     <PmsPageHeader
-      title="项目管理"
-      description="覆盖项目全生命周期，完成节点自动流转，让交付快人一步"
+      :title="$t('route.projectList')"
+      :description="$t('project.description')"
     >
       <template #actions>
         <a-button type="primary" class="pms-primary-button" @click="openCreate">
-          <PlusOutlined /> 新建项目
+          <PlusOutlined /> {{ $t('project.create') }}
         </a-button>
       </template>
     </PmsPageHeader>
@@ -180,19 +182,19 @@ onMounted(loadData)
         <div class="pms-table-toolbar__filters">
           <a-input
             v-model:value="query.keyword"
-            placeholder="搜索项目名称"
+            :placeholder="$t('project.searchName')"
             allow-clear
             class="pms-search-input pms-filter-control"
             @press-enter="onSearch"
           >
             <template #prefix><SearchOutlined class="pms-muted-icon" /></template>
           </a-input>
-          <a-select v-model:value="query.status" placeholder="状态" allow-clear class="pms-status-select pms-filter-control" @change="onSearch">
+          <a-select v-model:value="query.status" :placeholder="$t('common.status')" allow-clear class="pms-status-select pms-filter-control" @change="onSearch">
             <a-select-option v-for="opt in ProjectStatus.options()" :key="opt.value" :value="opt.value">
-              {{ opt.label }}
+              {{ $t(`enum.projectStatus.${opt.value}`) }}
             </a-select-option>
           </a-select>
-          <a-button class="pms-secondary-button pms-filter-button" @click="onSearch"><ReloadOutlined /> 查询</a-button>
+          <a-button class="pms-secondary-button pms-filter-button" @click="onSearch"><ReloadOutlined /> {{ $t('common.query') }}</a-button>
         </div>
       </div>
 
@@ -216,11 +218,11 @@ onMounted(loadData)
             {{ getProjectManagerDisplay(record.projectManagerName) }}
           </template>
           <template v-else-if="column.key === 'orgUnitPath'">
-            <span>{{ record.orgUnitPath || record.orgUnitName || '未设置' }}</span>
-            <div v-if="record.orgUnitLeaderName" class="pms-table-subtext">负责人：{{ record.orgUnitLeaderName }}</div>
+            <span>{{ record.orgUnitPath || record.orgUnitName || $t('common.unset') }}</span>
+            <div v-if="record.orgUnitLeaderName" class="pms-table-subtext">{{ $t('project.leader', { name: record.orgUnitLeaderName }) }}</div>
           </template>
           <template v-else-if="column.key === 'status'">
-            <a-tag :color="statusTagColor[record.status]">{{ getProjectStatusLabel(record.status) }}</a-tag>
+            <a-tag :color="statusTagColor[record.status]">{{ $t(projectStatusKey(record.status)) }}</a-tag>
           </template>
           <template v-else-if="column.key === 'priority'">
             <a-tag
@@ -229,7 +231,7 @@ onMounted(loadData)
               :class="{ 'pms-priority-tag--urgent': record.priority === 3 }"
             >
               <ExclamationCircleOutlined v-if="record.priority === 3" />
-              {{ Priority.label(record.priority) }}
+              {{ $t(priorityKey(record.priority)) }}
             </a-tag>
           </template>
           <template v-else-if="column.key === 'progress'">
@@ -241,15 +243,15 @@ onMounted(loadData)
             />
           </template>
           <template v-else-if="column.key === 'dates'">
-            <div class="pms-project-date-range" aria-label="项目周期">
+            <div class="pms-project-date-range" :aria-label="$t('project.rangeAria')">
               <span>{{ formatDate(record.startDate) }}</span>
-              <span class="pms-project-date-range__to">至 {{ formatDate(record.endDate) }}</span>
+              <span class="pms-project-date-range__to">{{ $t('project.rangeTo', { date: formatDate(record.endDate) }) }}</span>
             </div>
           </template>
           <template v-else-if="column.key === 'action'">
-            <span class="pms-action-link" @click="router.push(`/projects/${record.id}`)">详情</span>
-            <span v-if="record.permissions?.canManageProject" class="pms-action-link" @click="openEdit(record)">编辑</span>
-            <span v-if="record.permissions?.canDeleteProject" class="pms-action-link pms-action-link--danger" @click="onDelete(record)">删除</span>
+            <span class="pms-action-link" @click="router.push(`/projects/${record.id}`)">{{ $t('common.detail') }}</span>
+            <span v-if="record.permissions?.canManageProject" class="pms-action-link" @click="openEdit(record)">{{ $t('common.edit') }}</span>
+            <span v-if="record.permissions?.canDeleteProject" class="pms-action-link pms-action-link--danger" @click="onDelete(record)">{{ $t('common.delete') }}</span>
           </template>
         </template>
         </a-table>
@@ -258,32 +260,32 @@ onMounted(loadData)
 
     <a-modal
       v-model:open="modalState.open"
-      :title="modalState.editingId ? '编辑项目' : '新建项目'"
+      :title="modalState.editingId ? $t('project.edit') : $t('project.create')"
       :width="560"
       class="pms-project-modal"
       :confirm-loading="loading"
       @ok="onSave"
     >
       <a-form ref="formRef" :model="form" :rules="rules" layout="vertical">
-        <a-form-item label="项目名称" name="name">
-          <a-input v-model:value="form.name" placeholder="请输入项目名称" />
+        <a-form-item :label="$t('project.name')" name="name">
+          <a-input v-model:value="form.name" :placeholder="$t('project.namePlaceholder')" />
         </a-form-item>
-        <a-form-item label="项目描述">
-          <a-textarea v-model:value="form.description" :rows="3" placeholder="请输入项目描述" />
+        <a-form-item :label="$t('project.desc')">
+          <a-textarea v-model:value="form.description" :rows="3" :placeholder="$t('project.descPlaceholder')" />
         </a-form-item>
         <div class="grid grid-cols-2 gap-3">
-          <a-form-item label="优先级">
+          <a-form-item :label="$t('common.priority')">
             <a-select v-model:value="form.priority">
               <a-select-option v-for="opt in Priority.options()" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
+                {{ $t(priorityKey(opt.value)) }}
               </a-select-option>
             </a-select>
           </a-form-item>
-          <a-form-item label="开始日期">
-            <a-date-picker v-model:value="form.startDate" value-format="YYYY-MM-DD" placeholder="开始日期" style="width: 100%" />
+          <a-form-item :label="$t('project.startDate')">
+            <a-date-picker v-model:value="form.startDate" value-format="YYYY-MM-DD" :placeholder="$t('project.startDate')" style="width: 100%" />
           </a-form-item>
-          <a-form-item label="结束日期">
-            <a-date-picker v-model:value="form.endDate" value-format="YYYY-MM-DD" placeholder="结束日期" style="width: 100%" />
+          <a-form-item :label="$t('project.endDate')">
+            <a-date-picker v-model:value="form.endDate" value-format="YYYY-MM-DD" :placeholder="$t('project.endDate')" style="width: 100%" />
           </a-form-item>
         </div>
       </a-form>

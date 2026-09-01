@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeftOutlined,
@@ -11,11 +12,12 @@ import {
 import { Modal, message } from 'ant-design-vue'
 import { getFollowers } from '/@/api/follower'
 import { addMember, getMembers } from '/@/api/member'
+import { getTask } from '/@/api/task'
 import { getProject, restoreProject, terminateProject, updateProject, uploadProjectImage } from '/@/api/project'
 import { completeNode, getNodes, rollbackNode, updateNodeOwner, updateNodeSchedule } from '/@/api/node'
 import { getProjectOrgTree } from '/@/api/admin-org'
 import { searchUsers } from '/@/api/user'
-import { getProjectStatusLabel, Priority, statusTagColor } from '/@/enums'
+import { priorityKey, projectStatusKey, Priority, statusTagColor } from '/@/enums'
 import { formatDate, formatDateTime } from '/@/utils/format'
 import {
   canRollbackNode,
@@ -48,7 +50,13 @@ import type { OrgUnit, Project, ProjectMember, ProjectNode, User } from '/@/type
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const projectId = computed(() => Number(route.params.id))
+const focusTaskId = computed(() => {
+  const raw = route.query.task
+  const value = Number(Array.isArray(raw) ? raw[0] : raw)
+  return Number.isFinite(value) && value > 0 ? value : null
+})
 
 const project = ref<Project | null>(null)
 const nodes = ref<ProjectNode[]>([])
@@ -66,6 +74,10 @@ const profileContainer = ref<HTMLElement | null>(null)
 const activeNodeId = ref<number | null>(null)
 const activeSection = ref('milestones')
 const projectProfileFields = getProjectProfileFields()
+const priorityOptions = computed(() => Priority.options().map((opt) => ({
+  ...opt,
+  label: t(priorityKey(opt.value)),
+})))
 const members = ref<ProjectMember[]>([])
 const followers = ref<User[]>([])
 const profileUserOptions = ref<PersonOption[]>([])
@@ -186,11 +198,30 @@ async function loadData() {
     await onProfileUserSearch()
     const current = nodes.value.find((node) => node.status === 1)
     activeNodeId.value = (current || nodes.value[0])?.id ?? null
+    await applyFocusTask()
   } catch (error) {
     message.error((error as Error).message || '项目详情加载失败，请重试')
   } finally {
     loading.value = false
   }
+}
+
+async function applyFocusTask() {
+  if (!focusTaskId.value) return
+  try {
+    const task = await getTask(focusTaskId.value)
+    if (task.projectId !== projectId.value) return
+    if (task.nodeId) activeNodeId.value = task.nodeId
+  } catch {
+    // Keep the default node when the focused task is gone or unreadable.
+  }
+}
+
+function onTaskFocusConsumed() {
+  if (!route.query.task) return
+  const query = { ...route.query }
+  delete query.task
+  void router.replace({ query })
 }
 
 function onSelectNode(node: ProjectNode) {
@@ -552,10 +583,10 @@ onBeforeUnmount(() => {
   <div v-else-if="project" class="project-detail-page pms-page-stack">
     <div class="detail-breadcrumb">
       <span class="detail-breadcrumb__back" @click="router.push('/projects')">
-        <ArrowLeftOutlined /> 项目管理
+        <ArrowLeftOutlined /> {{ $t('detail.breadcrumbList') }}
       </span>
       <span class="detail-breadcrumb__separator">/</span>
-      <span>项目详情</span>
+      <span>{{ $t('detail.breadcrumbCurrent') }}</span>
     </div>
 
     <section class="project-header pms-detail-panel pms-detail-hero card-surface">
@@ -566,8 +597,8 @@ onBeforeUnmount(() => {
             <span v-else />
           </span>
           <h1>{{ project.name }}</h1>
-          <a-tag :color="statusTagColor[project.status]">{{ getProjectStatusLabel(project.status) }}</a-tag>
-          <span v-if="elapsedDays !== null" class="project-elapsed">已进行 {{ elapsedDays }} 天</span>
+          <a-tag :color="statusTagColor[project.status]">{{ $t(projectStatusKey(project.status)) }}</a-tag>
+          <span v-if="elapsedDays !== null" class="project-elapsed">{{ $t('detail.elapsed', { days: elapsedDays }) }}</span>
           <a-button
             v-if="canTerminateProject"
             type="default"
@@ -577,7 +608,7 @@ onBeforeUnmount(() => {
             :loading="lifecycleSaving"
             @click="onTerminate"
           >
-            终止项目
+            {{ $t('detail.terminate') }}
           </a-button>
           <a-button
             v-if="canRestoreProject"
@@ -587,25 +618,25 @@ onBeforeUnmount(() => {
             :loading="lifecycleSaving"
             @click="onRestore"
           >
-            恢复项目
+            {{ $t('detail.restore') }}
           </a-button>
         </div>
         <div class="project-meta-stack">
           <div class="project-meta-line">
             <span>{{ project.code }}</span>
             <span class="meta-separator">·</span>
-            <span>{{ formatDate(project.startDate) }} 至 {{ formatDate(project.endDate) }}</span>
+            <span>{{ $t('detail.rangeTo', { start: formatDate(project.startDate), end: formatDate(project.endDate) }) }}</span>
           </div>
           <div class="project-created-line">
             <span class="project-meta-person">
-              <span class="project-meta-person__label">创建人</span>
+              <span class="project-meta-person__label">{{ $t('detail.createdBy') }}</span>
               <a-avatar :src="projectCreatorDisplay.avatar || project.createdByAvatar" :size="20" class="project-meta-person__avatar">
                 {{ getPersonInitials(projectCreatorDisplay.label) }}
               </a-avatar>
               <strong>{{ projectCreatorDisplay.label }}</strong>
             </span>
             <span class="meta-separator">·</span>
-            <span>创建于 {{ formatDateTime(project.createdAt) }}</span>
+            <span>{{ $t('detail.createdAt', { time: formatDateTime(project.createdAt) }) }}</span>
           </div>
         </div>
         <div class="project-people-line">
@@ -619,15 +650,15 @@ onBeforeUnmount(() => {
               {{ getPersonInitials(projectManagerDisplay.label) }}
             </a-avatar>
             <div class="project-person__copy">
-              <span>项目经理</span>
+              <span>{{ $t('detail.manager') }}</span>
               <strong>{{ projectManagerDisplay.label }}</strong>
             </div>
           </div>
           <div v-if="project.orgUnitPath || project.orgUnitName" class="project-person project-person--business-line">
             <div class="project-person__copy">
-              <span>业务线</span>
+              <span>{{ $t('detail.businessLine') }}</span>
               <strong :title="project.orgUnitPath || project.orgUnitName">{{ project.orgUnitPath || project.orgUnitName }}</strong>
-              <small v-if="project.orgUnitLeaderName">负责人：{{ project.orgUnitLeaderName }}</small>
+              <small v-if="project.orgUnitLeaderName">{{ $t('detail.leader', { name: project.orgUnitLeaderName }) }}</small>
             </div>
           </div>
         </div>
@@ -635,19 +666,19 @@ onBeforeUnmount(() => {
 
       <div class="project-header__summary">
         <div class="summary-item">
-          <span class="summary-item__label">节点进度</span>
+          <span class="summary-item__label">{{ $t('detail.nodeProgress') }}</span>
           <strong>{{ doneNodeCount }}/{{ nodes.length || 0 }}</strong>
         </div>
         <div class="summary-item">
-          <span class="summary-item__label">任务完成</span>
+          <span class="summary-item__label">{{ $t('detail.taskDone') }}</span>
           <strong>{{ project.doneTaskCount }}/{{ project.taskCount }}</strong>
         </div>
         <div class="summary-item">
-          <span class="summary-item__label">项目成员</span>
-          <strong>{{ project.memberCount }} 人</strong>
+          <span class="summary-item__label">{{ $t('detail.members') }}</span>
+          <strong>{{ $t('detail.memberCount', { count: project.memberCount }) }}</strong>
         </div>
         <div class="summary-progress">
-          <span class="summary-item__label">总体进度</span>
+          <span class="summary-item__label">{{ $t('detail.overall') }}</span>
           <a-progress :percent="nodeProgress" :show-info="false" size="small" />
           <strong>{{ nodeProgress }}%</strong>
         </div>
@@ -657,9 +688,9 @@ onBeforeUnmount(() => {
     <section class="flow-card pms-detail-panel pms-section-panel card-surface">
       <div class="section-title-row pms-section-heading">
         <div>
-          <h2>项目流程</h2>
+          <h2>{{ $t('detail.flow') }}</h2>
         </div>
-        <span class="flow-count"><NodeIndexOutlined /> {{ nodes.length }} 个节点</span>
+        <span class="flow-count"><NodeIndexOutlined /> {{ $t('detail.nodeCount', { count: nodes.length }) }}</span>
       </div>
       <NodeNavigator :nodes="nodes" :active-id="activeNodeId ?? 0" @select="onSelectNode" />
     </section>
@@ -682,7 +713,7 @@ onBeforeUnmount(() => {
             :loading="rollingBack"
             @click="onRollback"
           >
-            <RollbackOutlined /> 回滚至此节点
+            <RollbackOutlined /> {{ $t('detail.rollback') }}
           </a-button>
           <a-button
             v-if="canCompleteActiveNode"
@@ -691,14 +722,14 @@ onBeforeUnmount(() => {
             :loading="submitting"
             @click="onComplete"
           >
-            完成节点
+            {{ $t('detail.completeNode') }}
           </a-button>
         </div>
       </div>
 
       <div class="node-assignment-row pms-assignment-grid">
         <div class="node-owner-row">
-          <span class="node-owner-row__label">节点负责人</span>
+          <span class="node-owner-row__label">{{ $t('detail.nodeOwner') }}</span>
           <div class="node-owner-row__control">
             <PersonSelect
               :model-value="activeNode.ownerId"
@@ -713,13 +744,13 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="node-owner-row node-schedule-row">
-          <span class="node-owner-row__label">节点排期</span>
+          <span class="node-owner-row__label">{{ $t('detail.nodeSchedule') }}</span>
           <div class="node-owner-row__control">
             <a-range-picker
               v-model:value="nodeSchedule"
               value-format="YYYY-MM-DD"
               class="node-schedule-picker"
-              :placeholder="['开始日期', '结束日期']"
+              :placeholder="[$t('project.startDate'), $t('project.endDate')]"
               :disabled="!canEditActiveNode || activeNodeReadOnly"
               @change="onNodeScheduleChange"
             />
@@ -782,7 +813,7 @@ onBeforeUnmount(() => {
                   v-else-if="field.key === 'priority'"
                   v-model:value="profileForm.priority"
                   class="project-profile-control"
-                  :options="Priority.options()"
+                  :options="priorityOptions"
                   :disabled="!canManageProject || activeNodeReadOnly"
                   @change="markProfileDirty"
                 />
@@ -867,27 +898,34 @@ onBeforeUnmount(() => {
       <section class="node-task-section">
         <div class="section-title-row section-title-row--compact pms-section-heading">
           <div>
-            <h2>任务看板</h2>
+            <h2>{{ $t('task.board') }}</h2>
           </div>
         </div>
-        <TaskKanban :project-id="projectId" :node-id="activeNode.id" :project="project" :node="activeNode" />
+        <TaskKanban
+          :project-id="projectId"
+          :node-id="activeNode.id"
+          :project="project"
+          :node="activeNode"
+          :focus-task-id="focusTaskId"
+          @focused="onTaskFocusConsumed"
+        />
       </section>
     </section>
 
     <section class="management-card pms-detail-panel pms-section-panel card-surface">
       <div class="section-title-row section-title-row--compact pms-section-heading">
         <div>
-          <h2>项目协作</h2>
+          <h2>{{ $t('detail.collaboration') }}</h2>
         </div>
       </div>
       <a-tabs v-model:activeKey="activeSection" :destroy-inactive-tab-pane="true">
-        <a-tab-pane key="milestones" tab="里程碑">
+        <a-tab-pane key="milestones" :tab="$t('detail.milestones')">
           <Milestones :project-id="projectId" :can-manage="canManageProject" />
         </a-tab-pane>
-        <a-tab-pane key="members" tab="成员">
+        <a-tab-pane key="members" :tab="$t('detail.memberTab')">
           <Members :project-id="projectId" :can-manage="canManageProject" />
         </a-tab-pane>
-        <a-tab-pane key="comments" tab="动态">
+        <a-tab-pane key="comments" :tab="$t('detail.comments')">
           <Comments :project-id="projectId" />
         </a-tab-pane>
       </a-tabs>

@@ -18,7 +18,9 @@ pnpm install
 pnpm dev
 ```
 
-默认 `http://localhost:5173`，已配置 `/api` 代理到 `http://localhost:8080`（后端默认地址）。
+默认 `http://localhost:5173`，已配置 `/api` 代理到 `http://localhost:8080`（后端默认地址）。登录页和顶栏可切换中文 / English，选择会写入 `localStorage` 的 `pms.locale`。项目详情、手册正文和部分管理页表格仍以中文为主。
+
+贡献者本地可先在兄弟仓库 `pms-backend` 走 MySQL 8 轻量路径（`cp .env.mysql.example .env.mysql.local` 后执行 `./scripts/start-local-mysql.sh`），再回到本仓库 `pnpm dev`。企业演练和默认运行时仍是 OceanBase，不要把生产库改成 MySQL。
 
 ### 构建
 

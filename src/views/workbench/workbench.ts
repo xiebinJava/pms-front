@@ -1,13 +1,17 @@
-import type { Comment, Project, Task } from '/@/types/domain'
+import type { Project, Task } from '/@/types/domain'
 
 export interface WorkbenchTask extends Task {
   projectName: string
   projectCode: string
 }
 
-export interface WorkbenchActivity extends Comment {
+export interface WorkbenchActivity {
+  id: number
+  projectId: number
   projectName: string
   actorName: string
+  content: string
+  createdAt: string
 }
 
 export interface WorkbenchSummary {

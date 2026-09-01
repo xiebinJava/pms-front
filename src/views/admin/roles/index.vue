@@ -64,7 +64,7 @@ onMounted(async () => { await Promise.all([load(), getOrgTree().then(tree => { o
 </script>
 <template>
   <section class="admin-page pms-admin-page">
-    <PmsPageHeader title="角色管理" description="按权限点与数据范围配置角色，内置角色由系统保护。"><template #actions><a-button v-if="canRoleWrite" class="pms-primary-button" @click="edit()">+ 新增角色</a-button></template></PmsPageHeader>
+    <PmsPageHeader :title="$t('route.adminRoles')" description="按权限点与数据范围配置角色，内置角色由系统保护。"><template #actions><a-button v-if="canRoleWrite" class="pms-primary-button" @click="edit()">+ 新增角色</a-button></template></PmsPageHeader>
     <div class="pms-table-scroll pms-roles-table-scroll"><a-table class="pms-admin-table" :data-source="roles" :loading="loading" row-key="id">
       <a-table-column title="角色" key="name"><template #default="{ record }"><strong>{{ record.name }}</strong><div class="muted role-code">{{ record.code.toLowerCase() }}</div></template></a-table-column>
       <a-table-column title="数据范围" key="dataScopeType"><template #default="{ record }"><div class="scope-label">{{ scopeMeta(record.dataScopeType).label }}</div><div class="muted scope-code">{{ scopeMeta(record.dataScopeType).code }}</div></template></a-table-column>

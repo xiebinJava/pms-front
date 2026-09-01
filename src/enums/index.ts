@@ -18,9 +18,32 @@ export const ProjectStatus = createEnum({
   DELETED: [4, '已删除'],
 })
 
+export function normalizeProjectStatus(status?: number): number {
+  return status == null || status === 0 ? 1 : status
+}
+
 export function getProjectStatusLabel(status?: number): string {
-  const normalized = status == null || status === 0 ? 1 : status
-  return ProjectStatus.label(normalized)
+  return ProjectStatus.label(normalizeProjectStatus(status))
+}
+
+export function projectStatusKey(status?: number): string {
+  return `enum.projectStatus.${normalizeProjectStatus(status)}`
+}
+
+export function taskStatusKey(status: number): string {
+  return `enum.taskStatus.${status}`
+}
+
+export function priorityKey(priority: number): string {
+  return `enum.priority.${priority}`
+}
+
+export function milestoneStatusKey(status: number): string {
+  return `enum.milestoneStatus.${status}`
+}
+
+export function memberRoleKey(role: number): string {
+  return `enum.memberRole.${role}`
 }
 
 export const TaskStatus = createEnum({

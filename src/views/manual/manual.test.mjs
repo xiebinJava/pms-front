@@ -24,7 +24,7 @@ test('user manual exposes the navigation-aligned module catalog', () => {
   ]) {
     assert.match(viewSource, new RegExp(section))
   }
-  assert.match(layoutSource, /使用手册/)
+  assert.match(layoutSource, /\$t\('nav.manual'\)/)
   assert.match(layoutSource, /manual#quick-start/)
   assert.doesNotMatch(layoutSource, /pms-manual-subnav/)
   assert.doesNotMatch(layoutSource, /manualNavItems/)

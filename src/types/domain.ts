@@ -138,7 +138,27 @@ export interface Task {
   dueDate?: string
   createdAt: string
   updatedAt: string
+  subtaskCount?: number
   permissions?: TaskPermissions
+}
+
+export interface TaskAttachment {
+  id: number
+  taskId: number
+  projectId: number
+  originalName: string
+  contentType?: string
+  sizeBytes: number
+  url: string
+  createdBy?: number
+  createdByName?: string
+  createdAt: string
+}
+
+export interface TaskDetail extends Task {
+  subtasks: Task[]
+  comments: Comment[]
+  attachments: TaskAttachment[]
 }
 
 export interface Milestone {
@@ -180,4 +200,34 @@ export interface ProjectNode {
   endDate?: string
   createdAt: string
   permissions?: NodePermissions
+}
+
+export type NotificationType = 'TASK_ASSIGNED' | 'TASK_COMMENTED' | 'PROJECT_COMMENTED'
+
+export interface UserNotification {
+  id: number
+  type: NotificationType
+  title: string
+  content?: string
+  projectId?: number
+  taskId?: number
+  actorId?: number
+  actorName?: string
+  readAt?: string | null
+  createdAt: string
+}
+
+export interface SearchHit {
+  id: number
+  projectId: number
+  projectName?: string
+  title: string
+  snippet?: string
+  taskId?: number
+}
+
+export interface SearchResult {
+  projects: SearchHit[]
+  tasks: SearchHit[]
+  comments: SearchHit[]
 }

@@ -1,6 +1,7 @@
 import axios, { AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios'
 import { message } from 'ant-design-vue'
 import type { ApiResult } from '/@/types/api'
+import { t } from '/@/i18n'
 
 let accessToken = ''
 let refreshPromise: Promise<string> | null = null
@@ -23,7 +24,7 @@ instance.interceptors.response.use(
     if ((response.config as RetryConfig)._raw) return response.data as any
     const res = response.data as ApiResult
     if (res.code !== 200) {
-      const businessError = new Error(res.msg || '请求失败') as Error & { _businessHandled?: boolean }
+      const businessError = new Error(res.msg || t('http.requestFailed')) as Error & { _businessHandled?: boolean }
       businessError._businessHandled = true
       message.error(businessError.message)
       return Promise.reject(businessError)
@@ -52,14 +53,14 @@ instance.interceptors.response.use(
       } catch {
         accessToken = ''
         if (window.location.pathname !== '/login') {
-          message.error('登录会话已失效，请重新登录')
+          message.error(t('http.sessionExpired'))
           const redirect = `${window.location.pathname}${window.location.search}`
           window.location.href = `/login?redirect=${encodeURIComponent(redirect)}`
         }
       }
     } else if (!isAuthEndpoint && !(config?._silentError) && !(error as { _businessHandled?: boolean })._businessHandled) {
       const backendMessage = error.response?.data?.msg
-      message.error(backendMessage || error.message || '网络异常，请稍后重试')
+      message.error(backendMessage || error.message || t('http.networkError'))
     }
     return Promise.reject(error)
   },

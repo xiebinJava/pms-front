@@ -349,7 +349,7 @@ onBeforeUnmount(() => window.scrollTo({ top: 0, behavior: 'auto' }))
 
 <template>
   <div class="manual-page pms-page-stack">
-    <PmsPageHeader title="使用手册" description="按左侧模块快速定位，了解每项功能的使用方法、边界和常见排障路径。">
+    <PmsPageHeader :title="$t('route.manual')" description="按左侧模块快速定位，了解每项功能的使用方法、边界和常见排障路径。">
       <template #actions>
         <a-button class="pms-secondary-button" @click="scrollToSection('quick-start')">
           <BookOutlined /> 从快速开始阅读

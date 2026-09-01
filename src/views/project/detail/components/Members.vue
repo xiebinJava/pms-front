@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { Modal, message } from 'ant-design-vue'
 import { addMember, getMembers, removeMember } from '/@/api/member'
 import { searchUsers } from '/@/api/user'
-import { MemberRole, roleTagColor } from '/@/enums'
+import { memberRoleKey, MemberRole, roleTagColor } from '/@/enums'
 import { formatDateTime } from '/@/utils/format'
 import { formatPersonLabel } from '../workflow'
 import PersonSelect from './PersonSelect.vue'
@@ -14,6 +15,7 @@ import type { PersonOption } from '../workflow'
 const props = withDefaults(defineProps<{ projectId: number; canManage?: boolean }>(), {
   canManage: true,
 })
+const { t } = useI18n()
 
 const list = ref<ProjectMember[]>([])
 const loading = ref(false)
@@ -21,15 +23,15 @@ const loading = ref(false)
 const modalState = reactive({ open: false })
 const formRef = ref()
 const form = reactive({ userId: undefined as number | undefined, role: 2 })
-const rules = { userId: [{ required: true, message: '请选择用户' }] }
+const rules = computed(() => ({ userId: [{ required: true, message: t('member.selectUserRequired') }] }))
 const userOptions = ref<PersonOption[]>([])
 
-const columns = [
-  { title: '成员', key: 'member' },
-  { title: '角色', key: 'role', width: 120 },
-  { title: '加入时间', key: 'createdAt', width: 180 },
-  { title: '操作', key: 'action', width: 130 },
-]
+const columns = computed(() => [
+  { title: t('member.person'), key: 'member' },
+  { title: t('member.role'), key: 'role', width: 120 },
+  { title: t('member.joinedAt'), key: 'createdAt', width: 180 },
+  { title: t('common.actions'), key: 'action', width: 130 },
+])
 
 async function loadData() {
   loading.value = true
@@ -58,7 +60,7 @@ async function onSave() {
   if (!props.canManage) return
   await formRef.value.validate()
   await addMember(props.projectId, { userId: form.userId as number, role: form.role })
-  message.success('添加成功')
+  message.success(t('member.added'))
   modalState.open = false
   loadData()
 }
@@ -66,14 +68,14 @@ async function onSave() {
 function onRemove(record: ProjectMember) {
   if (!props.canManage) return
   Modal.confirm({
-    title: '移除成员',
-    content: `确定将「${formatPersonLabel(record)}」移出项目吗？`,
-    okText: '移除',
+    title: t('member.removeTitle'),
+    content: t('member.removeContent', { name: formatPersonLabel(record) }),
+    okText: t('member.remove'),
     okType: 'danger',
-    cancelText: '取消',
+    cancelText: t('common.cancel'),
     onOk: async () => {
       await removeMember(props.projectId, record.id)
-      message.success('移除成功')
+      message.success(t('member.removed'))
       loadData()
     },
   })
@@ -84,9 +86,9 @@ onMounted(loadData)
 
 <template>
   <div class="flex items-center justify-between mb-4">
-    <span class="pms-muted-text">共 {{ list.length }} 名成员</span>
+    <span class="pms-muted-text">{{ $t('member.count', { count: list.length }) }}</span>
     <a-button v-if="canManage" type="primary" class="pms-primary-button" @click="openAdd">
-      <PlusOutlined /> 添加成员
+      <PlusOutlined /> {{ $t('member.add') }}
     </a-button>
   </div>
 
@@ -99,33 +101,33 @@ onMounted(loadData)
         <span v-if="record.email" class="ml-1 pms-faint-text">{{ record.email }}</span>
       </template>
       <template v-else-if="column.key === 'role'">
-        <a-tag :color="roleTagColor[record.role]">{{ MemberRole.label(record.role) }}</a-tag>
+        <a-tag :color="roleTagColor[record.role]">{{ $t(memberRoleKey(record.role)) }}</a-tag>
       </template>
       <template v-else-if="column.key === 'createdAt'">{{ formatDateTime(record.createdAt) }}</template>
       <template v-else-if="column.key === 'action'">
-        <span v-if="!canManage" class="pms-faint-text">只读</span>
-        <span v-else-if="record.role !== 0" class="pms-action-link pms-action-link--danger" @click="onRemove(record)">移除</span>
-        <span v-else class="pms-faint-text">负责人不可移除</span>
+        <span v-if="!canManage" class="pms-faint-text">{{ $t('common.readonly') }}</span>
+        <span v-else-if="record.role !== 0" class="pms-action-link pms-action-link--danger" @click="onRemove(record)">{{ $t('member.remove') }}</span>
+        <span v-else class="pms-faint-text">{{ $t('member.ownerLocked') }}</span>
       </template>
     </template>
     </a-table>
   </div>
 
-  <a-modal v-model:open="modalState.open" title="添加成员" @ok="onSave">
+  <a-modal v-model:open="modalState.open" :title="$t('member.add')" @ok="onSave">
     <a-form ref="formRef" :model="form" :rules="rules" layout="vertical">
-      <a-form-item label="选择用户" name="userId">
+      <a-form-item :label="$t('member.selectUser')" name="userId">
         <PersonSelect
           v-model="form.userId"
-          placeholder="搜索用户名或昵称"
+          :placeholder="$t('member.searchUser')"
           :options="userOptions"
           remote-search
           @search="onUserSearch"
         />
       </a-form-item>
-      <a-form-item label="角色">
+      <a-form-item :label="$t('member.role')">
         <a-select v-model:value="form.role">
           <a-select-option v-for="opt in MemberRole.options()" :key="opt.value" :value="opt.value">
-            {{ opt.label }}
+            {{ $t(memberRoleKey(opt.value)) }}
           </a-select-option>
         </a-select>
       </a-form-item>

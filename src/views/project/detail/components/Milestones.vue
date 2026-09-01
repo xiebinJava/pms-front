@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { Modal, message } from 'ant-design-vue'
 import { createMilestone, deleteMilestone, getMilestones, updateMilestone } from '/@/api/milestone'
-import { MilestoneStatus, statusTagColor } from '/@/enums'
+import { milestoneStatusKey, MilestoneStatus, statusTagColor } from '/@/enums'
 import { formatDate } from '/@/utils/format'
 import type { Milestone } from '/@/types/domain'
 
 const props = withDefaults(defineProps<{ projectId: number; canManage?: boolean }>(), {
   canManage: true,
 })
+const { t } = useI18n()
 
 const list = ref<Milestone[]>([])
 const loading = ref(false)
@@ -22,15 +24,15 @@ const form = reactive({
   status: 0,
   dueDate: null as string | null,
 })
-const rules = { title: [{ required: true, message: '请输入里程碑名称' }] }
+const rules = computed(() => ({ title: [{ required: true, message: t('milestone.nameRequired') }] }))
 
-const columns = [
-  { title: '里程碑', key: 'title' },
-  { title: '状态', key: 'status', width: 100 },
-  { title: '任务进度', key: 'progress', width: 180 },
-  { title: '计划日期', key: 'dueDate', width: 120 },
-  { title: '操作', key: 'action', width: 144 },
-]
+const columns = computed(() => [
+  { title: t('milestone.name'), key: 'title' },
+  { title: t('common.status'), key: 'status', width: 100 },
+  { title: t('milestone.progress'), key: 'progress', width: 180 },
+  { title: t('milestone.dueDate'), key: 'dueDate', width: 120 },
+  { title: t('common.actions'), key: 'action', width: 144 },
+])
 
 async function loadData() {
   loading.value = true
@@ -66,10 +68,10 @@ async function onSave() {
   const payload = { ...form, dueDate: form.dueDate || undefined }
   if (modalState.editingId) {
     await updateMilestone(props.projectId, modalState.editingId, payload)
-    message.success('更新成功')
+    message.success(t('common.updated'))
   } else {
     await createMilestone(props.projectId, payload)
-    message.success('创建成功')
+    message.success(t('common.created'))
   }
   modalState.open = false
   loadData()
@@ -78,14 +80,14 @@ async function onSave() {
 function onDelete(record: Milestone) {
   if (!props.canManage) return
   Modal.confirm({
-    title: '删除里程碑',
-    content: `确定删除里程碑「${record.title}」吗？`,
-    okText: '删除',
+    title: t('milestone.deleteTitle'),
+    content: t('milestone.deleteContent', { title: record.title }),
+    okText: t('common.delete'),
     okType: 'danger',
-    cancelText: '取消',
+    cancelText: t('common.cancel'),
     onOk: async () => {
       await deleteMilestone(props.projectId, record.id)
-      message.success('删除成功')
+      message.success(t('common.deleted'))
       loadData()
     },
   })
@@ -96,9 +98,9 @@ onMounted(loadData)
 
 <template>
   <div class="flex items-center justify-between mb-4">
-    <span class="pms-muted-text">共 {{ list.length }} 个里程碑</span>
+    <span class="pms-muted-text">{{ $t('milestone.count', { count: list.length }) }}</span>
     <a-button v-if="canManage" type="primary" class="pms-primary-button" @click="openCreate">
-      <PlusOutlined /> 新建里程碑
+      <PlusOutlined /> {{ $t('milestone.create') }}
     </a-button>
   </div>
 
@@ -110,7 +112,7 @@ onMounted(loadData)
         <div class="pms-faint-text mt-1">{{ record.description || '—' }}</div>
       </template>
       <template v-else-if="column.key === 'status'">
-        <a-tag :color="statusTagColor[record.status]">{{ MilestoneStatus.label(record.status) }}</a-tag>
+        <a-tag :color="statusTagColor[record.status]">{{ $t(milestoneStatusKey(record.status)) }}</a-tag>
       </template>
       <template v-else-if="column.key === 'progress'">
         <a-progress
@@ -124,34 +126,34 @@ onMounted(loadData)
       <template v-else-if="column.key === 'action'">
         <div class="milestone-actions">
           <template v-if="canManage">
-            <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
-            <a-button type="link" danger size="small" @click="onDelete(record)">删除</a-button>
+            <a-button type="link" size="small" @click="openEdit(record)">{{ $t('common.edit') }}</a-button>
+            <a-button type="link" danger size="small" @click="onDelete(record)">{{ $t('common.delete') }}</a-button>
           </template>
-          <span v-else class="pms-faint-text">只读</span>
+          <span v-else class="pms-faint-text">{{ $t('common.readonly') }}</span>
         </div>
       </template>
     </template>
     </a-table>
   </div>
 
-  <a-modal v-model:open="modalState.open" :title="modalState.editingId ? '编辑里程碑' : '新建里程碑'" @ok="onSave">
+  <a-modal v-model:open="modalState.open" :title="modalState.editingId ? $t('milestone.edit') : $t('milestone.create')" @ok="onSave">
     <a-form ref="formRef" :model="form" :rules="rules" layout="vertical">
-      <a-form-item label="名称" name="title">
-        <a-input v-model:value="form.title" placeholder="里程碑名称" />
+      <a-form-item :label="$t('milestone.nameLabel')" name="title">
+        <a-input v-model:value="form.title" :placeholder="$t('milestone.namePlaceholder')" />
       </a-form-item>
-      <a-form-item label="描述">
-        <a-textarea v-model:value="form.description" :rows="2" placeholder="描述" />
+      <a-form-item :label="$t('task.description')">
+        <a-textarea v-model:value="form.description" :rows="2" :placeholder="$t('task.description')" />
       </a-form-item>
       <div class="grid grid-cols-2 gap-3">
-        <a-form-item label="状态">
+        <a-form-item :label="$t('common.status')">
           <a-select v-model:value="form.status">
             <a-select-option v-for="opt in MilestoneStatus.options()" :key="opt.value" :value="opt.value">
-              {{ opt.label }}
+              {{ $t(milestoneStatusKey(opt.value)) }}
             </a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="计划日期">
-          <a-date-picker v-model:value="form.dueDate" value-format="YYYY-MM-DD" placeholder="计划日期" style="width: 100%" />
+        <a-form-item :label="$t('milestone.dueDate')">
+          <a-date-picker v-model:value="form.dueDate" value-format="YYYY-MM-DD" :placeholder="$t('milestone.dueDate')" style="width: 100%" />
         </a-form-item>
       </div>
     </a-form>

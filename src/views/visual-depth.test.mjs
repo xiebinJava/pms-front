@@ -26,6 +26,8 @@ test('project workflow and kanban expose visual states for deeper styling', () =
   assert.match(navigator, /flow-track__item/)
   assert.match(kanban, /pms-task-column__header/)
   assert.match(kanban, /pms-task-card__surface/)
+  assert.match(kanban, /TaskWorkPanel/)
+  assert.match(kanban, /task\.detail/)
 })
 
 test('admin surfaces use the shared visual workspace primitives', () => {

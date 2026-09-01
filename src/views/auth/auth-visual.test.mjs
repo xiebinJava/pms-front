@@ -17,7 +17,7 @@ test('auth pages use the shared fs-insight auth surface', () => {
 test('login surface handles unavailable authentication without an unhandled event error', () => {
   const source = fs.readFileSync(path.join(root, 'views/login/index.vue'), 'utf8')
   assert.match(source, /catch \(error\)/)
-  assert.match(source, /登录失败/)
+  assert.match(source, /login\.failed/)
 })
 
 test('shared visual primitives are available', () => {
