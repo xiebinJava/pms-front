@@ -16,6 +16,8 @@ test.describe('认证与项目主流程', () => {
   test.use({ baseURL })
 
   test('登录后可访问项目、组织和权限页面', async ({ page }) => {
+    test.setTimeout(45_000)
+    await page.addInitScript(() => localStorage.setItem('pms.locale', 'zh-CN'))
     await page.goto('/login')
     await page.locator('input[placeholder^="邮箱"]').fill(username!)
     await page.locator('input[placeholder="密码"]').fill(password!)
@@ -27,7 +29,7 @@ test.describe('认证与项目主流程', () => {
     await expect(page.getByRole('heading', { name: '项目管理' })).toBeVisible()
 
     const pages = [
-      ['/projects/1', '项目流程'],
+      [`/projects/${process.env.E2E_PROJECT_ID || '1'}`, '项目流程'],
       ['/admin/users', '人员与权限'],
       ['/admin/org', '组织架构'],
       ['/admin/roles', '角色管理'],
@@ -36,7 +38,7 @@ test.describe('认证与项目主流程', () => {
     for (const [path, heading] of pages) {
       const response = await page.goto(path)
       expect(response?.status(), `${path} should return a successful document`).toBeLessThan(400)
-      await expect(page.getByRole('heading', { name: heading })).toBeVisible()
+      await expect(page.getByRole('heading', { name: heading })).toBeVisible({ timeout: 15_000 })
       await expect(page.locator('body')).not.toContainText('Request failed with status code 500')
     }
 

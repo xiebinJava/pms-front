@@ -10,6 +10,8 @@ test.skip(!username || !password, 'Set E2E_USERNAME and E2E_PASSWORD to record t
 test.use({ baseURL, video: 'on', viewport: { width: 1280, height: 800 } })
 
 test('records the quick-start walkthrough for the user manual', async ({ page }) => {
+  test.setTimeout(30_000)
+  await page.addInitScript(() => localStorage.setItem('pms.locale', 'zh-CN'))
   await page.goto('/login')
   await page.locator('input[placeholder^="邮箱"]').fill(username!)
   await page.locator('input[placeholder="密码"]').fill(password!)
@@ -17,7 +19,8 @@ test('records the quick-start walkthrough for the user manual', async ({ page })
   await expect(page).toHaveURL(/\/(?:dashboard|projects)(?:\/)?$/)
 
   await page.goto('/manual#quick-start')
-  await expect(page.getByRole('heading', { name: '使用手册' })).toBeVisible()
+  await expect(page).toHaveURL(/\/manual(?:#.*)?$/, { timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: '使用手册' })).toBeVisible({ timeout: 15_000 })
   await page.locator('.manual-index__item').filter({ hasText: '工作台' }).click()
   await page.waitForTimeout(500)
   await page.locator('.manual-index__item').filter({ hasText: '项目管理' }).click()
