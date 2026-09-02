@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-02
+
+- Production-readiness phase 1 local acceptance: `pnpm test` 112/112, `pnpm typecheck`, `pnpm build`, desktop flow, 390px narrow-screen flow and manual recording passed against the local OceanBase-backed application.
+
 ## Unreleased
 
 - Release-closure snapshot (2026-09-01): `pnpm test` 111/111 passed; `pnpm typecheck` and `pnpm build` passed. Playwright desktop, 390px narrow-screen, and manual recording flows passed with deterministic `zh-CN` locale.
