@@ -7,6 +7,9 @@ export function previewImport(type: 'organizations' | 'users', file: File): Prom
   return http.post(`/admin/import/preview/${type}`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
 }
 export function commitImport(jobId: string) { return http.post(`/admin/import/${jobId}/commit`) }
+export function downloadImportErrors(jobId: string): Promise<Blob> {
+  return http.getBlob(`/admin/import/${jobId}/errors.csv`)
+}
 export function downloadImportTemplate(type: 'organizations' | 'users'): Promise<Blob> {
   return http.getBlob(`/admin/import/template/${type}.csv`)
 }

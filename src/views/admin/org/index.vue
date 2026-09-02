@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message, Modal } from 'ant-design-vue'
-import { createOrg, getOrgTree, moveOrg, deactivateOrg, updateOrg } from '/@/api/admin-org'
+import { createOrg, getOrgTree, moveOrg, deactivateOrg, updateOrg, getOrgHistory, type OrgUnitHistory } from '/@/api/admin-org'
 import { listPersonnel } from '/@/api/admin-user'
 import OrgCanvas from './OrgCanvas.vue'
 import type { OrgUnit, Personnel } from '/@/types/domain'
@@ -15,6 +15,9 @@ const selected = ref<OrgUnit>()
 const open = ref(false)
 const editOpen = ref(false)
 const editLoading = ref(false)
+const historyOpen = ref(false)
+const historyLoading = ref(false)
+const histories = ref<OrgUnitHistory[]>([])
 const leaderOptions = ref<Personnel[]>([])
 const form = ref({ code: '', name: '', typeCode: 'BG', parentId: undefined as number | undefined })
 const editForm = reactive({ name: '', typeCode: '', leaderUserId: undefined as number | undefined, clearLeader: false, sort: undefined as number | undefined })
@@ -66,6 +69,13 @@ async function saveEdit() {
     message.error((error as Error).message || t('admin.org.updateFailed'))
   } finally { editLoading.value = false }
 }
+async function openHistory() {
+  if (!selected.value) return
+  historyOpen.value = true
+  historyLoading.value = true
+  try { histories.value = await getOrgHistory(selected.value.id) } catch (error) { histories.value = []; message.error((error as Error).message || t('admin.org.historyLoadFailed')) } finally { historyLoading.value = false }
+}
+function historyAction(action: string) { const key = `admin.org.historyActions.${action}`; const translated = t(key); return translated === key ? action : translated }
 function moveTo(id: number, parentId: number | undefined) {
   if (!canWrite.value) return
   const source = options.value.find(org => org.id === id)
@@ -87,9 +97,10 @@ onMounted(load)
 
 <template>
   <section class="admin-page pms-admin-page"><PmsPageHeader :title="$t('route.adminOrg')" :description="$t('admin.org.description')"><template #actions><a-button v-if="canWrite" class="pms-primary-button" @click="openCreate">{{ $t('admin.org.addUnit') }}</a-button></template></PmsPageHeader>
-    <div class="org-layout pms-org-workspace pms-admin-workspace"><div class="org-panel"><OrgCanvas :units="tree" :selected="selected?.id" :readonly="!canWrite" @select="selected = $event" @move="moveTo" /></div><aside class="property-panel"><template v-if="selected"><div class="property-heading"><h2>{{ selected.name }}</h2><a-button v-if="canWrite" type="link" @click="openEdit">{{ $t('common.edit') }}</a-button></div><dl><dt>{{ $t('admin.org.code') }}</dt><dd class="org-code">{{ selected.code }}</dd><dt>{{ $t('admin.org.type') }}</dt><dd class="org-code">{{ selected.typeCode?.toLowerCase() || '—' }}</dd><dt>{{ $t('admin.org.leader') }}</dt><dd>{{ selected.leaderDisplayName || '—' }}</dd><dt>{{ $t('admin.org.members') }}</dt><dd>{{ $t('admin.org.memberCount', { count: selected.memberCount ?? 0 }) }}</dd></dl><div v-if="canWrite" class="property-actions"><a-button @click="moveTo(selected.id, undefined)">{{ $t('admin.org.moveToTop') }}</a-button><a-button danger @click="remove">{{ $t('admin.org.deactivate') }}</a-button></div></template><a-empty v-else :description="$t('admin.org.emptySelect')" /></aside></div>
+    <div class="org-layout pms-org-workspace pms-admin-workspace"><div class="org-panel"><OrgCanvas :units="tree" :selected="selected?.id" :readonly="!canWrite" @select="selected = $event" @move="moveTo" /></div><aside class="property-panel"><template v-if="selected"><div class="property-heading"><h2>{{ selected.name }}</h2><a-button v-if="canWrite" type="link" @click="openEdit">{{ $t('common.edit') }}</a-button></div><dl><dt>{{ $t('admin.org.code') }}</dt><dd class="org-code">{{ selected.code }}</dd><dt>{{ $t('admin.org.type') }}</dt><dd class="org-code">{{ selected.typeCode?.toLowerCase() || '—' }}</dd><dt>{{ $t('admin.org.leader') }}</dt><dd>{{ selected.leaderDisplayName || '—' }}</dd><dt>{{ $t('admin.org.members') }}</dt><dd>{{ $t('admin.org.memberCount', { count: selected.memberCount ?? 0 }) }}</dd></dl><div class="property-actions"><a-button @click="openHistory">{{ $t('admin.org.history') }}</a-button><template v-if="canWrite"><a-button @click="moveTo(selected.id, undefined)">{{ $t('admin.org.moveToTop') }}</a-button><a-button danger @click="remove">{{ $t('admin.org.deactivate') }}</a-button></template></div></template><a-empty v-else :description="$t('admin.org.emptySelect')" /></aside></div>
     <a-modal v-model:open="open" :title="$t('admin.org.createTitle')" :ok-text="$t('common.create')" :cancel-text="$t('common.cancel')" @ok="add"><a-form layout="vertical"><a-form-item :label="$t('admin.org.parent')"><a-select v-model:value="form.parentId" allow-clear show-search option-filter-prop="label" :placeholder="$t('admin.org.parentPlaceholder')" style="width: 100%"><a-select-option v-for="org in options" :key="org.id" :value="org.id" :label="org.name">{{ '　'.repeat(org.level) }}{{ org.name }}</a-select-option></a-select></a-form-item><a-form-item :label="$t('admin.org.code')" required><a-input v-model:value="form.code" class="org-code-input" /></a-form-item><a-form-item :label="$t('admin.org.name')" required><a-input v-model:value="form.name" /></a-form-item><a-form-item :label="$t('admin.org.type')"><a-select v-model:value="form.typeCode" style="width: 100%"><a-select-option value="BG">{{ $t('admin.org.typeBg') }}</a-select-option><a-select-option value="CENTER">{{ $t('admin.org.typeCenter') }}</a-select-option><a-select-option value="DEPARTMENT">{{ $t('admin.org.typeDepartment') }}</a-select-option><a-select-option value="TEAM">{{ $t('admin.org.typeTeam') }}</a-select-option><a-select-option value="PDT">{{ $t('admin.org.typePdt') }}</a-select-option></a-select></a-form-item></a-form></a-modal>
     <a-modal v-model:open="editOpen" :title="$t('admin.org.editTitle')" :ok-text="$t('common.save')" :cancel-text="$t('common.cancel')" :confirm-loading="editLoading" @ok="saveEdit"><a-form layout="vertical"><a-form-item :label="$t('admin.org.name')" required><a-input v-model:value="editForm.name" /></a-form-item><a-form-item :label="$t('admin.org.type')"><a-select v-model:value="editForm.typeCode" allow-clear style="width: 100%"><a-select-option value="BG">{{ $t('admin.org.typeBg') }}</a-select-option><a-select-option value="CENTER">{{ $t('admin.org.typeCenter') }}</a-select-option><a-select-option value="DEPARTMENT">{{ $t('admin.org.typeDepartment') }}</a-select-option><a-select-option value="TEAM">{{ $t('admin.org.typeTeam') }}</a-select-option><a-select-option value="PDT">{{ $t('admin.org.typePdt') }}</a-select-option></a-select></a-form-item><a-form-item :label="$t('admin.org.leader')"><a-select v-model:value="editForm.leaderUserId" allow-clear show-search option-filter-prop="label" :placeholder="$t('admin.org.selectLeader')" style="width: 100%"><a-select-option v-for="person in leaderOptions" :key="person.id" :value="person.id" :label="person.displayName">{{ person.displayName }}</a-select-option></a-select><a-checkbox v-model:checked="editForm.clearLeader">{{ $t('admin.org.clearLeader') }}</a-checkbox></a-form-item></a-form></a-modal>
+    <a-modal v-model:open="historyOpen" :title="$t('admin.org.historyTitle')" :footer="null" width="720px"><a-spin :spinning="historyLoading"><a-empty v-if="!histories.length && !historyLoading" :description="$t('admin.org.historyEmpty')" /><a-list v-else :data-source="histories" size="small"><template #renderItem="{ item }"><a-list-item><a-list-item-meta :title="historyAction(item.action)" :description="item.createdAt" /><template #actions><span v-if="item.requestId" class="history-request">{{ item.requestId }}</span></template></a-list-item></template></a-list></a-spin></a-modal>
   </section>
 </template>
 <style scoped>
