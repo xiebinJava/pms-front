@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import test from 'node:test'
 
 const viewSource = fs.readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+const nginxSource = fs.readFileSync(new URL('../../../nginx.conf', import.meta.url), 'utf8')
 const layoutSource = fs.readFileSync(new URL('../../layout/Index.vue', import.meta.url), 'utf8')
 const routerSource = fs.readFileSync(new URL('../../router/index.ts', import.meta.url), 'utf8')
 const docsSource = fs.readFileSync(new URL('../../../docs/user-manual.md', import.meta.url), 'utf8')
@@ -34,6 +35,10 @@ test('user manual exposes the navigation-aligned module catalog', () => {
   assert.equal((layoutSource.match(/pms-nav-group--manual/g) || []).length, 1)
   assert.ok(layoutSource.indexOf('pms-nav-group--manual') > layoutSource.indexOf('pms-nav-group--configuration'))
   assert.match(routerSource, /path: 'manual'/)
+})
+
+test('static directory redirects keep the published host port', () => {
+  assert.match(nginxSource, /port_in_redirect\s+off;/)
 })
 
 test('user manual provides screenshots and keeps video slots opt-in', () => {

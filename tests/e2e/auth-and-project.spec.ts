@@ -23,21 +23,22 @@ test.describe('认证与项目主流程', () => {
     await page.locator('input[placeholder="密码"]').fill(password!)
     await page.getByRole('button', { name: /登\s*录/ }).click()
     await expect(page).toHaveURL(/\/(?:dashboard|projects)(?:\/)?$/)
-    await page.reload()
     await expect(page.locator('body')).not.toContainText('Request failed with status code 500')
-    await page.goto('/projects')
+    // Navigate through the application shell so the in-memory access token is
+    // retained. A full document navigation would intentionally clear it and
+    // turn this smoke test into a refresh-token test.
+    await page.locator('.pms-nav-group--projects .pms-nav-link').click()
     await expect(page.getByRole('heading', { name: '项目管理' })).toBeVisible()
 
     const pages = [
-      [`/projects/${process.env.E2E_PROJECT_ID || '1'}`, '项目流程'],
-      ['/admin/users', '人员与权限'],
-      ['/admin/org', '组织架构'],
-      ['/admin/roles', '角色管理'],
-      ['/admin/import', '批量导入'],
+      { target: page.locator('.pms-project-link').first(), heading: '项目流程' },
+      { target: page.locator('.pms-nav-group--configuration .pms-nav-link').filter({ hasText: '人员与权限' }), heading: '人员与权限' },
+      { target: page.locator('.pms-nav-group--configuration .pms-nav-link').filter({ hasText: '组织架构' }), heading: '组织架构' },
+      { target: page.locator('.pms-nav-group--configuration .pms-nav-link').filter({ hasText: '角色管理' }), heading: '角色管理' },
+      { target: page.locator('.pms-nav-group--configuration .pms-nav-link').filter({ hasText: '批量导入' }), heading: '批量导入' },
     ] as const
-    for (const [path, heading] of pages) {
-      const response = await page.goto(path)
-      expect(response?.status(), `${path} should return a successful document`).toBeLessThan(400)
+    for (const { target, heading } of pages) {
+      await target.click()
       await expect(page.getByRole('heading', { name: heading })).toBeVisible({ timeout: 15_000 })
       await expect(page.locator('body')).not.toContainText('Request failed with status code 500')
     }
