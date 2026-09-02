@@ -43,7 +43,9 @@ test.describe('认证与项目主流程', () => {
       await expect(page.locator('body')).not.toContainText('Request failed with status code 500')
     }
 
-    await page.getByRole('button', { name: /管理员/ }).click()
+    // The display name is tenant-configurable; target the stable shell hook
+    // instead of coupling the smoke test to one bootstrap account's label.
+    await page.locator('.pms-user-menu').click()
     await page.getByRole('menuitem', { name: '退出登录' }).click()
     await expect(page).toHaveURL(/\/login(?:\?.*)?$/)
   })
