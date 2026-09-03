@@ -102,6 +102,31 @@ pnpm build
 git diff --check
 ```
 
+## 2026-09-03：治理页面、组织画布、反馈与手册入口
+
+### 变更背景
+
+本阶段把 Plane/Taiga 的“工作区 + 工具栏 + 稳定操作区”模式扩展到人员、角色、审计、反馈和组织架构页面，并把业务规则、前端设计规范作为使用手册中的独立长期参考入口。所有组织变更、权限判断、导入任务、反馈状态和文档路由保持原有数据流。
+
+### 阶段自检
+
+- [x] 人员、角色、审计和反馈筛选区使用带中文标签的分组语义；表格行操作保留原有权限、确认和跳转行为。
+- [x] 组织画布提供独立的可访问区域、键盘焦点和控制分组；属性面板与画布布局互不挤压，平移/缩放逻辑未改动。
+- [x] 使用手册提供业务规则、前端设计规范的独立入口，功能目录仍只承载快速开始到常见问题的操作模块。
+- [x] 小屏下参考文档入口自动单列，治理操作区允许换行，长表格继续在既有滚动容器内查看。
+- [x] 未新增接口、权限判断或敏感数据；没有把真实账号、Token、验证码或聊天截图写入文档。
+
+### 工程验证
+
+```bash
+node --test src/views/admin/admin-visual.test.mjs src/views/manual/manual.test.mjs
+pnpm test
+pnpm typecheck
+pnpm build
+./scripts/check-privacy.sh
+git diff --check
+```
+
 ### 参考依据
 
 - [Ant Design Design Language](https://ant.design/docs/spec/introduce/?locale=en)

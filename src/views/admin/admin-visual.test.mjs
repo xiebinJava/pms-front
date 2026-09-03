@@ -12,3 +12,27 @@ test('admin pages use the shared fs-insight page and panel classes', () => {
     assert.match(source, /pms-admin-table|pms-filter-bar|pms-org-workspace|pms-panel/)
   }
 })
+
+test('governance surfaces expose labelled controls and stable row actions', () => {
+  const users = fs.readFileSync(path.join(root, 'views/admin/users/index.vue'), 'utf8')
+  const audit = fs.readFileSync(path.join(root, 'views/admin/audit/index.vue'), 'utf8')
+  const feedback = fs.readFileSync(path.join(root, 'views/feedback/index.vue'), 'utf8')
+  const roles = fs.readFileSync(path.join(root, 'views/admin/roles/index.vue'), 'utf8')
+
+  assert.match(users, /class="toolbar pms-filter-bar pms-admin-toolbar"[^>]*role="group"[^>]*aria-label=/)
+  assert.match(users, /class="pms-admin-row-actions"[^>]*role="group"/)
+  assert.match(roles, /class="pms-admin-row-actions"[^>]*role="group"/)
+  assert.match(audit, /class="filter-panel pms-filter-bar"[^>]*role="group"[^>]*aria-label=/)
+  assert.match(feedback, /class="pms-table-toolbar feedback-toolbar"[^>]*role="group"[^>]*aria-label=/)
+})
+
+test('organization workspace exposes a bounded canvas and properties region', () => {
+  const org = fs.readFileSync(path.join(root, 'views/admin/org/index.vue'), 'utf8')
+  const canvas = fs.readFileSync(path.join(root, 'views/admin/org/OrgCanvas.vue'), 'utf8')
+
+  assert.match(org, /class="[^"]*org-workspace__canvas[^"]*"/)
+  assert.match(org, /class="org-layout[^>]*role="region"[^>]*aria-label=/)
+  assert.match(org, /class="[^"]*org-workspace__properties[^"]*"[^>]*role="region"[^>]*aria-label=/)
+  assert.match(canvas, /class="org-canvas-viewport"[^>]*role="region"[^>]*tabindex="0"/)
+  assert.match(canvas, /class="org-canvas-toolbar"[^>]*role="group"[^>]*aria-label=/)
+})

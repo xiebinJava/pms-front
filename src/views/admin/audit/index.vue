@@ -50,14 +50,14 @@ onMounted(load)
     <PmsPageHeader :title="$t('route.adminAudit')" :description="$t('admin.audit.description')">
       <template #actions><a-button class="pms-secondary-button" @click="load">{{ $t('common.refresh') }}</a-button></template>
     </PmsPageHeader>
-    <div class="filter-panel pms-filter-bar">
-      <a-input v-model:value="query.action" :placeholder="$t('admin.audit.actionPlaceholder')" />
-      <a-input v-model:value="query.resourceType" :placeholder="$t('admin.audit.resourcePlaceholder')" />
-      <a-input-number v-model:value="query.resourceId" :min="1" :placeholder="$t('admin.audit.resourceId')" />
-      <a-input-number v-model:value="query.operatorId" :min="1" :placeholder="$t('admin.audit.operatorId')" />
+    <div class="filter-panel pms-filter-bar" role="group" :aria-label="$t('admin.audit.filters')">
+      <a-input v-model:value="query.action" :placeholder="$t('admin.audit.actionPlaceholder')" :aria-label="$t('admin.audit.actionPlaceholder')" />
+      <a-input v-model:value="query.resourceType" :placeholder="$t('admin.audit.resourcePlaceholder')" :aria-label="$t('admin.audit.resourcePlaceholder')" />
+      <a-input-number v-model:value="query.resourceId" :min="1" :placeholder="$t('admin.audit.resourceId')" :aria-label="$t('admin.audit.resourceId')" />
+      <a-input-number v-model:value="query.operatorId" :min="1" :placeholder="$t('admin.audit.operatorId')" :aria-label="$t('admin.audit.operatorId')" />
       <a-input v-model:value="query.from" type="datetime-local" :aria-label="$t('admin.audit.from')" />
       <a-input v-model:value="query.to" type="datetime-local" :aria-label="$t('admin.audit.to')" />
-      <a-button type="primary" @click="load">{{ $t('common.filter') }}</a-button><a-button @click="reset">{{ $t('common.reset') }}</a-button>
+      <a-button type="primary" :aria-label="$t('common.filter')" @click="load">{{ $t('common.filter') }}</a-button><a-button :aria-label="$t('common.reset')" @click="reset">{{ $t('common.reset') }}</a-button>
     </div>
     <div class="pms-table-scroll pms-audit-table-scroll"><a-table class="pms-admin-table" :data-source="logs" :loading="loading" row-key="id" :pagination="pagination" @change="onTableChange">
           <a-table-column :title="$t('admin.audit.colTime')" key="createdAt"><template #default="{ record }">{{ formatDateTime(record.createdAt) }}</template></a-table-column>

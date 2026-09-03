@@ -151,3 +151,9 @@ test('reference documents cover a complete design-system and business-rule scope
   assert.match(referenceSource, /sections: \['identity', 'organization', 'authorization', 'lifecycle', 'import', 'audit', 'recovery'\]/)
   assert.match(referenceSource, /sections: \['principles', 'tokens', 'typography', 'color', 'layout', 'components', 'states', 'responsive', 'accessibility', 'governance'\]/)
 })
+
+test('manual keeps durable references discoverable without mixing them into the feature index', () => {
+  assert.match(viewSource, /class="manual-reference-links"[^>]*aria-label=/)
+  assert.match(viewSource, /class="manual-reference-link"[^>]*to="\/manual\/business-rules#identity"/)
+  assert.match(viewSource, /class="manual-reference-link"[^>]*to="\/manual\/design-system#principles"/)
+})

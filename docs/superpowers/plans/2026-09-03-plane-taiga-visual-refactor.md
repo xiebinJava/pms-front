@@ -203,25 +203,25 @@ git commit -m "style: refine project detail collaboration surfaces"
 - Consumes: Existing organization, role, import, audit, feedback and manual APIs.
 - Produces: Consistent governance tools, full-size pan/zoom canvas, responsive manual navigation and feedback queue visuals.
 
-- [ ] **Step 1: Add failing page contract assertions**
+- [x] **Step 1: Add failing page contract assertions**
 
 Extend `src/views/admin/admin-visual.test.mjs` and `src/views/manual/manual.test.mjs` to assert the organization canvas has a bounded viewport, governance pages use the shared toolbar/table primitives, and the manual exposes separate business-rule/design-system navigation targets.
 
-- [ ] **Step 2: Run the focused governance/manual tests and verify they fail**
+- [x] **Step 2: Run the focused governance/manual tests and verify they fail**
 
 Run: `pnpm test -- src/views/admin/admin-visual.test.mjs src/views/manual/manual.test.mjs`
 Expected: FAIL on the missing canvas/toolbar/manual-target contracts.
 
-- [ ] **Step 3: Implement shared visual patterns without changing business calls**
+- [x] **Step 3: Implement shared visual patterns without changing business calls**
 
 Keep organization mutations, permission checks, import job state and manual content unchanged. Add the full-size pan/zoom workspace styling, align user/role/import/audit filters, keep Chinese labels with small English codes, and make the manual table of contents responsive with active-section styling.
 
-- [ ] **Step 4: Run focused tests, typecheck, build and privacy checks**
+- [x] **Step 4: Run focused tests, typecheck, build and privacy checks**
 
 Run: `pnpm test -- src/views/admin/admin-visual.test.mjs src/views/manual/manual.test.mjs && pnpm typecheck && pnpm build && ./scripts/check-privacy.sh`
 Expected: PASS with no privacy-denylist findings and a successful build.
 
-- [ ] **Step 5: Update QA notes and commit**
+- [x] **Step 5: Update QA notes and commit**
 
 Record desktop, tablet and mobile governance/manual checks in `design-qa.md`, then commit:
 

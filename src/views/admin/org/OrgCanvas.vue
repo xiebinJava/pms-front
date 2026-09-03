@@ -149,6 +149,38 @@ function handleWheel(event: WheelEvent) {
   zoom.value = nextZoom
 }
 
+function handleKeydown(event: KeyboardEvent) {
+  const target = event.target as Element | null
+  if (target?.closest('button, input, select, textarea')) return
+
+  const panStep = event.shiftKey ? 96 : 32
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+    event.preventDefault()
+    const delta = {
+      ArrowLeft: { x: panStep, y: 0 },
+      ArrowRight: { x: -panStep, y: 0 },
+      ArrowUp: { x: 0, y: panStep },
+      ArrowDown: { x: 0, y: -panStep },
+    }[event.key]
+    pan.value = { x: pan.value.x + delta.x, y: pan.value.y + delta.y }
+    return
+  }
+
+  if (event.key === '+' || event.key === '=') {
+    event.preventDefault()
+    setZoom(zoom.value + 0.1)
+  } else if (event.key === '-' || event.key === '_') {
+    event.preventDefault()
+    setZoom(zoom.value - 0.1)
+  } else if (event.key === '0') {
+    event.preventDefault()
+    resetView()
+  } else if (event.key.toLowerCase() === 'f') {
+    event.preventDefault()
+    fitView()
+  }
+}
+
 function resetView() {
   zoom.value = 1
   centerView()
@@ -195,14 +227,18 @@ watch(() => [canvas.value.width, canvas.value.height], () => { if (!isPanning.va
   <div
     ref="viewportRef"
     class="org-canvas-viewport"
+    role="region"
+    tabindex="0"
+    :aria-label="$t('admin.org.canvasAria')"
     :class="{ 'is-panning': isPanning }"
     @pointerdown="startPan"
     @pointermove="movePan"
     @pointerup="endPan"
     @pointercancel="endPan"
     @wheel.prevent="handleWheel"
+    @keydown="handleKeydown"
   >
-    <div class="org-canvas-toolbar" @pointerdown.stop>
+    <div class="org-canvas-toolbar" role="group" :aria-label="$t('admin.org.canvasControls')" @pointerdown.stop>
       <button type="button" :aria-label="$t('admin.org.zoomOut')" :title="$t('admin.org.zoomOut')" @click="setZoom(zoom - 0.1)">−</button>
       <span>{{ Math.round(zoom * 100) }}%</span>
       <button type="button" :aria-label="$t('admin.org.zoomIn')" :title="$t('admin.org.zoomIn')" @click="setZoom(zoom + 0.1)">＋</button>

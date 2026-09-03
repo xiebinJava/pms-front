@@ -158,6 +158,7 @@ const zhCN = {
   feedback: {
     pageTitle: '反馈中心',
     pageDescription: '集中收集问题、建议与体验反馈，跟踪分诊、处理和确认结果。',
+    filters: '反馈筛选条件',
     create: '提交反馈',
     refresh: '刷新列表',
     searchPlaceholder: '搜索编号、标题或内容',
@@ -490,6 +491,7 @@ const zhCN = {
   admin: {
     users: {
       description: '统一管理员工主归属、兼职归属、角色与账号状态。',
+      filters: '人员筛选条件',
       invite: '+ 邀请员工',
       searchPlaceholder: '搜索中文名、英文名或邮箱',
       colPerson: '员工',
@@ -592,6 +594,10 @@ const zhCN = {
       fit: '适配',
       empty: '暂无组织单元',
       leaderLabel: '负责人：{name}',
+      canvasAria: '组织架构画布',
+      canvasControls: '组织架构画布控制',
+      workspaceAria: '组织架构工作区',
+      propertiesAria: '组织单元属性',
     },
     roles: {
       description: '按权限点与数据范围配置角色，内置角色由系统保护。',
@@ -671,6 +677,7 @@ const zhCN = {
     },
     audit: {
       description: '组织、人员、角色、导入与会话变更均保留可追溯记录。',
+      filters: '审计日志筛选条件',
       loadFailed: '审计日志加载失败',
       actionPlaceholder: '动作，如 USER_DISABLED',
       resourcePlaceholder: '资源类型，如 USER',
@@ -706,6 +713,7 @@ const zhCN = {
     toc: '目录',
     tocCount: '{count} 个目录项',
     tocAria: '使用手册目录',
+    referenceNavAria: '长期参考文档',
     tocTip: '目录与左侧使用手册保持一致，点击条目可直接跳到对应功能说明。业务规则和前端设计规范请从文档中心单独打开。',
     contentAria: '使用手册正文',
     introTitle: '先理解系统的三条主线',

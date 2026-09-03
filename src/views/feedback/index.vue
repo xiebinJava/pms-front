@@ -231,21 +231,21 @@ onMounted(() => { void load(); void loadAuxiliaryData() })
     </PmsPageHeader>
 
     <a-card :bordered="false" class="pms-table-panel feedback-panel">
-      <div class="pms-table-toolbar feedback-toolbar">
+      <div class="pms-table-toolbar feedback-toolbar" role="group" :aria-label="$t('feedback.filters')">
         <div class="pms-table-toolbar__filters">
-          <a-input v-model:value="filters.keyword" class="pms-filter-control feedback-search" allow-clear :placeholder="$t('feedback.searchPlaceholder')" @press-enter="search">
+          <a-input v-model:value="filters.keyword" class="pms-filter-control feedback-search" allow-clear :placeholder="$t('feedback.searchPlaceholder')" :aria-label="$t('feedback.searchPlaceholder')" @press-enter="search">
             <template #prefix><SearchOutlined /></template>
           </a-input>
-          <a-select v-model:value="filters.feedbackType" class="pms-filter-control" allow-clear :placeholder="$t('feedback.typePlaceholder')" @change="search">
+          <a-select v-model:value="filters.feedbackType" class="pms-filter-control" allow-clear :placeholder="$t('feedback.typePlaceholder')" :aria-label="$t('feedback.type')" @change="search">
             <a-select-option v-for="value in typeOptions" :key="value" :value="value">{{ typeLabel(value) }}</a-select-option>
           </a-select>
-          <a-select v-model:value="filters.priority" class="pms-filter-control" allow-clear :placeholder="$t('feedback.priorityPlaceholder')" @change="search">
+          <a-select v-model:value="filters.priority" class="pms-filter-control" allow-clear :placeholder="$t('feedback.priorityPlaceholder')" :aria-label="$t('feedback.priority')" @change="search">
             <a-select-option v-for="value in priorityOptions" :key="value" :value="value">{{ priorityLabel(value) }}</a-select-option>
           </a-select>
-          <a-select v-model:value="filters.status" class="pms-filter-control" allow-clear :placeholder="$t('feedback.statusPlaceholder')" @change="search">
+          <a-select v-model:value="filters.status" class="pms-filter-control" allow-clear :placeholder="$t('feedback.statusPlaceholder')" :aria-label="$t('feedback.status')" @change="search">
             <a-select-option v-for="value in statusOptions" :key="value" :value="value">{{ statusLabel(value) }}</a-select-option>
           </a-select>
-          <a-button class="pms-filter-button" type="primary" @click="search">{{ $t('common.query') }}</a-button>
+          <a-button class="pms-filter-button" type="primary" :aria-label="$t('common.query')" @click="search">{{ $t('common.query') }}</a-button>
         </div>
       </div>
 

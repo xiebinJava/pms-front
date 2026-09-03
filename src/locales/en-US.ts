@@ -160,6 +160,7 @@ const enUS: MessageSchema = {
   feedback: {
     pageTitle: 'Feedback center',
     pageDescription: 'Collect questions, issues, and ideas in one place and track triage through confirmation.',
+    filters: 'Feedback filters',
     create: 'Submit feedback',
     refresh: 'Refresh list',
     searchPlaceholder: 'Search number, title, or content',
@@ -492,6 +493,7 @@ const enUS: MessageSchema = {
   admin: {
     users: {
       description: 'Manage primary affiliation, part-time affiliations, roles, and account status.',
+      filters: 'People filters',
       invite: '+ Invite person',
       searchPlaceholder: 'Search Chinese name, English name, or email',
       colPerson: 'Person',
@@ -594,6 +596,10 @@ const enUS: MessageSchema = {
       fit: 'Fit',
       empty: 'No organization units yet',
       leaderLabel: 'Lead: {name}',
+      canvasAria: 'Organization canvas',
+      canvasControls: 'Organization canvas controls',
+      workspaceAria: 'Organization workspace',
+      propertiesAria: 'Organization unit properties',
     },
     roles: {
       description: 'Configure roles by permission and data scope. Built-in roles are protected.',
@@ -673,6 +679,7 @@ const enUS: MessageSchema = {
     },
     audit: {
       description: 'Organization, people, role, import, and session changes stay traceable.',
+      filters: 'Audit log filters',
       loadFailed: 'Could not load the audit log',
       actionPlaceholder: 'Action, e.g. USER_DISABLED',
       resourcePlaceholder: 'Resource type, e.g. USER',
@@ -708,6 +715,7 @@ const enUS: MessageSchema = {
     toc: 'Contents',
     tocCount: '{count} entries',
     tocAria: 'User guide contents',
+    referenceNavAria: 'Durable reference documents',
     tocTip: 'The index matches the user-guide navigation. Select an entry to jump to its feature explanation; business rules and the design system are separate documents.',
     contentAria: 'User guide body',
     introTitle: 'Start with the three main paths',

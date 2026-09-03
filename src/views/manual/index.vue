@@ -365,6 +365,19 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
+        <nav class="manual-reference-links" :aria-label="$t('manual.referenceNavAria')">
+          <RouterLink class="manual-reference-link" to="/manual/business-rules#identity">
+            <SafetyCertificateOutlined />
+            <span><strong>{{ $t('manual.references.businessRules.title') }}</strong><small>{{ $t('manual.references.businessRules.lead') }}</small></span>
+            <span class="manual-reference-link__arrow" aria-hidden="true">→</span>
+          </RouterLink>
+          <RouterLink class="manual-reference-link" to="/manual/design-system#principles">
+            <SettingOutlined />
+            <span><strong>{{ $t('manual.references.designSystem.title') }}</strong><small>{{ $t('manual.references.designSystem.lead') }}</small></span>
+            <span class="manual-reference-link__arrow" aria-hidden="true">→</span>
+          </RouterLink>
+        </nav>
+
         <article v-for="section in sections" :id="section.id" :key="section.id" class="manual-section pms-panel">
           <header class="manual-section__header">
             <div class="manual-section__title-wrap">
