@@ -9,6 +9,7 @@ import {
   CheckCircleOutlined,
   CloudUploadOutlined,
   ExperimentOutlined,
+  MessageOutlined,
   QuestionCircleOutlined,
   SafetyCertificateOutlined,
   SettingOutlined,
@@ -16,6 +17,7 @@ import {
   ToolOutlined,
 } from '@ant-design/icons-vue'
 import PmsPageHeader from '/@/components/PmsPageHeader.vue'
+import { pickActiveManualSection } from './manual-navigation'
 
 type MediaKind = 'image' | 'gif' | 'video'
 type MediaSlot = {
@@ -38,6 +40,8 @@ type ManualSection = {
   stepsKey: string
   notesKey: string
   checklistKey: string
+  businessLogicKey?: string
+  roleMatrixKey?: string
 }
 
 const MEDIA_ROOT = '/manual/' // 将 PNG、JPG 或 GIF 放入 public/manual/ 后填写 src；真实视频准备好后再启用 video 插槽
@@ -55,6 +59,7 @@ const sections: ManualSection[] = [
     stepsKey: 'manual.sections.quickStart.steps',
     notesKey: 'manual.sections.quickStart.notes',
     checklistKey: 'manual.sections.quickStart.checklist',
+    businessLogicKey: 'manual.sections.quickStart.businessLogic',
   },
   {
     id: 'workbench',
@@ -68,6 +73,7 @@ const sections: ManualSection[] = [
     stepsKey: 'manual.sections.workbench.steps',
     notesKey: 'manual.sections.workbench.notes',
     checklistKey: 'manual.sections.workbench.checklist',
+    businessLogicKey: 'manual.sections.workbench.businessLogic',
   },
   {
     id: 'rd-management',
@@ -81,6 +87,7 @@ const sections: ManualSection[] = [
     stepsKey: 'manual.sections.rdManagement.steps',
     notesKey: 'manual.sections.rdManagement.notes',
     checklistKey: 'manual.sections.rdManagement.checklist',
+    businessLogicKey: 'manual.sections.rdManagement.businessLogic',
   },
   {
     id: 'projects',
@@ -94,6 +101,7 @@ const sections: ManualSection[] = [
     stepsKey: 'manual.sections.projects.steps',
     notesKey: 'manual.sections.projects.notes',
     checklistKey: 'manual.sections.projects.checklist',
+    businessLogicKey: 'manual.sections.projects.businessLogic',
   },
   {
     id: 'configuration',
@@ -107,6 +115,7 @@ const sections: ManualSection[] = [
     stepsKey: 'manual.sections.configuration.steps',
     notesKey: 'manual.sections.configuration.notes',
     checklistKey: 'manual.sections.configuration.checklist',
+    businessLogicKey: 'manual.sections.configuration.businessLogic',
   },
   {
     id: 'users',
@@ -120,6 +129,7 @@ const sections: ManualSection[] = [
     stepsKey: 'manual.sections.users.steps',
     notesKey: 'manual.sections.users.notes',
     checklistKey: 'manual.sections.users.checklist',
+    businessLogicKey: 'manual.sections.users.businessLogic',
   },
   {
     id: 'organization',
@@ -133,6 +143,7 @@ const sections: ManualSection[] = [
     stepsKey: 'manual.sections.organization.steps',
     notesKey: 'manual.sections.organization.notes',
     checklistKey: 'manual.sections.organization.checklist',
+    businessLogicKey: 'manual.sections.organization.businessLogic',
   },
   {
     id: 'roles',
@@ -146,6 +157,8 @@ const sections: ManualSection[] = [
     stepsKey: 'manual.sections.roles.steps',
     notesKey: 'manual.sections.roles.notes',
     checklistKey: 'manual.sections.roles.checklist',
+    businessLogicKey: 'manual.sections.roles.businessLogic',
+    roleMatrixKey: 'manual.sections.roles.roleMatrix',
   },
   {
     id: 'import',
@@ -159,6 +172,7 @@ const sections: ManualSection[] = [
     stepsKey: 'manual.sections.import.steps',
     notesKey: 'manual.sections.import.notes',
     checklistKey: 'manual.sections.import.checklist',
+    businessLogicKey: 'manual.sections.import.businessLogic',
   },
   {
     id: 'audit',
@@ -172,6 +186,21 @@ const sections: ManualSection[] = [
     stepsKey: 'manual.sections.audit.steps',
     notesKey: 'manual.sections.audit.notes',
     checklistKey: 'manual.sections.audit.checklist',
+    businessLogicKey: 'manual.sections.audit.businessLogic',
+  },
+  {
+    id: 'feedback',
+    titleKey: 'manual.sections.feedback.title',
+    leadKey: 'manual.sections.feedback.lead',
+    icon: MessageOutlined,
+    tagKeys: ['manual.sections.feedback.tags.intake', 'manual.sections.feedback.tags.traceability'],
+    relatedPath: '/feedback',
+    media: [],
+    purposeKey: 'manual.sections.feedback.purpose',
+    stepsKey: 'manual.sections.feedback.steps',
+    notesKey: 'manual.sections.feedback.notes',
+    checklistKey: 'manual.sections.feedback.checklist',
+    businessLogicKey: 'manual.sections.feedback.businessLogic',
   },
   {
     id: 'faq',
@@ -185,17 +214,46 @@ const sections: ManualSection[] = [
     stepsKey: 'manual.sections.faq.steps',
     notesKey: 'manual.sections.faq.notes',
     checklistKey: 'manual.sections.faq.checklist',
+    businessLogicKey: 'manual.sections.faq.businessLogic',
   },
 ]
 
 const currentSection = ref('quick-start')
+const scrollFrame = ref<number | null>(null)
 const route = useRoute()
 const router = useRouter()
 const { t, tm } = useI18n()
 
+const legacyReferenceHashes: Record<string, string> = {
+  '#business-rules': '/manual/business-rules#identity',
+  '#design-system': '/manual/design-system#principles',
+}
+
 function translateList(key: string): string[] {
   const value = tm(key)
   return Array.isArray(value) ? value.map(String) : []
+}
+
+type RoleMatrixRow = {
+  name: string
+  code: string
+  permissions: string
+  scope: string
+}
+
+function translateMatrix(key: string): RoleMatrixRow[] {
+  const value = tm(key)
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const row = item as Record<string, unknown>
+    return [{
+      name: String(row.name ?? ''),
+      code: String(row.code ?? ''),
+      permissions: String(row.permissions ?? ''),
+      scope: String(row.scope ?? ''),
+    }]
+  })
 }
 
 function syncFromHash() {
@@ -206,18 +264,55 @@ function syncFromHash() {
 
 function scrollToSection(id: string) {
   currentSection.value = id
-  router.replace({ path: '/manual', hash: `#${id}` })
+  void router.replace({ path: '/manual', hash: `#${id}` })
   nextTick(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
 
+function syncFromScroll() {
+  const anchor = Math.min(Math.max(window.innerHeight * 0.32, 160), 280)
+  const positions = sections.map((section) => ({
+    id: section.id,
+    top: document.getElementById(section.id)?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY,
+  }))
+  const nextSection = pickActiveManualSection(positions, anchor)
+  if (!nextSection || nextSection === currentSection.value) return
+
+  currentSection.value = nextSection
+  if (route.hash !== `#${nextSection}`) void router.replace({ path: '/manual', hash: `#${nextSection}` })
+}
+
+function onWindowScroll() {
+  if (scrollFrame.value !== null) return
+  scrollFrame.value = window.requestAnimationFrame(() => {
+    scrollFrame.value = null
+    syncFromScroll()
+  })
+}
+
+function redirectLegacyReferenceHash(hash: string): boolean {
+  const target = legacyReferenceHashes[hash]
+  if (!target) return false
+  void router.replace(target)
+  return true
+}
+
 onMounted(() => {
+  window.addEventListener('scroll', onWindowScroll, { passive: true })
+  if (redirectLegacyReferenceHash(route.hash)) return
   syncFromHash()
   nextTick(() => {
     if (route.hash) document.getElementById(currentSection.value)?.scrollIntoView({ block: 'start' })
+    syncFromScroll()
   })
 })
-watch(() => route.hash, syncFromHash)
-onBeforeUnmount(() => window.scrollTo({ top: 0, behavior: 'auto' }))
+watch(() => route.hash, (hash) => {
+  if (!redirectLegacyReferenceHash(hash)) syncFromHash()
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', onWindowScroll)
+  if (scrollFrame.value !== null) window.cancelAnimationFrame(scrollFrame.value)
+  window.scrollTo({ top: 0, behavior: 'auto' })
+})
 </script>
 
 <template>
@@ -291,6 +386,27 @@ onBeforeUnmount(() => window.scrollTo({ top: 0, behavior: 'auto' }))
             <section class="manual-block manual-block--purpose">
               <h3>{{ $t('manual.purpose') }}</h3>
               <p>{{ t(section.purposeKey) }}</p>
+            </section>
+            <section v-if="section.businessLogicKey" class="manual-block manual-block--logic">
+              <h3>{{ $t('manual.businessLogic') }}</h3>
+              <ul class="manual-list">
+                <li v-for="(rule, index) in translateList(section.businessLogicKey)" :key="`${section.id}-logic-${index}`">{{ rule }}</li>
+              </ul>
+            </section>
+            <section v-if="section.roleMatrixKey" class="manual-block manual-role-matrix">
+              <h3>{{ $t('manual.roleMatrix') }}</h3>
+              <div class="manual-role-matrix__table" role="table" :aria-label="$t('manual.roleMatrix')">
+                <div class="manual-role-matrix__row manual-role-matrix__row--head" role="row">
+                  <span role="columnheader">{{ $t('manual.roleMatrixColumns.role') }}</span>
+                  <span role="columnheader">{{ $t('manual.roleMatrixColumns.permissions') }}</span>
+                  <span role="columnheader">{{ $t('manual.roleMatrixColumns.scope') }}</span>
+                </div>
+                <div v-for="row in translateMatrix(section.roleMatrixKey)" :key="row.code" class="manual-role-matrix__row" role="row">
+                  <span role="cell"><strong>{{ row.name }}</strong><small>{{ row.code }}</small></span>
+                  <span role="cell">{{ row.permissions }}</span>
+                  <span role="cell">{{ row.scope }}</span>
+                </div>
+              </div>
             </section>
             <section class="manual-block">
               <h3>{{ $t('manual.steps') }}</h3>

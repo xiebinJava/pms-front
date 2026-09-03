@@ -110,6 +110,12 @@ export interface Personnel {
   partTimeOrgNames: string[]
 }
 
+export interface FeedbackAssignee {
+  id: number
+  displayName?: string
+  email?: string
+}
+
 export interface Role {
   id: number
   code: string
@@ -238,4 +244,61 @@ export interface SearchResult {
   tasks: SearchHit[]
   milestones: SearchHit[]
   comments: SearchHit[]
+}
+
+export type FeedbackTypeCode = 'QUESTION' | 'BUG' | 'FEATURE' | 'UX' | 'DATA' | 'PERMISSION' | 'OTHER'
+export type FeedbackPriorityCode = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'
+export type FeedbackStatusCode =
+  | 'PENDING_TRIAGE'
+  | 'ASSIGNED'
+  | 'IN_PROGRESS'
+  | 'PENDING_CONFIRMATION'
+  | 'RESOLVED'
+  | 'CLOSED'
+  | 'REJECTED'
+  | 'DUPLICATE'
+  | 'UNREPRODUCIBLE'
+
+export interface FeedbackHistory {
+  id: number
+  ticketId: number
+  action: string
+  fromStatus?: FeedbackStatusCode
+  toStatus?: FeedbackStatusCode
+  fromPriority?: FeedbackPriorityCode
+  toPriority?: FeedbackPriorityCode
+  fromAssigneeId?: number
+  toAssigneeId?: number
+  note?: string
+  operatorId?: number
+  operatorName?: string
+  requestId?: string
+  createdAt: string
+}
+
+export interface FeedbackTicket {
+  id: number
+  ticketNo: string
+  title: string
+  content: string
+  feedbackType: FeedbackTypeCode
+  priority: FeedbackPriorityCode
+  status: FeedbackStatusCode
+  projectId?: number
+  projectName?: string
+  taskId?: number
+  nodeId?: number
+  contextModule?: string
+  sourceUrl?: string
+  reporterId: number
+  reporterName?: string
+  assigneeId?: number
+  assigneeName?: string
+  resolutionNote?: string
+  clientRequestId?: string
+  version: number
+  createdAt: string
+  updatedAt: string
+  closedAt?: string
+  history?: FeedbackHistory[]
 }

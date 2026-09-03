@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { BellOutlined, BookOutlined, CloudUploadOutlined, DashboardOutlined, DownOutlined, ExperimentOutlined, LogoutOutlined, MenuOutlined, ProjectOutlined, SearchOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined } from '@ant-design/icons-vue'
+import { BellOutlined, BookOutlined, CloudUploadOutlined, DashboardOutlined, DownOutlined, ExperimentOutlined, LogoutOutlined, MenuOutlined, ProjectOutlined, SearchOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, MessageOutlined } from '@ant-design/icons-vue'
 import { useUserStore } from '/@/store/user'
 import LocaleSwitch from '/@/components/LocaleSwitch.vue'
 import { message } from 'ant-design-vue'
@@ -23,6 +23,7 @@ const navOpen = ref(false)
 // without losing the active route or its permission-filtered child links.
 const projectNavOpen = ref(true)
 const configNavOpen = ref(true)
+const docsNavOpen = ref(true)
 const passwordForm = reactive({ currentPassword: '', newPassword: '', confirmPassword: '' })
 const searchQuery = ref('')
 const searchOpen = ref(false)
@@ -47,6 +48,9 @@ const canReadProjects = computed(() => can('project:read'))
 
 const selectedKeys = computed(() => {
   if (route.path.startsWith('/dashboard')) return ['dashboard']
+  if (route.path.startsWith('/feedback')) return ['feedback']
+  if (route.path.startsWith('/manual/business-rules')) return ['manual-business-rules']
+  if (route.path.startsWith('/manual/design-system')) return ['manual-design-system']
   if (route.path.startsWith('/manual')) return ['manual']
   if (route.path.startsWith('/projects')) return ['projects']
   if (route.path.startsWith('/admin/users')) return ['admin-users']
@@ -62,7 +66,10 @@ const canConfig = computed(() => ['admin:user:read', 'admin:org:read', 'admin:ro
 const menuRoutes: Record<string, string> = {
   dashboard: '/dashboard',
   manual: '/manual#quick-start',
+  'manual-business-rules': '/manual/business-rules#identity',
+  'manual-design-system': '/manual/design-system#principles',
   projects: '/projects',
+  feedback: '/feedback',
   'admin-users': '/admin/users',
   'admin-org': '/admin/org',
   'admin-roles': '/admin/roles',
@@ -374,10 +381,26 @@ onBeforeUnmount(() => {
                 </button>
               </div>
             </div>
-            <div class="pms-nav-group pms-nav-group--manual">
-              <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('manual') }" type="button" @click.stop="handleMenuClick({ key: 'manual' })">
-                <BookOutlined /><span>{{ $t('nav.manual') }}</span>
+            <div v-if="can('feedback:read') || can('feedback:write')" class="pms-nav-group pms-nav-group--feedback">
+              <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('feedback') }" type="button" @click.stop="handleMenuClick({ key: 'feedback' })">
+                <MessageOutlined /><span>{{ $t('nav.feedback') }}</span>
               </button>
+            </div>
+            <div class="pms-nav-group pms-nav-group--docs">
+              <button class="pms-nav-section-label" :class="{ 'pms-nav-section-label--active': selectedKeys.some(key => key.startsWith('manual')) }" type="button" aria-controls="pms-docs-subnav" :aria-expanded="docsNavOpen" @click.stop="docsNavOpen = !docsNavOpen">
+                <BookOutlined /><span>{{ $t('nav.docs') }}</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !docsNavOpen }" />
+              </button>
+              <div v-if="docsNavOpen" id="pms-docs-subnav" class="pms-nav-subnav">
+                <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('manual') }" type="button" @click.stop="handleMenuClick({ key: 'manual' })">
+                  <BookOutlined /><span>{{ $t('nav.manual') }}</span>
+                </button>
+                <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('manual-business-rules') }" type="button" @click.stop="handleMenuClick({ key: 'manual-business-rules' })">
+                  <AuditOutlined /><span>{{ $t('nav.businessRules') }}</span>
+                </button>
+                <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('manual-design-system') }" type="button" @click.stop="handleMenuClick({ key: 'manual-design-system' })">
+                  <SettingOutlined /><span>{{ $t('nav.designSystem') }}</span>
+                </button>
+              </div>
             </div>
           </div>
         </nav>

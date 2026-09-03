@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { login as loginApi, loginLdap as loginLdapApi, loginOidc as loginOidcApi, getMe, refreshSession, logout as logoutApi, changePassword as changePasswordApi } from '/@/api/auth'
 import { clearAccessToken, getAccessToken, setAccessToken } from '/@/plugins/http'
 import type { User } from '/@/types/domain'
+import { isPermissionSatisfied } from '/@/utils/permission'
 
 export const useUserStore = defineStore('user', {
   state: () => ({
@@ -11,7 +12,8 @@ export const useUserStore = defineStore('user', {
   getters: {
     isLogin: (state) => !!state.token,
     displayName: (state) => state.user?.displayName || state.user?.nickname || state.user?.nameZh || state.user?.email || state.user?.username || '未登录',
-    can: (state) => (permission: string) => state.user?.systemRole === 1 || !!state.user?.permissionCodes?.includes(permission),
+    can: (state) => (permission: string) => state.user?.systemRole === 1
+      || !!state.user?.permissionCodes?.some((granted) => isPermissionSatisfied(permission, granted)),
   },
   actions: {
     applySession(data: { accessToken?: string; token?: string; user: User }) {

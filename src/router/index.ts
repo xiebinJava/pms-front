@@ -42,10 +42,28 @@ const router = createRouter({
           meta: { titleKey: 'route.dashboard' },
         },
         {
+          path: 'feedback',
+          name: 'feedback',
+          component: () => import('/@/views/feedback/index.vue'),
+          meta: { titleKey: 'route.feedback', permission: 'feedback:read' },
+        },
+        {
           path: 'manual',
           name: 'manual',
           component: () => import('/@/views/manual/index.vue'),
           meta: { titleKey: 'route.manual' },
+        },
+        {
+          path: 'manual/business-rules',
+          name: 'manual-business-rules',
+          component: () => import('/@/views/manual/BusinessRules.vue'),
+          meta: { titleKey: 'route.businessRules' },
+        },
+        {
+          path: 'manual/design-system',
+          name: 'manual-design-system',
+          component: () => import('/@/views/manual/DesignSystem.vue'),
+          meta: { titleKey: 'route.designSystem' },
         },
         {
           path: 'projects',
