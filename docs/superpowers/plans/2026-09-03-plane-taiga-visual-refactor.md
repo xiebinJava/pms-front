@@ -129,7 +129,7 @@ Use existing project data and event handlers. Add semantic toolbar grouping and 
 Run: `pnpm test -- src/views/project/list/index.test.mjs src/views/visual-depth.test.mjs && pnpm typecheck && pnpm build`
 Expected: PASS and a successful Vite build.
 
-- [ ] **Step 5: Update QA notes and commit**
+- [x] **Step 5: Update QA notes and commit**
 
 Record desktop and narrow-screen screenshots/mismatch notes in `design-qa.md` and the list layout rule in `docs/design-logic.md`, then commit:
 
@@ -155,25 +155,25 @@ git commit -m "style: refine project list workbench"
 - Consumes: Project aggregate and existing node/task/milestone APIs.
 - Produces: Plane-like context header and Taiga-like board interactions without changing status transitions or permission checks.
 
-- [ ] **Step 1: Add failing detail visual-state tests**
+- [x] **Step 1: Add failing detail visual-state tests**
 
 Extend `src/views/project/project-visual.test.mjs` to assert the detail page has a labelled node assignment row, a stable task-card action region, and a collaboration tab strip. Extend `src/views/project/detail/workflow.test.mjs` to assert the board exposes a drag surface and an accessible delete action.
 
-- [ ] **Step 2: Run the focused detail tests and verify they fail**
+- [x] **Step 2: Run the focused detail tests and verify they fail**
 
 Run: `pnpm test -- src/views/project/project-visual.test.mjs src/views/project/detail/workflow.test.mjs`
 Expected: FAIL on the new labels/action-region assertions.
 
-- [ ] **Step 3: Implement the minimum CSS/template grouping changes**
+- [x] **Step 3: Implement the minimum CSS/template grouping changes**
 
 Keep all existing task, node and milestone handlers and API payloads. Add semantic wrappers/labels for the node owner and schedule row, reserve a fixed action region inside task cards, and style the collaboration tabs using the shared active/hover/focus contracts. Preserve the existing card delete confirmation and status transitions.
 
-- [ ] **Step 4: Run focused tests, typecheck and build**
+- [x] **Step 4: Run focused tests, typecheck and build**
 
 Run: `pnpm test -- src/views/project/project-visual.test.mjs src/views/project/detail/workflow.test.mjs && pnpm typecheck && pnpm build`
 Expected: PASS and a successful Vite build.
 
-- [ ] **Step 5: Update QA notes and commit**
+- [x] **Step 5: Update QA notes and commit**
 
 Record the detail-page desktop and narrow-screen checks in `design-qa.md`, then commit:
 

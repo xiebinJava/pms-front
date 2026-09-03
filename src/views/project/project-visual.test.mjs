@@ -43,3 +43,16 @@ test('project filter toolbar switches to a two-column mobile layout', () => {
   assert.match(source, /\.pms-table-toolbar__filters\s*\{[\s\S]*grid-template-columns:/)
   assert.match(source, /\.pms-search-input\s*\{[\s\S]*grid-column:\s*1\s*\/\s*-1;/)
 })
+
+test('project detail exposes labelled assignment and collaboration regions', () => {
+  const source = fs.readFileSync(path.join(root, 'views/project/detail/index.vue'), 'utf8')
+  assert.match(source, /class="node-owner-row"[^>]*role="group"[^>]*aria-label=/)
+  assert.match(source, /class="[^"]*node-schedule-row[^"]*"[^>]*role="group"[^>]*aria-label=/)
+  assert.match(source, /class="project-collaboration-tabs"/)
+})
+
+test('task cards reserve an accessible action region for the hover affordance', () => {
+  const source = fs.readFileSync(path.join(root, 'views/project/detail/components/TaskKanban.vue'), 'utf8')
+  assert.match(source, /class="pms-task-card__actions"[^>]*role="group"[^>]*aria-label=/)
+  assert.match(source, /\.pms-task-card__actions\s*\{[\s\S]*min-width:/)
+})

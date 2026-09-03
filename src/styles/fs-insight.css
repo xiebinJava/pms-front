@@ -979,7 +979,7 @@ body { font-family: var(--pms-font-family); background: var(--pms-bg); }
 .pms-task-card__surface {
   min-height: 84px;
   margin: 10px 0 0;
-  padding: 13px 14px;
+  padding: 13px 44px 13px 14px;
   background: var(--pms-surface);
   border: 1px solid var(--pms-border);
   border-radius: 7px;
@@ -989,7 +989,18 @@ body { font-family: var(--pms-font-family); background: var(--pms-bg); }
 .pms-task-card__surface:hover { border-color: color-mix(in srgb, var(--pms-primary) 55%, var(--pms-border)); box-shadow: var(--pms-shadow-md); }
 .pms-task-card__title { font-size: 13px; font-weight: 680; line-height: 1.4; }
 .pms-task-card__meta { margin-top: 10px; color: var(--pms-text-faint); font-size: 11px; }
-.pms-task-card__delete { top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 5px; }
+.pms-task-card__actions {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  min-height: 26px;
+  pointer-events: none;
+}
+.pms-task-card__delete { position: static; top: auto; right: auto; width: 22px; height: 22px; border-radius: 5px; }
 .pms-task-column > .ant-btn-text { min-height: 32px; margin-top: 8px; color: var(--pms-text-muted); border: 1px dashed var(--pms-border-strong); border-radius: 6px; }
 .pms-task-column > .ant-btn-text:hover { color: var(--pms-primary); background: var(--pms-primary-soft); border-color: var(--pms-primary); }
 

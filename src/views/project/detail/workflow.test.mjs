@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import fs from 'node:fs'
+import path from 'node:path'
 import {
   canRollbackNode,
   buildTaskPayload,
@@ -30,6 +32,15 @@ import {
   sortTasksByPriority,
 } from './workflow.ts'
 import { getProjectStatusLabel, ProjectStatus, statusTagColor } from '../../../enums/index.ts'
+
+const detailRoot = path.resolve(import.meta.dirname)
+
+test('task board keeps drag surfaces and an accessible delete affordance', () => {
+  const source = fs.readFileSync(path.join(detailRoot, 'components/TaskKanban.vue'), 'utf8')
+  assert.match(source, /:draggable="Boolean\(task\.permissions\?\.canMove && !nodeReadOnly\)"/)
+  assert.match(source, /class="pms-task-card__delete"[^>]*:aria-label=/)
+  assert.match(source, /class="pms-task-card__actions"/)
+})
 
 test('maps node status to the visual state used by the flow', () => {
   assert.deepEqual(getFlowNodeState(2), {

@@ -249,22 +249,27 @@ watch(taskScope, (next, previous) => {
         v-for="task in col.list"
         :key="task.id"
         class="pms-task-card pms-task-card__surface"
-        :class="{ 'pms-task-card--readonly': task.permissions?.readOnly || !task.permissions?.canEdit }"
+        :class="{
+          'pms-task-card--readonly': task.permissions?.readOnly || !task.permissions?.canEdit,
+          'pms-task-card--dragging': dragId === task.id,
+        }"
         :draggable="Boolean(task.permissions?.canMove && !nodeReadOnly)"
         @dragstart.stop="dragId = task.id"
         @dragend="clearDrag"
         @click.stop="openEdit(task)"
       >
-        <button
-          v-if="task.permissions?.canDelete"
-          type="button"
-          class="pms-task-card__delete"
-          :aria-label="$t('task.deleteAria')"
-          :title="$t('task.deleteAria')"
-          @click.stop="onDelete(task)"
-        >
-          <CloseOutlined />
-        </button>
+        <div class="pms-task-card__actions" role="group" :aria-label="$t('common.actions')">
+          <button
+            v-if="task.permissions?.canDelete"
+            type="button"
+            class="pms-task-card__delete"
+            :aria-label="$t('task.deleteAria')"
+            :title="$t('task.deleteAria')"
+            @click.stop="onDelete(task)"
+          >
+            <CloseOutlined />
+          </button>
+        </div>
         <div class="flex items-start justify-between gap-2 pr-5">
           <span class="pms-task-card__title">{{ task.title }}</span>
           <a-tag
@@ -361,7 +366,7 @@ watch(taskScope, (next, previous) => {
 .pms-task-card {
   position: relative;
   min-height: 74px;
-  padding: 12px 14px;
+  padding: 12px 44px 12px 14px;
   box-shadow: 0 6px 16px rgb(15 23 42 / 10%);
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
@@ -370,10 +375,24 @@ watch(taskScope, (next, previous) => {
   box-shadow: 0 12px 24px rgb(15 23 42 / 16%);
   transform: translateY(-1px);
 }
-.pms-task-card__delete {
+.pms-task-card--dragging {
+  opacity: .62;
+  border-style: dashed;
+  box-shadow: 0 0 0 3px var(--pms-primary-soft), var(--pms-shadow-md);
+  transform: rotate(1deg) scale(.99);
+}
+.pms-task-card__actions {
   position: absolute;
   top: 7px;
   right: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  min-height: 26px;
+  pointer-events: none;
+}
+.pms-task-card__delete {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -389,6 +408,7 @@ watch(taskScope, (next, previous) => {
   cursor: pointer;
   transition: color 160ms ease, border-color 160ms ease, opacity 160ms ease;
 }
+.pms-task-card__actions:focus-within { pointer-events: auto; }
 .pms-task-card:hover .pms-task-card__delete,
 .pms-task-card:focus-within .pms-task-card__delete {
   opacity: 1;
@@ -397,5 +417,9 @@ watch(taskScope, (next, previous) => {
 .pms-task-card__delete:hover {
   color: var(--pms-danger);
   border-color: var(--pms-danger);
+}
+.pms-task-card__delete:focus-visible {
+  outline: 0;
+  box-shadow: var(--pms-focus-ring);
 }
 </style>

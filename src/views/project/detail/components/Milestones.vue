@@ -174,6 +174,7 @@ onMounted(loadData)
   font-size: 12px;
   font-weight: 680;
   line-height: 1;
+  transition: color var(--pms-motion-fast) ease, background-color var(--pms-motion-fast) ease;
 }
 .milestone-actions :deep(.ant-btn:hover),
 .milestone-actions :deep(.ant-btn:focus-visible) {

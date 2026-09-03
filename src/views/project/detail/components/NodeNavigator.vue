@@ -67,12 +67,12 @@ const emit = defineEmits<{ (e: 'select', node: ProjectNode): void }>()
   border: 1px solid var(--pms-border-strong);
   border-radius: var(--pms-radius);
   cursor: pointer;
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition: border-color var(--pms-motion-fast) ease, box-shadow var(--pms-motion-fast) ease, transform var(--pms-motion-fast) ease;
 }
 
 .flow-node:hover:not(:disabled) {
   border-color: var(--pms-primary);
-  box-shadow: 0 4px 12px rgb(22 119 255 / 12%);
+  box-shadow: var(--pms-shadow-interactive);
   transform: translateY(-1px);
 }
 

@@ -820,7 +820,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="node-assignment-row pms-assignment-grid">
-        <div class="node-owner-row">
+        <div class="node-owner-row" role="group" :aria-label="$t('detail.nodeAssignment')">
           <span class="node-owner-row__label">{{ $t('detail.nodeOwner') }}</span>
           <div class="node-owner-row__control">
             <PersonSelect
@@ -835,7 +835,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="node-owner-row node-schedule-row">
+        <div class="node-owner-row node-schedule-row" role="group" :aria-label="$t('detail.nodeSchedule')">
           <span class="node-owner-row__label">{{ $t('detail.nodeSchedule') }}</span>
           <div class="node-owner-row__control">
             <a-range-picker
@@ -1007,10 +1007,15 @@ onBeforeUnmount(() => {
     <section class="management-card pms-detail-panel pms-section-panel card-surface">
       <div class="section-title-row section-title-row--compact pms-section-heading">
         <div>
-          <h2>{{ $t('detail.collaboration') }}</h2>
+          <h2 id="project-collaboration-title">{{ $t('detail.collaboration') }}</h2>
         </div>
       </div>
-      <a-tabs v-model:activeKey="activeSection" :destroy-inactive-tab-pane="true">
+      <a-tabs
+        v-model:activeKey="activeSection"
+        class="project-collaboration-tabs"
+        :destroy-inactive-tab-pane="true"
+        aria-labelledby="project-collaboration-title"
+      >
         <a-tab-pane key="milestones" :tab="$t('detail.milestones')">
           <Milestones :project-id="projectId" :can-manage="canManageProject" />
         </a-tab-pane>
@@ -1141,6 +1146,7 @@ onBeforeUnmount(() => {
 .node-detail-title__description { max-width: 100%; margin: 4px 0 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-normal); }
 .node-assignment-row { display: flex; align-items: flex-end; gap: 24px; margin-top: 16px; }
 .node-owner-row { display: flex; align-items: center; flex: 1 1 0; gap: 10px; width: auto; min-width: 0; }
+.node-owner-row { min-height: 58px; padding: 10px 12px; background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: 8px; }
 .node-owner-row__label { flex: 0 0 76px; color: var(--pms-text-muted); font-size: var(--pms-font-size-body); }
 .node-owner-row__control { display: flex; flex: 1 1 auto; align-items: center; gap: 8px; width: auto; min-width: 0; }
 .node-owner-row__select { width: 100%; }
@@ -1175,6 +1181,13 @@ onBeforeUnmount(() => {
 .project-people-item .project-profile-field__label { flex: 0 0 auto; }
 .project-people-control { min-width: 0; flex: 1; }
 .section-title-row--compact { margin-bottom: 6px; }
+.project-collaboration-tabs :deep(.ant-tabs-nav) { margin-bottom: 18px; border-bottom: 1px solid var(--pms-border); }
+.project-collaboration-tabs :deep(.ant-tabs-tab) { margin: 0 24px 0 0; padding: 10px 0 11px; color: var(--pms-text-muted); font-size: var(--pms-font-size-body); transition: color var(--pms-motion-fast) ease; }
+.project-collaboration-tabs :deep(.ant-tabs-tab:hover),
+.project-collaboration-tabs :deep(.ant-tabs-tab:focus-visible) { color: var(--pms-primary); }
+.project-collaboration-tabs :deep(.ant-tabs-tab-active .ant-tabs-tab-btn) { color: var(--pms-primary); font-weight: 700; }
+.project-collaboration-tabs :deep(.ant-tabs-ink-bar) { height: 3px; border-radius: 3px 3px 0 0; }
+.project-collaboration-tabs :deep(.ant-tabs-content-holder) { min-width: 0; }
 .schedule-loading { display: grid; place-items: center; min-height: 220px; }
 .reason-modal__description { margin: 0 0 16px; color: var(--pms-text-muted); font-size: var(--pms-font-size-body); line-height: var(--pms-line-height-normal); }
 .reason-modal__field { display: grid; gap: 7px; }

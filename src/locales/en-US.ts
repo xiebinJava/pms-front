@@ -355,6 +355,7 @@ const enUS: MessageSchema = {
     rollback: 'Roll back to this node',
     completeNode: 'Complete node',
     nodeOwner: 'Node owner',
+    nodeAssignment: 'Node assignment',
     nodeSchedule: 'Node schedule',
     collaboration: 'Collaboration',
     milestones: 'Milestones',

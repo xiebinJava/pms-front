@@ -353,6 +353,7 @@ const zhCN = {
     rollback: '回滚至此节点',
     completeNode: '完成节点',
     nodeOwner: '节点负责人',
+    nodeAssignment: '节点分配',
     nodeSchedule: '节点排期',
     collaboration: '项目协作',
     milestones: '里程碑',
