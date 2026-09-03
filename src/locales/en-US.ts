@@ -800,7 +800,7 @@ const enUS: MessageSchema = {
           typography: {
             title: 'Typography and layout of text', summary: 'Font, scale, line height, weight, and Chinese/English pairing determine density and readability.',
             rules: ['Use Inter, system Chinese fonts, and Microsoft YaHei fallback. Chinese is the primary label; English codes sit below or beside it as support.', 'Choose from caption 11, compact 12, body 13, nav 14, section 15, title 20, and display 22px tiers instead of inventing page-specific sizes.', 'Body line height is 1.45, long explanations 1.6, and short headings 1.25. Build hierarchy with weight and color rather than bolding everything.', 'Long titles, paths, emails, and action codes may wrap or truncate, but never hide unique meaning; truncated content needs title or detail.', 'Chinese punctuation, English brackets, dates, numbers, and codes use consistent formatting and must not overflow after translation.'],
-            examples: ['In “谢斌（Brad.Xie）”, the Chinese name is primary and the English name is supporting information.', 'Audit actions show a readable label with USER_PRIMARY_POSITION_CHANGED as a small code.', 'Date ranges split into two lines in narrow table columns instead of shrinking text.'],
+            examples: ['In “中文名（English.Name）”, the Chinese name is primary and the English name is supporting information.', 'Audit actions show a readable label with USER_PRIMARY_POSITION_CHANGED as a small code.', 'Date ranges split into two lines in narrow table columns instead of shrinking text.'],
           },
           color: {
             title: 'Color and contrast', summary: 'Color supports meaning and status; it never carries the only information.',
