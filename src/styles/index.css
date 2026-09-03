@@ -35,6 +35,10 @@
   --pms-shadow-md: 0 10px 30px rgb(16 34 63 / 10%);
   --pms-topbar-height: 62px;
   --pms-sidebar-width: 236px;
+  --pms-control-height-compact: 32px;
+  --pms-focus-ring: 0 0 0 3px rgb(10 93 194 / 14%);
+  --pms-motion-fast: 120ms;
+  --pms-shadow-interactive: 0 4px 14px rgb(16 34 63 / 8%);
 }
 
 * {

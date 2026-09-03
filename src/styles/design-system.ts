@@ -31,7 +31,11 @@ export const designTokens = {
     relaxed: 1.6,
   },
   controlHeight: 36,
+  controlHeightCompact: 32,
   radius: 8,
+  focusRing: '0 0 0 3px rgb(10 93 194 / 14%)',
+  motionFast: '120ms',
   shadowSm: '0 1px 2px rgb(16 34 63 / 4%), 0 2px 8px rgb(16 34 63 / 4%)',
   shadowMd: '0 10px 30px rgb(16 34 63 / 10%)',
+  shadowInteractive: '0 4px 14px rgb(16 34 63 / 8%)',
 } as const
