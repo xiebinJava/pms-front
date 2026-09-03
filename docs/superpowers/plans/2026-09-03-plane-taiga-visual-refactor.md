@@ -33,25 +33,25 @@
 **Interfaces:**
 - Produces: `designTokens` and CSS variables for interactive surfaces, focus rings, elevation levels, motion durations, compact controls and responsive gutters.
 
-- [ ] **Step 1: Write the failing contract test**
+- [x] **Step 1: Write the failing contract test**
 
 Add assertions in `src/styles/design-system.test.mjs` for `controlHeightCompact`, `focusRing`, `shadowInteractive`, `motionFast`, and the corresponding CSS variable names and `.pms-interactive-surface` selector.
 
-- [ ] **Step 2: Run the focused test and verify it fails**
+- [x] **Step 2: Run the focused test and verify it fails**
 
 Run: `pnpm test -- src/styles/design-system.test.mjs`
 Expected: FAIL because the new token fields and CSS selector do not exist.
 
-- [ ] **Step 3: Add the minimal token and primitive implementation**
+- [x] **Step 3: Add the minimal token and primitive implementation**
 
 Define the values in `src/styles/design-system.ts` and mirror them in `src/styles/index.css`. Add focused rules in `src/styles/fs-insight.css` for stable hover/focus elevation, compact controls, and the responsive content gutter. Do not change any Vue template or API code in this task.
 
-- [ ] **Step 4: Run the focused test and the existing style tests**
+- [x] **Step 4: Run the focused test and the existing style tests**
 
 Run: `pnpm test -- src/styles/design-system.test.mjs src/views/visual-depth.test.mjs`
 Expected: PASS with no warnings.
 
-- [ ] **Step 5: Update the design contract and commit**
+- [x] **Step 5: Update the design contract and commit**
 
 Record the new token values, allowed states, and Plane/Taiga deviations in `docs/frontend-design-system.md` and `design-qa.md`, then commit:
 
@@ -73,20 +73,20 @@ git commit -m "style: establish plane taiga visual tokens"
 - Consumes: Task 1 visual tokens.
 - Produces: Stable navigation group states and accessible shell classes without changing route targets.
 
-- [ ] **Step 1: Add failing shell contract assertions**
+- [x] **Step 1: Add failing shell contract assertions**
 
 Extend `src/layout/index.test.mjs` to assert that navigation groups expose `aria-expanded`, active state classes, a distinct icon per meaning, and a shell-level skip-to-content target.
 
-- [ ] **Step 2: Run the focused layout test and verify it fails**
+- [x] **Step 2: Run the focused layout test and verify it fails**
 
 Run: `pnpm test -- src/layout/index.test.mjs`
 Expected: FAIL because the skip target and refined shell contract are not yet present.
 
-- [ ] **Step 3: Implement shell-only interaction polish**
+- [x] **Step 3: Implement shell-only interaction polish**
 
 Add a keyboard-accessible skip link, stable `aria-current`/labels, and Plane-like active group styling. Keep all existing route strings, permission checks, search calls, notification calls and logout behavior unchanged. Use existing icons; only assign distinct meanings and do not introduce duplicate navigation icons.
 
-- [ ] **Step 4: Run layout and visual tests**
+- [x] **Step 4: Run layout and visual tests**
 
 Run: `pnpm test -- src/layout/index.test.mjs src/views/visual-depth.test.mjs`
 Expected: PASS.

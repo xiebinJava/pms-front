@@ -72,3 +72,17 @@ test('keeps the topbar search inside the 62px bar without duplicating the page t
   assert.match(styleSource, /\.pms-shell\s+\.pms-filter-control\.ant-input-affix-wrapper\s*\{[\s\S]*border:\s*1px solid var\(--pms-border-strong\);/)
   assert.match(styleSource, /\.pms-shell\s+\.pms-filter-control\.ant-input-affix-wrapper\s*\{[\s\S]*border-bottom:\s*1px solid var\(--pms-border-strong\);/)
 })
+
+test('provides a keyboard skip target for the shell content', () => {
+  assert.match(source, /class="pms-skip-link"/)
+  assert.match(source, /href="#pms-main-content"/)
+  assert.match(source, /<main id="pms-main-content" class="pms-main-content">/)
+  assert.match(styleSource, /\.pms-skip-link\s*\{/)
+  assert.match(styleSource, /\.pms-skip-link:focus-visible\s*\{/)
+})
+
+test('marks the active page for assistive technology', () => {
+  assert.match(source, /<nav class="pms-nav"[^>]*aria-label=/)
+  assert.match(source, /:aria-current="selectedKeys\.includes\('dashboard'\) \? 'page' : undefined"/)
+  assert.match(source, /:aria-current="selectedKeys\.includes\('projects'\) \? 'page' : undefined"/)
+})

@@ -222,6 +222,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="pms-shell">
+    <a class="pms-skip-link" href="#pms-main-content">{{ $t('nav.skipToContent') }}</a>
     <header class="pms-topbar">
       <div class="pms-topbar__left">
         <button class="pms-mobile-menu" type="button" :aria-label="$t('nav.toggle')" @click="navOpen = !navOpen">
@@ -342,10 +343,10 @@ onBeforeUnmount(() => {
 
     <div class="pms-shell-body">
       <aside class="pms-sidebar" :class="{ 'pms-sidebar--open': navOpen }">
-        <nav class="pms-nav" @click="handleMenuClick">
+        <nav class="pms-nav" :aria-label="$t('nav.primary')" @click="handleMenuClick">
           <div class="pms-nav-list">
             <div class="pms-nav-group">
-              <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('dashboard') }" type="button" @click.stop="handleMenuClick({ key: 'dashboard' })">
+              <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('dashboard') }" :aria-current="selectedKeys.includes('dashboard') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'dashboard' })">
                 <DashboardOutlined /><span>{{ $t('nav.dashboard') }}</span>
               </button>
             </div>
@@ -354,7 +355,7 @@ onBeforeUnmount(() => {
                 <ExperimentOutlined /><span>{{ $t('nav.rdManagement') }}</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !projectNavOpen }" />
               </button>
               <div v-if="projectNavOpen" id="pms-project-subnav" class="pms-nav-subnav">
-                <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('projects') }" type="button" :aria-label="$t('nav.projectsTab')" @click.stop="handleMenuClick({ key: 'projects' })">
+                <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('projects') }" :aria-current="selectedKeys.includes('projects') ? 'page' : undefined" type="button" :aria-label="$t('nav.projectsTab')" @click.stop="handleMenuClick({ key: 'projects' })">
                   <ProjectOutlined /><span>{{ $t('nav.projects') }}</span>
                 </button>
               </div>
@@ -364,25 +365,25 @@ onBeforeUnmount(() => {
                 <SettingOutlined /><span>{{ $t('nav.configuration') }}</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !configNavOpen }" />
               </button>
               <div v-if="configNavOpen" id="pms-config-subnav" class="pms-nav-subnav">
-                <button v-if="can('admin:user:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-users') }" type="button" @click.stop="handleMenuClick({ key: 'admin-users' })">
+                    <button v-if="can('admin:user:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-users') }" :aria-current="selectedKeys.includes('admin-users') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'admin-users' })">
                   <TeamOutlined /><span>{{ $t('nav.users') }}</span>
                 </button>
-                <button v-if="can('admin:org:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-org') }" type="button" @click.stop="handleMenuClick({ key: 'admin-org' })">
+                    <button v-if="can('admin:org:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-org') }" :aria-current="selectedKeys.includes('admin-org') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'admin-org' })">
                   <ApartmentOutlined /><span>{{ $t('nav.org') }}</span>
                 </button>
-                <button v-if="can('admin:role:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-roles') }" type="button" @click.stop="handleMenuClick({ key: 'admin-roles' })">
+                    <button v-if="can('admin:role:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-roles') }" :aria-current="selectedKeys.includes('admin-roles') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'admin-roles' })">
                   <SafetyCertificateOutlined /><span>{{ $t('nav.roles') }}</span>
                 </button>
-                <button v-if="can('admin:import:write')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-import') }" type="button" @click.stop="handleMenuClick({ key: 'admin-import' })">
+                    <button v-if="can('admin:import:write')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-import') }" :aria-current="selectedKeys.includes('admin-import') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'admin-import' })">
                   <CloudUploadOutlined /><span>{{ $t('nav.import') }}</span>
                 </button>
-                <button v-if="can('admin:audit:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-audit') }" type="button" @click.stop="handleMenuClick({ key: 'admin-audit' })">
+                    <button v-if="can('admin:audit:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-audit') }" :aria-current="selectedKeys.includes('admin-audit') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'admin-audit' })">
                   <AuditOutlined /><span>{{ $t('nav.audit') }}</span>
                 </button>
               </div>
             </div>
             <div v-if="can('feedback:read') || can('feedback:write')" class="pms-nav-group pms-nav-group--feedback">
-              <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('feedback') }" type="button" @click.stop="handleMenuClick({ key: 'feedback' })">
+                  <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('feedback') }" :aria-current="selectedKeys.includes('feedback') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'feedback' })">
                 <MessageOutlined /><span>{{ $t('nav.feedback') }}</span>
               </button>
             </div>
@@ -391,13 +392,13 @@ onBeforeUnmount(() => {
                 <BookOutlined /><span>{{ $t('nav.docs') }}</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !docsNavOpen }" />
               </button>
               <div v-if="docsNavOpen" id="pms-docs-subnav" class="pms-nav-subnav">
-                <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('manual') }" type="button" @click.stop="handleMenuClick({ key: 'manual' })">
+                    <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('manual') }" :aria-current="selectedKeys.includes('manual') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'manual' })">
                   <BookOutlined /><span>{{ $t('nav.manual') }}</span>
                 </button>
-                <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('manual-business-rules') }" type="button" @click.stop="handleMenuClick({ key: 'manual-business-rules' })">
+                    <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('manual-business-rules') }" :aria-current="selectedKeys.includes('manual-business-rules') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'manual-business-rules' })">
                   <AuditOutlined /><span>{{ $t('nav.businessRules') }}</span>
                 </button>
-                <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('manual-design-system') }" type="button" @click.stop="handleMenuClick({ key: 'manual-design-system' })">
+                    <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('manual-design-system') }" :aria-current="selectedKeys.includes('manual-design-system') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'manual-design-system' })">
                   <SettingOutlined /><span>{{ $t('nav.designSystem') }}</span>
                 </button>
               </div>
@@ -406,7 +407,7 @@ onBeforeUnmount(() => {
         </nav>
       </aside>
       <button v-if="navOpen" class="pms-sidebar-scrim" type="button" :aria-label="$t('nav.close')" @click="navOpen = false" />
-      <main class="pms-main-content">
+      <main id="pms-main-content" class="pms-main-content">
         <router-view v-slot="{ Component }">
           <component :is="Component" />
         </router-view>

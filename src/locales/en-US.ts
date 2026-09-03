@@ -54,6 +54,7 @@ const enUS: MessageSchema = {
     designSystem: 'Frontend design system',
   },
   nav: {
+    primary: 'Primary navigation',
     dashboard: 'Workbench',
     rdManagement: 'Delivery',
     projects: 'Projects',
@@ -71,6 +72,7 @@ const enUS: MessageSchema = {
     designSystem: 'Frontend design system',
     toggle: 'Toggle navigation',
     close: 'Close navigation',
+    skipToContent: 'Skip to main content',
   },
   layout: {
     searchPlaceholder: 'Search projects, tasks, milestones, comments',

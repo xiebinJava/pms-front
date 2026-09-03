@@ -52,6 +52,7 @@ const zhCN = {
     designSystem: '前端设计规范',
   },
   nav: {
+    primary: '主导航',
     dashboard: '工作台',
     rdManagement: '研发管理',
     projects: '项目管理',
@@ -69,6 +70,7 @@ const zhCN = {
     designSystem: '前端设计规范',
     toggle: '切换导航',
     close: '关闭导航',
+    skipToContent: '跳转到主要内容',
   },
   layout: {
     searchPlaceholder: '搜索项目、任务、里程碑、评论',
