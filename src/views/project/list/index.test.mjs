@@ -39,3 +39,10 @@ test('keeps project search controls close to the toolbar divider', () => {
   assert.match(toolbarRule, /padding:\s*14px 16px 4px/)
   assert.match(toolbarRule, /border-bottom:\s*1px solid var\(--pms-border\)/)
 })
+
+test('groups project filters and row actions without changing table geometry', () => {
+  assert.match(source, /class="pms-table-toolbar"[^>]*aria-label=/)
+  assert.match(source, /class="pms-project-row-actions"[^>]*role="group"/)
+  assert.match(source, /class="pms-table-scroll pms-project-table-scroll"/)
+  assert.match(visualStyle, /\.pms-project-row-actions\s*\{/)
+})

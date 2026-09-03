@@ -261,6 +261,7 @@ const zhCN = {
     description: '覆盖项目全生命周期，完成节点自动流转，让交付快人一步',
     create: '新建项目',
     edit: '编辑项目',
+    filters: '项目筛选',
     searchName: '搜索项目名称',
     name: '项目名称',
     nameRequired: '请输入项目名称',

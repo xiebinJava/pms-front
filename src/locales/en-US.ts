@@ -263,6 +263,7 @@ const enUS: MessageSchema = {
     description: 'Cover the full project lifecycle, with automatic node hand-off.',
     create: 'New project',
     edit: 'Edit project',
+    filters: 'Project filters',
     searchName: 'Search project name',
     name: 'Project name',
     nameRequired: 'Enter a project name',

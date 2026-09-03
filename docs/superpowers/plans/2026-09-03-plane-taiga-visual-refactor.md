@@ -91,7 +91,7 @@ Add a keyboard-accessible skip link, stable `aria-current`/labels, and Plane-lik
 Run: `pnpm test -- src/layout/index.test.mjs src/views/visual-depth.test.mjs`
 Expected: PASS.
 
-- [ ] **Step 5: Commit the shell change**
+- [x] **Step 5: Commit the shell change**
 
 ```bash
 git add src/layout/Index.vue src/layout/index.test.mjs src/styles/fs-insight.css src/locales/zh-CN.ts src/locales/en-US.ts
@@ -111,20 +111,20 @@ git commit -m "style: refine pms workspace shell"
 - Consumes: Task 1 shared controls and Task 2 shell.
 - Produces: A dense, responsive project list with stable toolbar geometry and inline row actions; existing `getProjectPage`, create, edit and delete behavior remains unchanged.
 
-- [ ] **Step 1: Add failing visual contract assertions**
+- [x] **Step 1: Add failing visual contract assertions**
 
 Add assertions for a labelled filter toolbar, stable two-line date markup, row hover action grouping, and an explicit table scroll container.
 
-- [ ] **Step 2: Run the focused test and verify it fails**
+- [x] **Step 2: Run the focused test and verify it fails**
 
 Run: `pnpm test -- src/views/project/list/index.test.mjs`
 Expected: FAIL on the missing toolbar label/action grouping contract.
 
-- [ ] **Step 3: Implement the minimal project-list visual changes**
+- [x] **Step 3: Implement the minimal project-list visual changes**
 
 Use existing project data and event handlers. Add semantic toolbar grouping and labels, keep search/select/query controls at the shared height, preserve two-line dates and manager fallback, and move action links into a stable inline action group that does not change row height on hover. Do not add statistics or new API calls.
 
-- [ ] **Step 4: Run list tests and build checks**
+- [x] **Step 4: Run list tests and build checks**
 
 Run: `pnpm test -- src/views/project/list/index.test.mjs src/views/visual-depth.test.mjs && pnpm typecheck && pnpm build`
 Expected: PASS and a successful Vite build.

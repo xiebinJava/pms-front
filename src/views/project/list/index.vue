@@ -178,7 +178,7 @@ onMounted(loadData)
     </PmsPageHeader>
 
     <a-card :bordered="false" class="pms-table-panel pms-table-card">
-      <div class="pms-table-toolbar">
+      <div class="pms-table-toolbar" role="group" :aria-label="$t('project.filters')">
         <div class="pms-table-toolbar__filters">
           <a-input
             v-model:value="query.keyword"
@@ -249,9 +249,11 @@ onMounted(loadData)
             </div>
           </template>
           <template v-else-if="column.key === 'action'">
-            <span class="pms-action-link" @click="router.push(`/projects/${record.id}`)">{{ $t('common.detail') }}</span>
-            <span v-if="record.permissions?.canManageProject" class="pms-action-link" @click="openEdit(record)">{{ $t('common.edit') }}</span>
-            <span v-if="record.permissions?.canDeleteProject" class="pms-action-link pms-action-link--danger" @click="onDelete(record)">{{ $t('common.delete') }}</span>
+            <div class="pms-project-row-actions" role="group" :aria-label="$t('common.actions')">
+              <button class="pms-action-link" type="button" @click="router.push(`/projects/${record.id}`)">{{ $t('common.detail') }}</button>
+              <button v-if="record.permissions?.canManageProject" class="pms-action-link" type="button" @click="openEdit(record)">{{ $t('common.edit') }}</button>
+              <button v-if="record.permissions?.canDeleteProject" class="pms-action-link pms-action-link--danger" type="button" @click="onDelete(record)">{{ $t('common.delete') }}</button>
+            </div>
           </template>
         </template>
         </a-table>
@@ -356,6 +358,25 @@ onMounted(loadData)
 .pms-action-link { margin-right: 12px; color: var(--pms-primary); cursor: pointer; font-size: var(--pms-font-size-compact); font-weight: 650; }
 .pms-action-link:hover { color: var(--pms-primary-dark); text-decoration: underline; }
 .pms-action-link--danger { margin-right: 0; color: var(--pms-danger); }
+.pms-project-row-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 28px;
+}
+.pms-project-row-actions .pms-action-link {
+  margin: 0;
+  padding: 3px 5px;
+  color: var(--pms-primary);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  line-height: 1.3;
+}
+.pms-project-row-actions .pms-action-link:hover { background: var(--pms-primary-soft); text-decoration: none; }
+.pms-project-row-actions .pms-action-link--danger { color: var(--pms-danger); }
+.pms-project-row-actions .pms-action-link--danger:hover { background: var(--pms-danger-soft); }
 
 :deep(.ant-card-body) { padding: 20px; }
 :deep(.ant-input), :deep(.ant-select-selector) { border-color: var(--pms-border) !important; border-radius: 6px !important; }
