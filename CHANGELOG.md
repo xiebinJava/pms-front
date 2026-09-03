@@ -6,6 +6,7 @@
 
 ## Unreleased
 
+- Plane + Taiga 视觉迁移（2026-09-03）：统一令牌和应用壳层，完成项目列表/详情、工作台、治理页面、组织画布、反馈中心与文档中心的工作台式视觉层级；只调整视觉、响应式和可访问性，不改变业务接口或状态机。跨页面验收覆盖 `1440 × 900` 与 `390 × 844`，`pnpm test` 130/130、类型检查、构建和隐私扫描通过。
 - Release-closure snapshot (2026-09-01): `pnpm test` 111/111 passed; `pnpm typecheck` and `pnpm build` passed. Playwright desktop, 390px narrow-screen, and manual recording flows passed with deterministic `zh-CN` locale.
 - Load the workbench from `GET /workbench` instead of fanning out project, task, and comment requests.
 - Open a task detail from the kanban or workbench with subtasks, comments, and attachments.

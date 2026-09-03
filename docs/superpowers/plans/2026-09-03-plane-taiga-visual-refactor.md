@@ -244,19 +244,19 @@ git commit -m "style: align governance and manual surfaces"
 - Consumes: Tasks 1–5 rendered surfaces.
 - Produces: A reproducible visual acceptance record and release-note entry.
 
-- [ ] **Step 1: Run the full local test matrix**
+- [x] **Step 1: Run the full local test matrix**
 
 Run: `pnpm test && pnpm typecheck && pnpm build && ./scripts/check-privacy.sh`
 
-- [ ] **Step 2: Run desktop and mobile Playwright flows**
+- [x] **Step 2: Run desktop and mobile browser flows**
 
-Use the existing backend integration workflow or local Playwright command to cover login, project list/detail, organization, permissions and manual. Capture 1440px and 390px evidence.
+Use the existing backend integration workflow or local Playwright command to cover login, project list/detail, organization, permissions and manual. The authenticated local browser session covered 1440px and 390px; the standalone Playwright command ran with 3 credential-dependent tests skipped because `E2E_USERNAME/E2E_PASSWORD` are not configured in this environment.
 
-- [ ] **Step 3: Record every mismatch or intentional deviation**
+- [x] **Step 3: Record every mismatch or intentional deviation**
 
 Update `design-qa.md` with route, viewport, expected pattern, rendered result, fix, and remaining risk. Keep screenshots outside the repository unless they are approved documentation assets.
 
-- [ ] **Step 4: Update release notes and commit**
+- [x] **Step 4: Update release notes and commit**
 
 Add the visual migration summary and test counts to `CHANGELOG.md`, then commit:
 
