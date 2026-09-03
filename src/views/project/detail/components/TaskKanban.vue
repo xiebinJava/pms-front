@@ -422,4 +422,10 @@ watch(taskScope, (next, previous) => {
   outline: 0;
   box-shadow: var(--pms-focus-ring);
 }
+@media (hover: none) {
+  .pms-task-card__delete {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
 </style>

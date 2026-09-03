@@ -16,7 +16,7 @@
 - 所有颜色、间距、字号、圆角、阴影和焦点样式必须通过 `--pms-*` 语义令牌消费。
 - 不改变 API、路由、权限计算、组织负责人/员工主归属关系和业务状态机。
 - 1440px、1280px、768px、390px 视口均不得出现无意横向溢出。
-- 每个阶段结束后运行 `pnpm test`、`pnpm typecheck`、`pnpm build`，并更新 `design-qa.md`。
+- 每个阶段结束后运行 `pnpm test`、`pnpm typecheck`、`pnpm build`，并更新 `docs/design-qa.md`。
 
 ---
 
@@ -28,7 +28,7 @@
 - Modify: `src/styles/fs-insight.css`
 - Modify: `src/styles/design-system.test.mjs`
 - Modify: `docs/frontend-design-system.md`
-- Modify: `design-qa.md`
+- Modify: `docs/design-qa.md`
 
 **Interfaces:**
 - Produces: `designTokens` and CSS variables for interactive surfaces, focus rings, elevation levels, motion durations, compact controls and responsive gutters.
@@ -53,10 +53,10 @@ Expected: PASS with no warnings.
 
 - [x] **Step 5: Update the design contract and commit**
 
-Record the new token values, allowed states, and Plane/Taiga deviations in `docs/frontend-design-system.md` and `design-qa.md`, then commit:
+Record the new token values, allowed states, and Plane/Taiga deviations in `docs/frontend-design-system.md` and `docs/design-qa.md`, then commit:
 
 ```bash
-git add src/styles/design-system.ts src/styles/index.css src/styles/fs-insight.css src/styles/design-system.test.mjs docs/frontend-design-system.md design-qa.md
+git add src/styles/design-system.ts src/styles/index.css src/styles/fs-insight.css src/styles/design-system.test.mjs docs/frontend-design-system.md docs/design-qa.md
 git commit -m "style: establish plane taiga visual tokens"
 ```
 
@@ -105,7 +105,7 @@ git commit -m "style: refine pms workspace shell"
 - Modify: `src/views/project/list/index.test.mjs`
 - Modify: `src/styles/fs-insight.css`
 - Modify: `docs/design-logic.md`
-- Modify: `design-qa.md`
+- Modify: `docs/design-qa.md`
 
 **Interfaces:**
 - Consumes: Task 1 shared controls and Task 2 shell.
@@ -131,10 +131,10 @@ Expected: PASS and a successful Vite build.
 
 - [x] **Step 5: Update QA notes and commit**
 
-Record desktop and narrow-screen screenshots/mismatch notes in `design-qa.md` and the list layout rule in `docs/design-logic.md`, then commit:
+Record desktop and narrow-screen screenshots/mismatch notes in `docs/design-qa.md` and the list layout rule in `docs/design-logic.md`, then commit:
 
 ```bash
-git add src/views/project/list/index.vue src/views/project/list/index.test.mjs src/styles/fs-insight.css docs/design-logic.md design-qa.md
+git add src/views/project/list/index.vue src/views/project/list/index.test.mjs src/styles/fs-insight.css docs/design-logic.md docs/design-qa.md
 git commit -m "style: refine project list workbench"
 ```
 
@@ -149,7 +149,7 @@ git commit -m "style: refine project list workbench"
 - Modify: `src/views/project/detail/workflow.test.mjs`
 - Modify: `src/styles/fs-insight.css`
 - Modify: `docs/design-logic.md`
-- Modify: `design-qa.md`
+- Modify: `docs/design-qa.md`
 
 **Interfaces:**
 - Consumes: Project aggregate and existing node/task/milestone APIs.
@@ -175,10 +175,10 @@ Expected: PASS and a successful Vite build.
 
 - [x] **Step 5: Update QA notes and commit**
 
-Record the detail-page desktop and narrow-screen checks in `design-qa.md`, then commit:
+Record the detail-page desktop and narrow-screen checks in `docs/design-qa.md`, then commit:
 
 ```bash
-git add src/views/project/detail/index.vue src/views/project/detail/components/NodeNavigator.vue src/views/project/detail/components/TaskKanban.vue src/views/project/detail/components/Milestones.vue src/views/project/project-visual.test.mjs src/views/project/detail/workflow.test.mjs src/styles/fs-insight.css docs/design-logic.md design-qa.md
+git add src/views/project/detail/index.vue src/views/project/detail/components/NodeNavigator.vue src/views/project/detail/components/TaskKanban.vue src/views/project/detail/components/Milestones.vue src/views/project/project-visual.test.mjs src/views/project/detail/workflow.test.mjs src/styles/fs-insight.css docs/design-logic.md docs/design-qa.md
 git commit -m "style: refine project detail collaboration surfaces"
 ```
 
@@ -197,7 +197,7 @@ git commit -m "style: refine project detail collaboration surfaces"
 - Modify: `src/views/admin/admin-visual.test.mjs`
 - Modify: `src/views/manual/manual.test.mjs`
 - Modify: `docs/design-logic.md`
-- Modify: `design-qa.md`
+- Modify: `docs/design-qa.md`
 
 **Interfaces:**
 - Consumes: Existing organization, role, import, audit, feedback and manual APIs.
@@ -223,10 +223,10 @@ Expected: PASS with no privacy-denylist findings and a successful build.
 
 - [x] **Step 5: Update QA notes and commit**
 
-Record desktop, tablet and mobile governance/manual checks in `design-qa.md`, then commit:
+Record desktop, tablet and mobile governance/manual checks in `docs/design-qa.md`, then commit:
 
 ```bash
-git add src/views/admin/org/OrgCanvas.vue src/views/admin/org/index.vue src/views/admin/users/index.vue src/views/admin/roles/index.vue src/views/admin/import/index.vue src/views/admin/audit/index.vue src/views/feedback/index.vue src/views/manual/index.vue src/styles/fs-insight.css src/views/admin/admin-visual.test.mjs src/views/manual/manual.test.mjs docs/design-logic.md design-qa.md
+git add src/views/admin/org/OrgCanvas.vue src/views/admin/org/index.vue src/views/admin/users/index.vue src/views/admin/roles/index.vue src/views/admin/import/index.vue src/views/admin/audit/index.vue src/views/feedback/index.vue src/views/manual/index.vue src/styles/fs-insight.css src/views/admin/admin-visual.test.mjs src/views/manual/manual.test.mjs docs/design-logic.md docs/design-qa.md
 git commit -m "style: align governance and manual surfaces"
 ```
 
@@ -235,7 +235,7 @@ git commit -m "style: align governance and manual surfaces"
 **Files:**
 - Modify: `docs/frontend-design-system.md`
 - Modify: `docs/design-logic.md`
-- Modify: `design-qa.md`
+- Modify: `docs/design-qa.md`
 - Modify: `CHANGELOG.md`
 - Test: `tests/e2e/auth-and-project.spec.ts`
 - Test: `tests/e2e/manual-record.spec.ts`
@@ -254,13 +254,13 @@ Use the existing backend integration workflow or local Playwright command to cov
 
 - [x] **Step 3: Record every mismatch or intentional deviation**
 
-Update `design-qa.md` with route, viewport, expected pattern, rendered result, fix, and remaining risk. Keep screenshots outside the repository unless they are approved documentation assets.
+Update `docs/design-qa.md` with route, viewport, expected pattern, rendered result, fix, and remaining risk. Keep screenshots outside the repository unless they are approved documentation assets.
 
 - [x] **Step 4: Update release notes and commit**
 
 Add the visual migration summary and test counts to `CHANGELOG.md`, then commit:
 
 ```bash
-git add docs/frontend-design-system.md docs/design-logic.md design-qa.md CHANGELOG.md tests/e2e/auth-and-project.spec.ts tests/e2e/manual-record.spec.ts
+git add docs/frontend-design-system.md docs/design-logic.md docs/design-qa.md CHANGELOG.md tests/e2e/auth-and-project.spec.ts tests/e2e/manual-record.spec.ts
 git commit -m "docs: record plane taiga visual migration"
 ```

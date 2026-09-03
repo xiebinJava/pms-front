@@ -63,5 +63,5 @@
 - `pnpm test`、`pnpm typecheck` 和 `pnpm build` 均通过。
 - Playwright 或浏览器验收覆盖项目列表、项目详情、组织画布、权限页面和使用手册。
 - 至少检查 1440px、1280px、768px 和 390px 视口。
-- 每期更新 `docs/frontend-design-system.md`、`docs/design-logic.md` 和 `design-qa.md`，记录已完成项和有意偏差。
+- 每期更新 `docs/frontend-design-system.md`、`docs/design-logic.md` 和 `docs/design-qa.md`，记录已完成项和有意偏差。
 - 视觉回归不能引入 API 请求变化、权限绕过或业务数据改变。

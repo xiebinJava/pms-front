@@ -1,4 +1,6 @@
-# Design QA
+# Design QA (历史归档)
+
+> 当前视觉验收记录维护在 [`docs/design-qa.md`](docs/design-qa.md)。本文件保留早期项目详情对标记录，不再新增本轮验收条目。
 
 ## Comparison target
 

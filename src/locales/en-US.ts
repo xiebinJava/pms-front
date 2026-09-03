@@ -847,7 +847,7 @@ const enUS: MessageSchema = {
           governance: {
             title: 'Code implementation and governance', summary: 'A design system must be consumable by code, verifiable by tests, and maintainable through versions.',
             rules: ['New pages first reuse global tokens, shared components, and page primitives; a new pattern documents when it applies and when it does not.', 'Visual changes run typecheck, build, relevant unit tests, and desktop/narrow browser checks; important screens retain screenshot or visual-regression baselines.', 'Docs, CSS tokens, component code, and design artifacts share a version. Breaking changes include migration notes and a compatibility window.', 'Design review checks hierarchy, contrast, focus, errors, empty states, responsive behavior, and long text—not only the happy-path screenshot.', 'Fix shared primitives first; do not hide contract problems with !important or page-local magic values.'],
-            examples: ['A new requirements page reuses the project list filter bar and table behavior.', 'Changing the primary color updates token docs, component captures, and the manual rather than replacing colors page by page.', 'Every spec change records its source, implementation status, and intentional deviations in design-qa.md.'],
+            examples: ['A new requirements page reuses the project list filter bar and table behavior.', 'Changing the primary color updates token docs, component captures, and the manual rather than replacing colors page by page.', 'Every spec change records its source, implementation status, and intentional deviations in docs/design-qa.md.'],
           },
         },
       },
