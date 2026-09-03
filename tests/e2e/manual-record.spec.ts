@@ -21,7 +21,10 @@ test('records the quick-start walkthrough for the user manual', async ({ page })
   // Use the shell navigation instead of a hard reload; the access token is
   // held in memory and a document navigation would unnecessarily exercise
   // refresh-token rotation during this content walkthrough.
-  await page.locator('.pms-nav-group--manual .pms-nav-link').click()
+  // The manual entry lives in the documentation group; keep the selector
+  // aligned with the shell hierarchy so the recorded walkthrough follows
+  // the same path as the visible navigation.
+  await page.locator('.pms-nav-group--docs .pms-nav-link').filter({ hasText: '使用手册' }).click()
   await expect(page).toHaveURL(/\/manual\/?(?:#.*)?$/, { timeout: 15_000 })
   await expect(page.getByRole('heading', { name: '使用手册' })).toBeVisible({ timeout: 15_000 })
   await page.locator('.manual-index__item').filter({ hasText: '工作台' }).click()
