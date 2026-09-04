@@ -17,11 +17,10 @@ test('project detail cards use the shared panel visual layer', () => {
   assert.match(source, /var\(--pms-shadow-sm\)/)
 })
 
-test('project description image toolbar has an explicit action and responsive hint', () => {
+test('project description remains a plain text control without an image toolbar', () => {
   const source = fs.readFileSync(path.join(root, 'views/project/detail/index.vue'), 'utf8')
-  assert.match(source, /project-description-toolbar__action/)
-  assert.match(source, /project-description-toolbar__hint/)
-  assert.match(source, /flex-wrap:\s*wrap/)
+  assert.match(source, /project-description-control/)
+  assert.doesNotMatch(source, /project-description-toolbar|insertImage|descriptionImage|PictureOutlined/)
 })
 
 test('project list date cells allow the range to wrap into two lines', () => {
@@ -55,4 +54,37 @@ test('task cards reserve an accessible action region for the hover affordance', 
   const source = fs.readFileSync(path.join(root, 'views/project/detail/components/TaskKanban.vue'), 'utf8')
   assert.match(source, /class="pms-task-card__actions"[^>]*role="group"[^>]*aria-label=/)
   assert.match(source, /\.pms-task-card__actions\s*\{[\s\S]*min-width:/)
+})
+
+test('project buttons expose a shared semantic visual contract', () => {
+  const styleSource = fs.readFileSync(path.join(root, 'styles/fs-insight.css'), 'utf8')
+  assert.match(styleSource, /\.pms-project-button\s*\{[\s\S]*border-radius:\s*8px;/)
+  assert.match(styleSource, /\.pms-project-button--primary\s*\{/)
+  assert.match(styleSource, /\.pms-project-button--secondary\s*\{/)
+  assert.match(styleSource, /\.pms-project-button--text\s*\{/)
+  assert.match(styleSource, /\.pms-project-button--danger\s*\{/)
+  assert.match(styleSource, /\.pms-project-button:focus-visible\s*\{/)
+  assert.match(styleSource, /\.pms-project-button:disabled[^{]*\{/)
+})
+
+test('project action surfaces opt into semantic button variants', () => {
+  const sources = [
+    'views/project/list/index.vue',
+    'views/project/detail/index.vue',
+    'views/project/detail/components/Milestones.vue',
+    'views/project/detail/components/Members.vue',
+    'views/project/detail/components/Comments.vue',
+    'views/project/detail/components/TaskKanban.vue',
+    'views/project/detail/components/TaskWorkPanel.vue',
+    'views/project/detail/components/ProjectScheduleCalendar.vue',
+    'views/project/detail/components/ProjectScheduleChart.vue',
+  ].map((file) => fs.readFileSync(path.join(root, file), 'utf8')).join('\n')
+
+  assert.match(sources, /pms-project-button--primary/)
+  assert.match(sources, /pms-project-button--secondary/)
+  assert.match(sources, /pms-project-button--text/)
+  assert.match(sources, /pms-project-button--danger/)
+
+  const navigator = fs.readFileSync(path.join(root, 'views/project/detail/components/NodeNavigator.vue'), 'utf8')
+  assert.doesNotMatch(navigator, /pms-project-button/)
 })

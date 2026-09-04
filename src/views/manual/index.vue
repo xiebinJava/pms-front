@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import {
   ApartmentOutlined,
   AuditOutlined,
+  BellOutlined,
   BookOutlined,
   CheckCircleOutlined,
   CloudUploadOutlined,
@@ -42,6 +43,8 @@ type ManualSection = {
   checklistKey: string
   businessLogicKey?: string
   roleMatrixKey?: string
+  permissionGuideKey?: string
+  examplesKey?: string
 }
 
 const MEDIA_ROOT = '/manual/' // 将 PNG、JPG 或 GIF 放入 public/manual/ 后填写 src；真实视频准备好后再启用 video 插槽
@@ -60,6 +63,7 @@ const sections: ManualSection[] = [
     notesKey: 'manual.sections.quickStart.notes',
     checklistKey: 'manual.sections.quickStart.checklist',
     businessLogicKey: 'manual.sections.quickStart.businessLogic',
+    examplesKey: 'manual.sections.quickStart.examples',
   },
   {
     id: 'workbench',
@@ -74,6 +78,22 @@ const sections: ManualSection[] = [
     notesKey: 'manual.sections.workbench.notes',
     checklistKey: 'manual.sections.workbench.checklist',
     businessLogicKey: 'manual.sections.workbench.businessLogic',
+    examplesKey: 'manual.sections.workbench.examples',
+  },
+  {
+    id: 'notifications',
+    titleKey: 'manual.sections.notifications.title',
+    leadKey: 'manual.sections.notifications.lead',
+    icon: BellOutlined,
+    tagKeys: ['manual.sections.notifications.tags.inbox', 'manual.sections.notifications.tags.reminders'],
+    relatedPath: '/notifications',
+    media: [],
+    purposeKey: 'manual.sections.notifications.purpose',
+    stepsKey: 'manual.sections.notifications.steps',
+    notesKey: 'manual.sections.notifications.notes',
+    checklistKey: 'manual.sections.notifications.checklist',
+    businessLogicKey: 'manual.sections.notifications.businessLogic',
+    examplesKey: 'manual.sections.notifications.examples',
   },
   {
     id: 'rd-management',
@@ -88,6 +108,7 @@ const sections: ManualSection[] = [
     notesKey: 'manual.sections.rdManagement.notes',
     checklistKey: 'manual.sections.rdManagement.checklist',
     businessLogicKey: 'manual.sections.rdManagement.businessLogic',
+    examplesKey: 'manual.sections.rdManagement.examples',
   },
   {
     id: 'projects',
@@ -102,6 +123,7 @@ const sections: ManualSection[] = [
     notesKey: 'manual.sections.projects.notes',
     checklistKey: 'manual.sections.projects.checklist',
     businessLogicKey: 'manual.sections.projects.businessLogic',
+    examplesKey: 'manual.sections.projects.examples',
   },
   {
     id: 'configuration',
@@ -116,6 +138,7 @@ const sections: ManualSection[] = [
     notesKey: 'manual.sections.configuration.notes',
     checklistKey: 'manual.sections.configuration.checklist',
     businessLogicKey: 'manual.sections.configuration.businessLogic',
+    examplesKey: 'manual.sections.configuration.examples',
   },
   {
     id: 'users',
@@ -130,6 +153,7 @@ const sections: ManualSection[] = [
     notesKey: 'manual.sections.users.notes',
     checklistKey: 'manual.sections.users.checklist',
     businessLogicKey: 'manual.sections.users.businessLogic',
+    examplesKey: 'manual.sections.users.examples',
   },
   {
     id: 'organization',
@@ -144,6 +168,7 @@ const sections: ManualSection[] = [
     notesKey: 'manual.sections.organization.notes',
     checklistKey: 'manual.sections.organization.checklist',
     businessLogicKey: 'manual.sections.organization.businessLogic',
+    examplesKey: 'manual.sections.organization.examples',
   },
   {
     id: 'roles',
@@ -159,6 +184,8 @@ const sections: ManualSection[] = [
     checklistKey: 'manual.sections.roles.checklist',
     businessLogicKey: 'manual.sections.roles.businessLogic',
     roleMatrixKey: 'manual.sections.roles.roleMatrix',
+    permissionGuideKey: 'manual.sections.roles.permissionGuide',
+    examplesKey: 'manual.sections.roles.examples',
   },
   {
     id: 'import',
@@ -173,6 +200,7 @@ const sections: ManualSection[] = [
     notesKey: 'manual.sections.import.notes',
     checklistKey: 'manual.sections.import.checklist',
     businessLogicKey: 'manual.sections.import.businessLogic',
+    examplesKey: 'manual.sections.import.examples',
   },
   {
     id: 'audit',
@@ -187,6 +215,7 @@ const sections: ManualSection[] = [
     notesKey: 'manual.sections.audit.notes',
     checklistKey: 'manual.sections.audit.checklist',
     businessLogicKey: 'manual.sections.audit.businessLogic',
+    examplesKey: 'manual.sections.audit.examples',
   },
   {
     id: 'feedback',
@@ -201,6 +230,7 @@ const sections: ManualSection[] = [
     notesKey: 'manual.sections.feedback.notes',
     checklistKey: 'manual.sections.feedback.checklist',
     businessLogicKey: 'manual.sections.feedback.businessLogic',
+    examplesKey: 'manual.sections.feedback.examples',
   },
   {
     id: 'faq',
@@ -215,6 +245,7 @@ const sections: ManualSection[] = [
     notesKey: 'manual.sections.faq.notes',
     checklistKey: 'manual.sections.faq.checklist',
     businessLogicKey: 'manual.sections.faq.businessLogic',
+    examplesKey: 'manual.sections.faq.examples',
   },
 ]
 
@@ -420,6 +451,19 @@ onBeforeUnmount(() => {
                   <span role="cell">{{ row.scope }}</span>
                 </div>
               </div>
+            </section>
+            <section v-if="section.permissionGuideKey" class="manual-block manual-block--guide">
+              <h3>{{ $t('manual.permissionGuide') }}</h3>
+              <p>{{ $t('manual.permissionGuideHint') }}</p>
+              <ul class="manual-list">
+                <li v-for="(item, index) in translateList(section.permissionGuideKey)" :key="`${section.id}-guide-${index}`">{{ item }}</li>
+              </ul>
+            </section>
+            <section v-if="section.examplesKey" class="manual-block manual-block--examples">
+              <h3>{{ $t('manual.examples') }}</h3>
+              <ul class="manual-list">
+                <li v-for="(example, index) in translateList(section.examplesKey)" :key="`${section.id}-example-${index}`">{{ example }}</li>
+              </ul>
             </section>
             <section class="manual-block">
               <h3>{{ $t('manual.steps') }}</h3>

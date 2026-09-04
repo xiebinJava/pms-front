@@ -10,14 +10,17 @@ import {
 } from '@ant-design/icons-vue'
 import { Modal, message } from 'ant-design-vue'
 import { createProject, deleteProject, getProjectPage, updateProject } from '/@/api/project'
-import { projectStatusKey, priorityKey, ProjectStatus, Priority, statusTagColor, priorityTagColor } from '/@/enums'
+import { projectStatusKey, priorityKey, ProjectStatus, Priority, projectStatusTagColor, priorityTagColor } from '/@/enums'
 import { formatDate } from '/@/utils/format'
 import { getProjectManagerDisplay } from '../detail/workflow'
 import PmsPageHeader from '/@/components/PmsPageHeader.vue'
 import type { Project } from '/@/types/domain'
+import { useUserStore } from '/@/store/user'
 
 const router = useRouter()
 const { t } = useI18n()
+const userStore = useUserStore()
+const canCreateProject = computed(() => userStore.can('project:create'))
 
 const columns = computed(() => [
   { title: t('project.name'), key: 'name', dataIndex: 'name' },
@@ -85,6 +88,10 @@ function onTableChange(p: { current?: number; pageSize?: number }) {
 }
 
 function openCreate() {
+  if (!canCreateProject.value) {
+    message.info(t('project.noCreatePermission'))
+    return
+  }
   modalState.editingId = null
   Object.assign(form, {
     name: '',
@@ -171,7 +178,7 @@ onMounted(loadData)
       :description="$t('project.description')"
     >
       <template #actions>
-        <a-button type="primary" class="pms-primary-button" @click="openCreate">
+        <a-button v-if="canCreateProject" type="primary" class="pms-primary-button pms-project-button pms-project-button--primary" @click="openCreate">
           <PlusOutlined /> {{ $t('project.create') }}
         </a-button>
       </template>
@@ -194,7 +201,7 @@ onMounted(loadData)
               {{ $t(`enum.projectStatus.${opt.value}`) }}
             </a-select-option>
           </a-select>
-          <a-button class="pms-secondary-button pms-filter-button" @click="onSearch"><ReloadOutlined /> {{ $t('common.query') }}</a-button>
+          <a-button class="pms-secondary-button pms-filter-button pms-project-button pms-project-button--secondary" @click="onSearch"><ReloadOutlined /> {{ $t('common.query') }}</a-button>
         </div>
       </div>
 
@@ -222,7 +229,7 @@ onMounted(loadData)
             <div v-if="record.orgUnitLeaderName" class="pms-table-subtext">{{ $t('project.leader', { name: record.orgUnitLeaderName }) }}</div>
           </template>
           <template v-else-if="column.key === 'status'">
-            <a-tag :color="statusTagColor[record.status]">{{ $t(projectStatusKey(record.status)) }}</a-tag>
+            <a-tag :color="projectStatusTagColor(record.status)">{{ $t(projectStatusKey(record.status)) }}</a-tag>
           </template>
           <template v-else-if="column.key === 'priority'">
             <a-tag
@@ -250,9 +257,9 @@ onMounted(loadData)
           </template>
           <template v-else-if="column.key === 'action'">
             <div class="pms-project-row-actions" role="group" :aria-label="$t('common.actions')">
-              <button class="pms-action-link" type="button" @click="router.push(`/projects/${record.id}`)">{{ $t('common.detail') }}</button>
-              <button v-if="record.permissions?.canManageProject" class="pms-action-link" type="button" @click="openEdit(record)">{{ $t('common.edit') }}</button>
-              <button v-if="record.permissions?.canDeleteProject" class="pms-action-link pms-action-link--danger" type="button" @click="onDelete(record)">{{ $t('common.delete') }}</button>
+              <button class="pms-action-link pms-project-button pms-project-button--text" type="button" @click="router.push(`/projects/${record.id}`)">{{ $t('common.detail') }}</button>
+              <button v-if="record.permissions?.canManageProject" class="pms-action-link pms-project-button pms-project-button--text" type="button" @click="openEdit(record)">{{ $t('common.edit') }}</button>
+              <button v-if="record.permissions?.canDeleteProject" class="pms-action-link pms-action-link--danger pms-project-button pms-project-button--text pms-project-button--danger" type="button" @click="onDelete(record)">{{ $t('common.delete') }}</button>
             </div>
           </template>
         </template>
@@ -323,7 +330,7 @@ onMounted(loadData)
 
 .pms-secondary-button {
   min-height: 36px;
-  border-radius: 6px !important;
+  border-radius: 8px !important;
   font-weight: 650;
 }
 
@@ -367,11 +374,14 @@ onMounted(loadData)
 }
 .pms-project-row-actions .pms-action-link {
   margin: 0;
-  padding: 3px 5px;
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 0 8px;
   color: var(--pms-primary);
   background: transparent;
   border: 0;
-  border-radius: 4px;
+  border-radius: 8px;
   line-height: 1.3;
 }
 .pms-project-row-actions .pms-action-link:hover { background: var(--pms-primary-soft); text-decoration: none; }

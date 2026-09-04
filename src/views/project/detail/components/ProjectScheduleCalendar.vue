@@ -57,15 +57,15 @@ function onRange(bar: { kind: 'project' | 'node'; refId: number; nodeId?: number
   <div class="cal">
     <div class="cal__toolbar">
       <div class="cal__nav">
-        <button type="button" class="cal__icon" :aria-label="$t('schedule.prevMonth')" @click="shift(-1)">
+        <button type="button" class="cal__icon pms-project-button pms-project-button--secondary pms-project-button--small pms-project-button--icon" :aria-label="$t('schedule.prevMonth')" @click="shift(-1)">
           <LeftOutlined />
         </button>
         <strong>{{ title }}</strong>
-        <button type="button" class="cal__icon" :aria-label="$t('schedule.nextMonth')" @click="shift(1)">
+        <button type="button" class="cal__icon pms-project-button pms-project-button--secondary pms-project-button--small pms-project-button--icon" :aria-label="$t('schedule.nextMonth')" @click="shift(1)">
           <RightOutlined />
         </button>
       </div>
-      <button type="button" class="cal__today" @click="goToday">{{ $t('schedule.today') }}</button>
+      <button type="button" class="cal__today pms-project-button pms-project-button--secondary pms-project-button--small" @click="goToday">{{ $t('schedule.today') }}</button>
     </div>
 
     <div class="cal__weekdays">
@@ -130,16 +130,17 @@ function onRange(bar: { kind: 'project' | 'node'; refId: number; nodeId?: number
   align-items: center;
   justify-content: center;
   min-height: 32px;
-  color: var(--pms-primary);
-  background: var(--pms-surface);
-  border: 1px solid var(--pms-border);
-  border-radius: 6px;
+  color: #5d6d85;
+  background: #fff;
+  border: 1px solid #d7dfeb;
+  border-radius: 8px;
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
   cursor: pointer;
 }
 .cal__icon { width: 32px; }
 .cal__today { padding: 0 12px; font-size: var(--pms-font-size-compact); font-weight: 680; }
 .cal__icon:hover,
-.cal__today:hover { background: var(--pms-primary-soft); border-color: color-mix(in srgb, var(--pms-primary) 22%, var(--pms-border)); }
+.cal__today:hover { color: #1769e0; background: #eaf2ff; border-color: #b9d2f7; }
 .cal__weekdays {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -180,7 +181,7 @@ function onRange(bar: { kind: 'project' | 'node'; refId: number; nodeId?: number
   cursor: pointer;
 }
 .cal-range--project { background: linear-gradient(90deg, var(--pms-primary-dark), var(--pms-primary)); }
-.cal-range--active { background: var(--pms-primary); }
+.cal-range--active { background: var(--pms-status-active); }
 .cal-range--completed { background: var(--pms-success); }
 .cal-range--locked { background: var(--pms-status-neutral); }
 .cal-range--terminated { background: var(--pms-danger); }

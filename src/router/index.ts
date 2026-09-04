@@ -48,6 +48,12 @@ const router = createRouter({
           meta: { titleKey: 'route.feedback', permission: 'feedback:read' },
         },
         {
+          path: 'notifications',
+          name: 'notifications',
+          component: () => import('/@/views/notifications/index.vue'),
+          meta: { titleKey: 'route.notifications', permission: 'project:read' },
+        },
+        {
           path: 'manual',
           name: 'manual',
           component: () => import('/@/views/manual/index.vue'),

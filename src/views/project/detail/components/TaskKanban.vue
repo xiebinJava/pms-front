@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { CloseOutlined, ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons-vue'
+import { CalendarOutlined, CloseOutlined, PlusOutlined, UserOutlined } from '@ant-design/icons-vue'
 import { Modal, message } from 'ant-design-vue'
 import { createTask, deleteTask, getTask, getTasks, moveTask, updateTask } from '/@/api/task'
 import { getMembers } from '/@/api/member'
 import { getMilestones } from '/@/api/milestone'
-import { priorityKey, taskStatusKey, Priority, TaskStatus, priorityTagColor } from '/@/enums'
+import { priorityKey, taskStatusKey, Priority, TaskStatus } from '/@/enums'
 import { formatDate } from '/@/utils/format'
 import type { Milestone, Project, ProjectMember, ProjectNode, Task, TaskDetail } from '/@/types/domain'
 import {
@@ -28,7 +28,10 @@ const props = defineProps<{
   node: ProjectNode
   focusTaskId?: number | null
 }>()
-const emit = defineEmits<{ focused: [] }>()
+const emit = defineEmits<{
+  focused: []
+  'task-progress': [{ projectId: number; nodeId: number; done: number; total: number }]
+}>()
 const { t } = useI18n()
 
 const tasks = ref<Task[]>([])
@@ -53,6 +56,16 @@ const taskMemberOptions = computed(() => members.value.map((member) => ({
   avatar: member.avatar,
 })))
 const milestoneNameMap = computed(() => new Map(milestones.value.map((m) => [m.id, m.title])))
+const priorityBadgeClasses: Record<number, string> = {
+  0: 'pms-project-badge--priority-low',
+  1: 'pms-project-badge--priority-medium',
+  2: 'pms-project-badge--priority',
+  3: 'pms-project-badge--priority-urgent',
+}
+
+function priorityBadgeClass(priority: number) {
+  return priorityBadgeClasses[priority] ?? 'pms-project-badge--priority'
+}
 
 const modalState = reactive({ open: false, editingId: null as number | null, presetStatus: 0 })
 const detail = ref<TaskDetail | null>(null)
@@ -76,7 +89,8 @@ const taskScope = computed(() => ({
   status: props.node.status,
   readOnly: nodeReadOnly.value,
 }))
-const canManageTasks = computed(() => props.node.permissions?.canManageTasks ?? !nodeReadOnly.value)
+const canManageTasks = computed(() => Boolean(props.node.permissions?.canManageTasks))
+const canWriteComment = computed(() => Boolean(props.project.permissions?.canWriteComment))
 const editingTask = computed(() => modalState.editingId == null
   ? null
   : tasks.value.find((task) => task.id === modalState.editingId) || detail.value || null)
@@ -86,26 +100,44 @@ const canEditModal = computed(() => modalState.editingId == null
 const canManageModal = computed(() => modalState.editingId == null
   ? canManageTasks.value
   : Boolean(editingTask.value?.permissions?.canDelete))
+let loadSequence = 0
+let detailSequence = 0
+
+function emitTaskProgress(list: Task[] = tasks.value) {
+  emit('task-progress', {
+    projectId: props.projectId,
+    nodeId: props.nodeId,
+    done: list.filter((task) => task.status === 2).length,
+    total: list.length,
+  })
+}
 
 async function loadAll() {
   loading.value = true
+  const sequence = ++loadSequence
+  const requestedNodeId = props.nodeId
   try {
     const [taskList, memberList, milestoneList] = await Promise.all([
       getTasks(props.projectId, props.nodeId),
       getMembers(props.projectId),
       getMilestones(props.projectId),
     ])
+    if (sequence !== loadSequence || requestedNodeId !== props.nodeId) return
     tasks.value = taskList
     members.value = memberList
     milestones.value = milestoneList
+    emitTaskProgress(taskList)
     await maybeOpenFocusedTask()
   } finally {
-    loading.value = false
+    if (sequence === loadSequence) loading.value = false
   }
 }
 
 async function loadDetail(taskId: number) {
-  detail.value = await getTask(taskId)
+  const sequence = ++detailSequence
+  const loaded = await getTask(taskId)
+  if (sequence !== detailSequence || modalState.editingId !== taskId) return
+  detail.value = loaded
 }
 
 async function maybeOpenFocusedTask() {
@@ -140,6 +172,7 @@ function openCreate(status: number) {
 
 function openEdit(task: Task) {
   modalState.editingId = task.id
+  detail.value = null
   Object.assign(form, {
     title: task.title,
     description: task.description || '',
@@ -191,12 +224,20 @@ async function onDrop(status: number) {
   }
 
   const previousStatus = task.status
+  const originSequence = loadSequence
+  const originProjectId = props.projectId
+  const originNodeId = props.nodeId
   tasks.value = moveTaskStatus(tasks.value, taskId, status)
+  emitTaskProgress()
   try {
     const updated = await moveTask(taskId, status)
+    if (originSequence !== loadSequence || originProjectId !== props.projectId || originNodeId !== props.nodeId) return
     tasks.value = tasks.value.map((item) => item.id === taskId ? updated : item)
+    emitTaskProgress()
   } catch {
+    if (originSequence !== loadSequence || originProjectId !== props.projectId || originNodeId !== props.nodeId) return
     tasks.value = moveTaskStatus(tasks.value, taskId, previousStatus)
+    emitTaskProgress()
   }
 }
 
@@ -252,6 +293,7 @@ watch(taskScope, (next, previous) => {
         :class="{
           'pms-task-card--readonly': task.permissions?.readOnly || !task.permissions?.canEdit,
           'pms-task-card--dragging': dragId === task.id,
+          'pms-task-card--urgent': task.priority === 3,
         }"
         :draggable="Boolean(task.permissions?.canMove && !nodeReadOnly)"
         @dragstart.stop="dragId = task.id"
@@ -262,7 +304,7 @@ watch(taskScope, (next, previous) => {
           <button
             v-if="task.permissions?.canDelete"
             type="button"
-            class="pms-task-card__delete"
+            class="pms-task-card__delete pms-project-button pms-project-button--icon pms-project-button--danger"
             :aria-label="$t('task.deleteAria')"
             :title="$t('task.deleteAria')"
             @click.stop="onDelete(task)"
@@ -270,26 +312,33 @@ watch(taskScope, (next, previous) => {
             <CloseOutlined />
           </button>
         </div>
-        <div class="flex items-start justify-between gap-2 pr-5">
+        <div class="task-card__header">
           <span class="pms-task-card__title">{{ task.title }}</span>
-          <a-tag
-            :color="priorityTagColor[task.priority]"
-            class="pms-priority-tag !m-0 !text-[11px] !px-1"
-            :class="{ 'pms-priority-tag--urgent': task.priority === 3 }"
-          >
-            <ExclamationCircleOutlined v-if="task.priority === 3" />
+          <span class="pms-project-badge task-card__priority" :class="priorityBadgeClass(task.priority)">
             {{ $t(priorityKey(task.priority)) }}
-          </a-tag>
+          </span>
         </div>
         <div class="pms-task-card__meta">
-          <span>{{ normalizePersonDisplayLabel(task.assigneeName) || $t('task.unassigned') }}</span>
-          <span>{{ milestoneNameMap.get(task.milestoneId ?? 0) || '' }}</span>
-          <span>{{ formatDate(task.dueDate) }}</span>
-          <span v-if="task.subtaskCount">{{ $t('task.subtaskCount', { count: task.subtaskCount }) }}</span>
+          <span class="task-card__meta-item task-card__assignee">
+            <UserOutlined />
+            <span>{{ normalizePersonDisplayLabel(task.assigneeName) || $t('task.unassigned') }}</span>
+          </span>
+          <span class="task-card__meta-item task-card__due-date">
+            <CalendarOutlined />
+            <span>{{ formatDate(task.dueDate) }}</span>
+          </span>
+        </div>
+        <div v-if="milestoneNameMap.get(task.milestoneId ?? 0) || task.subtaskCount" class="task-card__context">
+          <span v-if="milestoneNameMap.get(task.milestoneId ?? 0)" class="task-card__context-item">
+            {{ milestoneNameMap.get(task.milestoneId ?? 0) }}
+          </span>
+          <span v-if="task.subtaskCount" class="task-card__context-item">
+            {{ $t('task.subtaskCount', { count: task.subtaskCount }) }}
+          </span>
         </div>
       </div>
 
-      <a-button v-if="canManageTasks" type="text" block size="small" class="text-[12px]" @click="openCreate(col.status)">
+      <a-button v-if="canManageTasks" type="text" block size="small" class="text-[12px] pms-project-button pms-project-button--secondary pms-project-button--small pms-project-button--dashed" @click="openCreate(col.status)">
         <PlusOutlined /> {{ $t('task.add') }}
       </a-button>
     </div>
@@ -297,6 +346,7 @@ watch(taskScope, (next, previous) => {
 
   <a-modal
     v-model:open="modalState.open"
+    class="pms-project-modal"
     :title="modalState.editingId ? $t('task.detail') : $t('task.create')"
     :width="modalState.editingId ? 720 : 520"
   >
@@ -350,14 +400,15 @@ watch(taskScope, (next, previous) => {
       :detail="detail"
       :can-edit="canEditModal"
       :can-manage="canManageModal"
+      :can-write-comment="canWriteComment"
       @changed="onWorkPanelChanged"
     />
     <template #footer>
-      <a-button v-if="modalState.editingId && editingTask?.permissions?.canDelete" danger @click="onDelete({ id: modalState.editingId, title: form.title } as Task)">
+      <a-button v-if="modalState.editingId && editingTask?.permissions?.canDelete" danger class="pms-project-button pms-project-button--danger" @click="onDelete({ id: modalState.editingId, title: form.title } as Task)">
         {{ $t('common.delete') }}
       </a-button>
-      <a-button @click="modalState.open = false">{{ $t('common.cancel') }}</a-button>
-      <a-button v-if="canEditModal" type="primary" class="pms-primary-button" @click="onSave">{{ $t('common.save') }}</a-button>
+      <a-button class="pms-project-button pms-project-button--secondary" @click="modalState.open = false">{{ $t('common.cancel') }}</a-button>
+      <a-button v-if="canEditModal" type="primary" class="pms-primary-button pms-project-button pms-project-button--primary" @click="onSave">{{ $t('common.save') }}</a-button>
     </template>
   </a-modal>
 </template>
@@ -365,16 +416,42 @@ watch(taskScope, (next, previous) => {
 <style scoped>
 .pms-task-card {
   position: relative;
-  min-height: 74px;
-  padding: 12px 44px 12px 14px;
-  box-shadow: 0 6px 16px rgb(15 23 42 / 10%);
+  min-height: 94px;
+  padding: 14px;
+  border-left: 3px solid transparent;
+  border-radius: var(--pms-radius);
+  box-shadow: 0 2px 7px rgb(16 34 63 / 5%);
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 .pms-task-card:hover {
-  border-color: var(--pms-primary);
-  box-shadow: 0 12px 24px rgb(15 23 42 / 16%);
+  border-color: color-mix(in srgb, var(--pms-primary) 55%, var(--pms-border));
+  border-left-color: var(--pms-primary);
+  box-shadow: var(--pms-shadow-md);
   transform: translateY(-1px);
 }
+.pms-task-card--urgent { border-left-color: color-mix(in srgb, var(--pms-danger) 55%, var(--pms-border)); }
+.task-card__header { display: flex; align-items: flex-start; min-width: 0; gap: 8px; padding-right: 28px; }
+.pms-task-card__title {
+  display: -webkit-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--pms-text);
+  font-size: 13px;
+  font-weight: 680;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.task-card__priority { flex: 0 0 auto; }
+.pms-task-card__meta { display: flex; align-items: center; justify-content: space-between; min-width: 0; gap: 10px; margin-top: 14px; color: var(--pms-text-faint); font-size: 11px; }
+.task-card__meta-item { display: inline-flex; align-items: center; min-width: 0; gap: 5px; }
+.task-card__meta-item .anticon { flex: 0 0 auto; color: var(--pms-text-faint); font-size: 12px; }
+.task-card__assignee { overflow: hidden; }
+.task-card__assignee > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-card__due-date { flex: 0 0 auto; }
+.task-card__context { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.task-card__context-item { max-width: 100%; overflow: hidden; padding: 3px 7px; color: var(--pms-text-muted); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: 999px; text-overflow: ellipsis; white-space: nowrap; }
 .pms-task-card--dragging {
   opacity: .62;
   border-style: dashed;
@@ -383,8 +460,8 @@ watch(taskScope, (next, previous) => {
 }
 .pms-task-card__actions {
   position: absolute;
-  top: 7px;
-  right: 7px;
+  top: 8px;
+  right: 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

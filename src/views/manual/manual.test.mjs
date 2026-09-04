@@ -20,6 +20,7 @@ test('user manual exposes the navigation-aligned module catalog', () => {
   for (const section of [
     'quick-start',
     'workbench',
+    'notifications',
     'rd-management',
     'manual.sections.rdManagement',
     'manual.sections.projects',
@@ -118,16 +119,48 @@ test('manual navigation follows the section nearest the reading anchor', () => {
 test('manual view wires scroll synchronization and documents the current release baseline', () => {
   assert.match(viewSource, /addEventListener\('scroll', onWindowScroll/)
   assert.match(viewSource, /router\.replace\(\{ path: '\/manual', hash: `#\$\{nextSection\}` \}\)/)
-  assert.match(docsSource, /PMS v1\.0\.0[\s\S]*V1–V12/)
+  assert.match(docsSource, /PMS v1\.0\.0[\s\S]*V1–V18/)
 })
 
 test('manual explains business rules and role capabilities instead of only listing operations', () => {
   assert.match(viewSource, /businessLogicKey/)
+  assert.match(viewSource, /examplesKey/)
   assert.match(viewSource, /translateMatrix/)
   assert.match(viewSource, /manual-role-matrix/)
+  assert.match(viewSource, /manual-block--examples/)
+  assert.match(viewSource, /permissionGuideKey/)
   assert.match(docsSource, /业务规则和前端设计规范改为独立参考文档/)
   assert.match(docsSource, /design-logic\.md/)
   assert.match(docsSource, /frontend-design-system\.md/)
+})
+
+test('every feature module includes role-based examples grounded in default grants', () => {
+  const localeSource = fs.readFileSync(new URL('../../locales/zh-CN.ts', import.meta.url), 'utf8')
+  for (const section of [
+    'quickStart',
+    'workbench',
+    'rdManagement',
+    'projects',
+    'configuration',
+    'users',
+    'organization',
+    'roles',
+    'import',
+    'audit',
+    'feedback',
+    'faq',
+  ]) {
+    assert.match(viewSource, new RegExp(`examplesKey: 'manual\\.sections\\.${section}\\.examples'`))
+    assert.match(localeSource, new RegExp(`${section}:[\\s\\S]*?examples: \\[`))
+  }
+  assert.match(localeSource, /如果我是部门负责人：日常就是能看全公司项目、在本部门及下级建项目/)
+  assert.match(localeSource, /人员读：能打开「人员与权限」/)
+  assert.match(localeSource, /组织读：能打开「组织架构」/)
+  assert.match(localeSource, /普通员工：能看全公司项目及任务、节点、评论和附件，也能新建项目/)
+  assert.match(localeSource, /所有标准角色都有 project:create/)
+  assert.match(localeSource, /不按组织再过滤/)
+  assert.match(docsSource, /按角色看/)
+  assert.match(docsSource, /读=能打开看，写=能改数据/)
 })
 
 test('manual keeps durable reference documents on independent pages', () => {

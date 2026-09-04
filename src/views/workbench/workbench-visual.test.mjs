@@ -18,3 +18,10 @@ test('workbench exposes the agreed work sections and responsive layout hooks', (
   assert.match(styleSource, /\.workbench-overview-grid\s*\{/)
   assert.match(styleSource, /@media \(max-width: 760px\)[\s\S]*\.workbench-content-grid/)
 })
+
+test('a workbench reload failure keeps already loaded cards', () => {
+  assert.match(source, /catch \(error\) \{\s*errorMessage\.value = getErrorMessage/)
+  assert.doesNotMatch(source, /catch \(error\) \{[\s\S]*projects\.value = \[\]/)
+  assert.doesNotMatch(source, /catch \(error\) \{[\s\S]*myTasks\.value = \[\]/)
+  assert.doesNotMatch(source, /catch \(error\) \{[\s\S]*summary\.value = emptySummary/)
+})

@@ -6,6 +6,11 @@
 
 ## Unreleased
 
+- Add structured project and permission audit traceability: searchable project/result/request filters, field-level detail drawer, redacted before/after snapshots, retention-run auditing, and the V14 audit context migration.
+- Standardize lifecycle status colors: not started / to-do use neutral gray, in progress uses orange, completed uses success green, terminated uses danger red, and deleted uses muted gray. Project, task, node, and milestone tags share this mapping.
+- Add role-based examples to every in-app user-guide module, explain people-read and organization-read in everyday page actions, and correct the built-in role matrix so it matches the default permission seed.
+- Keep already loaded workbench cards when a refresh fails, and block node completion while that node still has unfinished tasks.
+- Rewrite in-app business-rules and design-system copy so it matches current behavior: email search scope, full-email name fallback, no admin re-enable API, intermediate business lines, import template fields, audit scope, node completion, and actual shell geometry.
 - Plane + Taiga 视觉迁移（2026-09-03）：统一令牌和应用壳层，完成项目列表/详情、工作台、治理页面、组织画布、反馈中心与文档中心的工作台式视觉层级；只调整视觉、响应式和可访问性，不改变业务接口或状态机。跨页面验收覆盖 `1440 × 900` 与 `390 × 844`，`pnpm test` 130/130、类型检查、构建和隐私扫描通过。
 - Release-closure snapshot (2026-09-01): `pnpm test` 111/111 passed; `pnpm typecheck` and `pnpm build` passed. Playwright desktop, 390px narrow-screen, and manual recording flows passed with deterministic `zh-CN` locale.
 - Load the workbench from `GET /workbench` instead of fanning out project, task, and comment requests.

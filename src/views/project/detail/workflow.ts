@@ -23,7 +23,7 @@ export interface NodeDetailField {
 }
 
 export interface ProjectProfileFieldDefinition {
-  key: 'description' | 'priority' | 'schedule' | 'businessLine'
+  key: 'description' | 'priority' | 'projectLevel' | 'schedule' | 'businessLine'
   label: string
   wide?: boolean
   multiline?: boolean
@@ -119,6 +119,7 @@ export function getProjectProfileFields(): ProjectProfileFieldDefinition[] {
   return [
     { key: 'description', label: 'detail.profileDescription', wide: true, multiline: true },
     { key: 'priority', label: 'detail.profilePriority' },
+    { key: 'projectLevel', label: 'detail.profileProjectLevel' },
     { key: 'schedule', label: 'detail.profileSchedule' },
     { key: 'businessLine', label: 'detail.businessLine' },
   ]
@@ -189,7 +190,6 @@ export function getProjectOverallProgress(
 }
 
 export function getProjectStatusTone(status?: number): ProjectStatusTone {
-  if (status === 1) return 'active'
   if (status === 2) return 'completed'
   if (status === 3) return 'terminated'
   if (status === 4) return 'deleted'

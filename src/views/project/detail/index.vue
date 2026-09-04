@@ -4,9 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeftOutlined,
-  CheckOutlined,
+  MoreOutlined,
   NodeIndexOutlined,
-  PictureOutlined,
   RollbackOutlined,
 } from '@ant-design/icons-vue'
 import { Modal, message } from 'ant-design-vue'
@@ -14,27 +13,33 @@ import { getFollowers } from '/@/api/follower'
 import { addMember, getMembers } from '/@/api/member'
 import { getTask, getTasks } from '/@/api/task'
 import { getMilestones } from '/@/api/milestone'
-import { getProject, restoreProject, terminateProject, updateProject, uploadProjectImage } from '/@/api/project'
+import { getProject, restoreProject, terminateProject, updateProject } from '/@/api/project'
+import type { ProjectUpdatePayload } from '/@/api/project'
 import { completeNode, getNodes, rollbackNode, updateNodeOwner, updateNodeSchedule } from '/@/api/node'
 import { getProjectOrgTree } from '/@/api/admin-org'
 import { searchUsers } from '/@/api/user'
-import { priorityKey, projectStatusKey, Priority, statusTagColor } from '/@/enums'
-import { formatDate, formatDateTime } from '/@/utils/format'
 import {
-  canRollbackNode,
+  nodeStatusTagColor,
+  priorityKey,
+  projectLevelKey,
+  projectStatusKey,
+  projectStatusTagColor,
+  ProjectLevel,
+  Priority,
+} from '/@/enums'
+import { formatDate } from '/@/utils/format'
+import {
   buildBusinessLineOptions,
   findOrgUnitById,
-  getElapsedDays,
   getMissingKickoffProfileFields,
   formatPersonLabel,
   getNodeOwnerDisplay,
   getPersonDisplay,
   getProjectProfileFields,
   getProjectManagerDisplay,
-  getProjectOverallProgress,
+  getNodeProgress,
   getNodeStatusMeta,
   getOrgUnitPath,
-  getProjectStatusTone,
   isNodeReadOnly,
   isKickoffNode,
   normalizeRequiredReason,
@@ -48,6 +53,8 @@ import Milestones from './components/Milestones.vue'
 import Members from './components/Members.vue'
 import Comments from './components/Comments.vue'
 import PersonSelect from './components/PersonSelect.vue'
+import RequirementScopeWorkbench from './components/RequirementScopeWorkbench.vue'
+import SolutionDesignWorkbench from './components/SolutionDesignWorkbench.vue'
 import type { PersonOption } from './workflow'
 import type { Milestone, OrgUnit, Project, ProjectMember, ProjectNode, Task, User } from '/@/types/domain'
 
@@ -81,8 +88,6 @@ const nodeOwnerSaving = ref(false)
 const profileDirty = ref(false)
 const profileSaving = ref(false)
 let profileSavePromise: Promise<void> | null = null
-const descriptionImageInput = ref<HTMLInputElement | null>(null)
-const descriptionImageUploading = ref(false)
 const profileContainer = ref<HTMLElement | null>(null)
 const activeNodeId = ref<number | null>(null)
 const activeSection = ref('milestones')
@@ -91,16 +96,24 @@ const priorityOptions = computed(() => Priority.options().map((opt) => ({
   ...opt,
   label: t(priorityKey(opt.value)),
 })))
+const projectLevelOptions = computed(() => ProjectLevel.options().map((opt) => ({
+  ...opt,
+  label: t(projectLevelKey(opt.value)),
+})))
 const members = ref<ProjectMember[]>([])
 const followers = ref<User[]>([])
 const profileUserOptions = ref<PersonOption[]>([])
 const orgTree = ref<OrgUnit[]>([])
 const nodeSchedule = ref<string[]>([])
 const nodeScheduleSaving = ref(false)
+const scheduleSavingNodeId = ref<number | null>(null)
+let scheduleSaveSequence = 0
 const scheduleTasks = ref<Task[]>([])
 const scheduleMilestones = ref<Milestone[]>([])
 const scheduleLoading = ref(false)
 const scheduleLoaded = ref(false)
+const activeNodeTaskSummary = ref({ done: 0, total: 0 })
+const requirementBaselineStatus = ref(0)
 type ReasonAction = 'terminate' | 'restore' | 'rollback'
 
 const reasonModal = reactive({
@@ -117,6 +130,7 @@ const rollbackTargetNode = ref<ProjectNode | null>(null)
 const profileForm = reactive({
   description: '',
   priority: 1,
+  projectLevel: 0,
   projectManagerId: undefined as number | undefined,
   schedule: [] as string[],
   orgUnitId: undefined as number | undefined,
@@ -128,12 +142,11 @@ const activeNode = computed<ProjectNode | null>(
   () => nodes.value.find((node) => node.id === activeNodeId.value) || null,
 )
 const doneNodeCount = computed(() => nodes.value.filter((node) => node.status === 2).length)
-const nodeProgress = computed(() => getProjectOverallProgress(
-  project.value?.progress,
-  doneNodeCount.value,
-  nodes.value.length,
+const projectProgress = computed(() => getNodeProgress(doneNodeCount.value, nodes.value.length))
+const currentNodeProgress = computed(() => getNodeProgress(
+  activeNodeTaskSummary.value.done,
+  activeNodeTaskSummary.value.total,
 ))
-const elapsedDays = computed(() => getElapsedDays(project.value?.startDate))
 const showKickoffProfile = computed(() => isKickoffNode(activeNode.value?.nodeKey))
 const nodeOwnerOptions = computed(() => members.value.map((member) => ({
   value: member.userId,
@@ -154,30 +167,22 @@ const businessLinePath = computed<number[] | undefined>({
     markProfileDirty()
   },
 })
-const projectCreatorOption = computed(() => {
-  const creatorId = project.value?.createdBy
-  return creatorId == null ? undefined : profileUserOptions.value.find((option) => option.value === creatorId)
-})
 const projectManagerOption = computed(() => {
   const managerId = profileForm.projectManagerId
   return managerId == null ? undefined : profileUserOptions.value.find((option) => option.value === managerId)
 })
-const projectCreatorDisplay = computed(() => getPersonDisplay(
-  projectCreatorOption.value,
-  project.value?.createdByName || t('detail.unrecorded'),
-))
 const projectManagerDisplay = computed(() => {
   const managerName = projectManagerOption.value?.label || project.value?.projectManagerName
   const display = getPersonDisplay(projectManagerOption.value, managerName)
   const assigned = getProjectManagerDisplay(managerName)
   return { ...display, label: assigned || t('detail.unassigned'), pending: !assigned }
 })
-const projectStatusTone = computed(() => {
-  return getProjectStatusTone(project.value?.status)
-})
-const canManageProject = computed(() => project.value?.permissions?.canManageProject ?? project.value?.status === 1)
-const canAssignNodeOwner = computed(() => project.value?.permissions?.canAssignNodeOwner ?? project.value?.status === 1)
-const canEditActiveNode = computed(() => activeNode.value?.permissions?.canEdit ?? canManageProject.value)
+const canManageProject = computed(() => Boolean(project.value?.permissions?.canManageProject))
+const canManageMembers = computed(() => Boolean(project.value?.permissions?.canManageMembers))
+const canSetProjectManager = computed(() => Boolean(project.value?.permissions?.canSetProjectManager))
+const canAssignNodeOwner = computed(() => Boolean(project.value?.permissions?.canAssignNodeOwner))
+const canWriteComment = computed(() => Boolean(project.value?.permissions?.canWriteComment))
+const canEditActiveNode = computed(() => Boolean(activeNode.value?.permissions?.canEdit))
 const canTerminateProject = computed(() => project.value?.permissions?.canTerminateProject ?? false)
 const canRestoreProject = computed(() => project.value?.permissions?.canRestoreProject ?? false)
 const activeNodeReadOnly = computed(() => Boolean(
@@ -185,15 +190,33 @@ const activeNodeReadOnly = computed(() => Boolean(
     || project.value?.status !== 1),
 ))
 const canCompleteActiveNode = computed(() => Boolean(
-  activeNode.value && (activeNode.value.permissions?.canComplete ?? activeNode.value.status === 1),
+  activeNode.value && Boolean(activeNode.value.permissions?.canComplete),
 ))
 const canRollbackActiveNode = computed(() => Boolean(
-  activeNode.value && (activeNode.value.permissions?.canRollback
-    ?? canRollbackNode(activeNode.value.sort, activeNode.value.status)),
+  activeNode.value && Boolean(activeNode.value.permissions?.canRollback),
 ))
 
 function getNodeStatusLabel(status: number): string {
   return t(getNodeStatusMeta(status).label)
+}
+
+function getProjectLevelCode(level?: number): string {
+  return ({ 0: 'C', 1: 'B', 2: 'A', 3: 'S' } as Record<number, string>)[level ?? 0] || 'C'
+}
+
+function getProjectLevelLabel(level?: number): string {
+  return t(projectLevelKey(level ?? 0)).replace(/\s*[（(][A-Z][）)]\s*$/, '')
+}
+
+function getProjectLevelBadge(level?: number): string {
+  return t('detail.projectLevelBadge', {
+    code: getProjectLevelCode(level),
+    label: getProjectLevelLabel(level),
+  })
+}
+
+function getPriorityBadge(priority: number): string {
+  return t('detail.priorityBadge', { label: t(priorityKey(priority)) })
 }
 
 function joinLocalizedFields(keys: string[]): string {
@@ -212,6 +235,7 @@ async function loadData() {
     ])
     project.value = projectData
     nodes.value = nodeData
+    activeNodeTaskSummary.value = { done: 0, total: 0 }
     members.value = memberData
     followers.value = followerData
     orgTree.value = orgData
@@ -326,6 +350,7 @@ function resetProfileForm() {
   Object.assign(profileForm, {
     description: project.value.description || '',
     priority: project.value.priority,
+    projectLevel: project.value.projectLevel ?? 0,
     projectManagerId: project.value.projectManagerId,
     schedule: [project.value.startDate, project.value.endDate].filter(Boolean) as string[],
     orgUnitId: project.value.orgUnitId,
@@ -338,6 +363,20 @@ function resetProfileForm() {
 watch(activeNode, (node) => {
   nodeSchedule.value = [node?.startDate, node?.endDate].filter(Boolean) as string[]
 }, { immediate: true })
+
+watch(activeNodeId, () => {
+  activeNodeTaskSummary.value = { done: 0, total: 0 }
+  requirementBaselineStatus.value = 0
+})
+
+function onTaskProgress(payload: { projectId: number; nodeId: number; done: number; total: number }) {
+  if (payload.projectId !== projectId.value || payload.nodeId !== activeNodeId.value) return
+  activeNodeTaskSummary.value = { done: payload.done, total: payload.total }
+}
+
+function onRequirementBaselineStatus(status: number) {
+  requirementBaselineStatus.value = status
+}
 
 function formatUserOption(user: User): PersonOption {
   return { value: user.id, label: formatPersonLabel(user), avatar: user.avatar }
@@ -362,11 +401,6 @@ async function onProfileUserSearch(keyword = '') {
 
 function markProfileDirty() {
   profileDirty.value = true
-}
-
-function getPersonInitials(name?: string): string {
-  const value = name?.trim()
-  return value ? value.slice(0, 2) : '?'
 }
 
 async function onNodeOwnerChange(ownerId: number | undefined) {
@@ -411,8 +445,52 @@ async function onBusinessLineChange(value: Array<number | string> | undefined) {
   }
 }
 
+function canEditScheduleNode(node: ProjectNode): boolean {
+  return Boolean(
+    project.value?.status === 1
+      && node.permissions?.canEdit
+      && !node.permissions?.readOnly
+      && !isNodeReadOnly(node.status),
+  )
+}
+
+async function persistNodeSchedule(nodeId: number, next: string[]) {
+  const index = nodes.value.findIndex((node) => node.id === nodeId)
+  const current = index >= 0 ? nodes.value[index] : undefined
+  if (!current) return
+  const previous = { startDate: current.startDate, endDate: current.endDate }
+  const nextDates = {
+    startDate: next[0] || undefined,
+    endDate: next[1] || undefined,
+  }
+  nodes.value[index] = { ...current, ...nextDates }
+  if (activeNodeId.value === nodeId) nodeSchedule.value = next.filter(Boolean)
+  const sequence = ++scheduleSaveSequence
+  scheduleSavingNodeId.value = nodeId
+  if (activeNodeId.value === nodeId) nodeScheduleSaving.value = true
+  try {
+    const updated = await updateNodeSchedule(projectId.value, nodeId, nextDates)
+    if (sequence !== scheduleSaveSequence) return
+    const updatedIndex = nodes.value.findIndex((node) => node.id === updated.id)
+    if (updatedIndex >= 0) nodes.value[updatedIndex] = updated
+    if (activeNodeId.value === nodeId) nodeSchedule.value = [updated.startDate, updated.endDate].filter(Boolean) as string[]
+    message.success(t('detail.scheduleUpdated'))
+  } catch {
+    if (sequence !== scheduleSaveSequence) return
+    const currentIndex = nodes.value.findIndex((node) => node.id === nodeId)
+    if (currentIndex >= 0) nodes.value[currentIndex] = { ...nodes.value[currentIndex], ...previous }
+    if (activeNodeId.value === nodeId) nodeSchedule.value = [previous.startDate, previous.endDate].filter(Boolean) as string[]
+    message.error(t('detail.scheduleSaveFailed'))
+  } finally {
+    if (sequence === scheduleSaveSequence) {
+      scheduleSavingNodeId.value = null
+      if (activeNodeId.value === nodeId) nodeScheduleSaving.value = false
+    }
+  }
+}
+
 async function onNodeScheduleChange(value: unknown, dateStrings?: string[] | string) {
-  if (!activeNode.value) return
+  if (!activeNode.value || scheduleSavingNodeId.value != null) return
   const next = (Array.isArray(dateStrings)
     ? dateStrings
     : Array.isArray(value) && value.every((item) => typeof item === 'string')
@@ -427,51 +505,16 @@ async function onNodeScheduleChange(value: unknown, dateStrings?: string[] | str
     message.info(t('detail.noEditSchedule'))
     return
   }
-  nodeScheduleSaving.value = true
-  try {
-    const updated = await updateNodeSchedule(projectId.value, activeNode.value.id, {
-      startDate: next[0],
-      endDate: next[1],
-    })
-    const index = nodes.value.findIndex((node) => node.id === updated.id)
-    if (index >= 0) nodes.value[index] = updated
-    nodeSchedule.value = next
-    message.success(t('detail.scheduleUpdated'))
-  } catch {
-    nodeSchedule.value = [activeNode.value.startDate, activeNode.value.endDate].filter(Boolean) as string[]
-    message.error(t('detail.scheduleSaveFailed'))
-  } finally {
-    nodeScheduleSaving.value = false
-  }
+  await persistNodeSchedule(activeNode.value.id, next)
 }
 
-function openDescriptionImagePicker() {
-  descriptionImageInput.value?.click()
-}
-
-async function onDescriptionImageSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file) return
-  if (!file.type.startsWith('image/')) {
-    message.warning(t('detail.imageRequired'))
+async function onScheduleNodeScheduleChange(payload: { nodeId: number; startDate: string; endDate: string }) {
+  const node = nodes.value.find((item) => item.id === payload.nodeId)
+  if (!node || !canEditScheduleNode(node) || scheduleSavingNodeId.value != null) {
+    message.info(t('detail.noEditSchedule'))
     return
   }
-  if (file.size > 5 * 1024 * 1024) {
-    message.warning(t('detail.imageTooLarge'))
-    return
-  }
-
-  descriptionImageUploading.value = true
-  try {
-    const uploaded = await uploadProjectImage(file)
-    profileForm.description = `${profileForm.description.trimEnd()}${profileForm.description.trim() ? '\n' : ''}![${uploaded.name}](${uploaded.url})`
-    markProfileDirty()
-    message.success(t('detail.imageInserted'))
-  } finally {
-    descriptionImageUploading.value = false
-  }
+  await persistNodeSchedule(payload.nodeId, [payload.startDate, payload.endDate])
 }
 
 function isProfileOverlayTarget(target: EventTarget | null): boolean {
@@ -499,17 +542,21 @@ async function onSaveProfile() {
   profileSaving.value = true
   const savePromise = (async () => {
     try {
-      project.value = await updateProject(project.value!.id, {
+      const payload: ProjectUpdatePayload = {
         name: project.value!.name,
         description: profileForm.description,
         priority: profileForm.priority,
-        projectManagerId: profileForm.projectManagerId,
+        projectLevel: profileForm.projectLevel,
         startDate: profileForm.schedule?.[0] || undefined,
         endDate: profileForm.schedule?.[1] || undefined,
-        memberIds: profileForm.memberIds,
-        followerIds: profileForm.followerIds,
         orgUnitId: profileForm.orgUnitId,
-      })
+      }
+      if (canSetProjectManager.value) payload.projectManagerId = profileForm.projectManagerId
+      if (canManageMembers.value) {
+        payload.memberIds = profileForm.memberIds
+        payload.followerIds = profileForm.followerIds
+      }
+      project.value = await updateProject(project.value!.id, payload)
       members.value = await getMembers(project.value.id)
       followers.value = await getFollowers(project.value.id)
       resetProfileForm()
@@ -531,6 +578,10 @@ async function onSaveProfile() {
 function onComplete() {
   if (!activeNode.value || !canCompleteActiveNode.value) {
     message.info(t('detail.cannotComplete'))
+    return
+  }
+  if (activeNode.value.nodeKey === 'requirement' && requirementBaselineStatus.value !== 1) {
+    message.warning(t('detail.requirementBaselineRequired'))
     return
   }
   if (showKickoffProfile.value) {
@@ -672,7 +723,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div v-if="loading && !project" class="detail-loading"><a-spin size="large" /></div>
-  <div v-else-if="project" class="project-detail-page pms-page-stack">
+<div v-else-if="project" class="project-detail-page pms-page-stack">
     <div class="detail-breadcrumb">
       <span class="detail-breadcrumb__back" @click="router.push('/projects')">
         <ArrowLeftOutlined /> {{ $t('detail.breadcrumbList') }}
@@ -682,97 +733,64 @@ onBeforeUnmount(() => {
     </div>
 
     <section class="project-header pms-detail-panel pms-detail-hero card-surface">
-      <div class="project-header__main">
-        <div class="project-title-row">
-          <span class="project-status-icon" :class="`project-status-icon--${projectStatusTone}`">
-            <CheckOutlined v-if="project.status === 2" />
-            <span v-else />
-          </span>
+      <div class="project-header__top">
+        <div class="project-header__identity">
           <h1>{{ project.name }}</h1>
-          <a-tag :color="statusTagColor[project.status]">{{ $t(projectStatusKey(project.status)) }}</a-tag>
-          <span v-if="elapsedDays !== null" class="project-elapsed">{{ $t('detail.elapsed', { days: elapsedDays }) }}</span>
-          <a-button
-            v-if="canTerminateProject"
-            type="default"
-            danger
-            size="small"
-            class="project-lifecycle-action project-terminate-button"
-            :loading="lifecycleSaving"
-            @click="onTerminate"
-          >
-            {{ $t('detail.terminate') }}
-          </a-button>
-          <a-button
-            v-if="canRestoreProject"
-            type="primary"
-            size="small"
-            class="pms-primary-button project-lifecycle-action"
-            :loading="lifecycleSaving"
-            @click="onRestore"
-          >
-            {{ $t('detail.restore') }}
-          </a-button>
+          <a-tag :color="projectStatusTagColor(project.status)" class="project-header__status">
+            {{ $t(projectStatusKey(project.status)) }}
+          </a-tag>
+          <span class="pms-project-badge pms-project-badge--level">{{ getProjectLevelBadge(project.projectLevel) }}</span>
+          <span class="pms-project-badge pms-project-badge--priority">{{ getPriorityBadge(project.priority) }}</span>
         </div>
-        <div class="project-meta-stack">
-          <div class="project-meta-line">
-            <span>{{ project.code }}</span>
-            <span class="meta-separator">·</span>
-            <span>{{ $t('detail.rangeTo', { start: formatDate(project.startDate), end: formatDate(project.endDate) }) }}</span>
-          </div>
-          <div class="project-created-line">
-            <span class="project-meta-person">
-              <span class="project-meta-person__label">{{ $t('detail.createdBy') }}</span>
-              <a-avatar :src="projectCreatorDisplay.avatar || project.createdByAvatar" :size="20" class="project-meta-person__avatar">
-                {{ getPersonInitials(projectCreatorDisplay.label) }}
-              </a-avatar>
-              <strong>{{ projectCreatorDisplay.label }}</strong>
-            </span>
-            <span class="meta-separator">·</span>
-            <span>{{ $t('detail.createdAt', { time: formatDateTime(project.createdAt) }) }}</span>
-          </div>
-        </div>
-        <div class="project-people-line">
-          <div class="project-person project-person--manager">
-            <a-avatar
-              :src="projectManagerDisplay.avatar || project.projectManagerAvatar"
-              :size="32"
-              class="project-person__avatar"
-              :class="{ 'project-person__avatar--pending': projectManagerDisplay.pending }"
+        <div class="project-header__actions">
+          <a-dropdown v-if="canTerminateProject || canRestoreProject" placement="bottomRight">
+            <a-button
+              class="project-header__more pms-project-button pms-project-button--text pms-project-button--icon pms-project-button--small"
+              :aria-label="$t('detail.more')"
+              :title="$t('detail.more')"
             >
-              {{ getPersonInitials(projectManagerDisplay.label) }}
-            </a-avatar>
-            <div class="project-person__copy">
-              <span>{{ $t('detail.manager') }}</span>
-              <strong>{{ projectManagerDisplay.label }}</strong>
-            </div>
-          </div>
-          <div v-if="project.orgUnitPath || project.orgUnitName" class="project-person project-person--business-line">
-            <div class="project-person__copy">
-              <span>{{ $t('detail.businessLine') }}</span>
-              <strong :title="project.orgUnitPath || project.orgUnitName">{{ project.orgUnitPath || project.orgUnitName }}</strong>
-              <small v-if="project.orgUnitLeaderName">{{ $t('detail.leader', { name: project.orgUnitLeaderName }) }}</small>
-            </div>
-          </div>
+              <MoreOutlined />
+            </a-button>
+            <template #overlay>
+              <a-menu>
+                <a-menu-item v-if="canTerminateProject" key="terminate" :disabled="lifecycleSaving" @click="onTerminate">
+                  {{ $t('detail.terminate') }}
+                </a-menu-item>
+                <a-menu-item v-if="canRestoreProject" key="restore" :disabled="lifecycleSaving" @click="onRestore">
+                  {{ $t('detail.restore') }}
+                </a-menu-item>
+              </a-menu>
+            </template>
+          </a-dropdown>
         </div>
       </div>
 
-      <div class="project-header__summary">
-        <div class="summary-item">
-          <span class="summary-item__label">{{ $t('detail.nodeProgress') }}</span>
-          <strong>{{ doneNodeCount }}/{{ nodes.length || 0 }}</strong>
+      <div class="project-header__meta">
+        <div class="project-header__meta-item project-header__meta-item--divider">
+          <span>{{ $t('detail.manager') }}：</span>
+          <strong>{{ projectManagerDisplay.label }}</strong>
         </div>
-        <div class="summary-item">
-          <span class="summary-item__label">{{ $t('detail.taskDone') }}</span>
-          <strong>{{ project.doneTaskCount }}/{{ project.taskCount }}</strong>
+        <div class="project-header__meta-item project-header__meta-item--wide project-header__meta-item--divider">
+          <span>{{ $t('detail.businessLine') }}：</span>
+          <strong :title="project.orgUnitPath || project.orgUnitName">{{ project.orgUnitPath || project.orgUnitName || $t('detail.unassigned') }}</strong>
         </div>
-        <div class="summary-item">
-          <span class="summary-item__label">{{ $t('detail.members') }}</span>
-          <strong>{{ $t('detail.memberCount', { count: project.memberCount }) }}</strong>
+        <div class="project-header__meta-item">
+          <span>{{ $t('detail.projectPeriod') }}：</span>
+          <strong>{{ formatDate(project.startDate) }} → {{ formatDate(project.endDate) }}</strong>
         </div>
-        <div class="summary-progress">
-          <span class="summary-item__label">{{ $t('detail.overall') }}</span>
-          <a-progress :percent="nodeProgress" :show-info="false" size="small" />
-          <strong>{{ nodeProgress }}%</strong>
+      </div>
+
+      <div class="project-header__insights">
+        <div class="project-header__insight">
+          <span>{{ $t('detail.projectProgress') }}</span>
+          <strong>{{ projectProgress }}%</strong>
+          <small class="project-header__insight-details">
+            <span class="project-header__insight-submetric">
+              {{ $t('detail.nodeProgress') }}
+              <strong class="project-header__insight-submetric-value">{{ currentNodeProgress }}%</strong>
+              <span class="project-header__insight-task-count">{{ $t('detail.nodeTaskCountSummary', { done: activeNodeTaskSummary.done, total: activeNodeTaskSummary.total }) }}</span>
+            </span>
+          </small>
         </div>
       </div>
     </section>
@@ -794,7 +812,7 @@ onBeforeUnmount(() => {
             <div class="node-detail-title__heading">
               <span class="node-detail-title__dot" :class="`node-detail-title__dot--${activeNode.status}`" />
               <h2>{{ activeNode.name }}</h2>
-              <a-tag :color="statusTagColor[activeNode.status]">{{ getNodeStatusLabel(activeNode.status) }}</a-tag>
+              <a-tag :color="nodeStatusTagColor(activeNode.status)">{{ getNodeStatusLabel(activeNode.status) }}</a-tag>
             </div>
             <p v-if="activeNode.description" class="node-detail-title__description">{{ activeNode.description }}</p>
           </div>
@@ -802,6 +820,7 @@ onBeforeUnmount(() => {
         <div class="node-detail-actions">
           <a-button
             v-if="canRollbackActiveNode"
+            class="pms-project-button pms-project-button--secondary"
             :loading="rollingBack"
             @click="onRollback"
           >
@@ -810,7 +829,7 @@ onBeforeUnmount(() => {
           <a-button
             v-if="canCompleteActiveNode"
             type="primary"
-            class="pms-primary-button"
+            class="pms-primary-button pms-project-button pms-project-button--primary"
             :loading="submitting"
             @click="onComplete"
           >
@@ -851,8 +870,6 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <a-divider />
-
       <div v-if="showKickoffProfile" ref="profileContainer" class="node-tab-profile">
         <div class="project-profile-section">
           <div class="profile-section-title-row">
@@ -880,32 +897,20 @@ onBeforeUnmount(() => {
                     class="project-profile-control project-description-control"
                     @input="markProfileDirty"
                   />
-                  <div class="project-description-toolbar">
-                    <input
-                      ref="descriptionImageInput"
-                      class="project-description-file-input"
-                      type="file"
-                      accept="image/png,image/jpeg,image/gif,image/webp"
-                      @change="onDescriptionImageSelected"
-                    />
-                    <a-button
-                      type="default"
-                      size="small"
-                      class="project-description-toolbar__action"
-                      :loading="descriptionImageUploading"
-                      :disabled="!canManageProject || activeNodeReadOnly"
-                      @click="openDescriptionImagePicker"
-                    >
-                      <PictureOutlined /> {{ $t('detail.insertImage') }}
-                    </a-button>
-                    <span class="project-description-toolbar__hint">{{ $t('detail.insertImageHint') }}</span>
-                  </div>
                 </div>
                 <a-select
                   v-else-if="field.key === 'priority'"
                   v-model:value="profileForm.priority"
                   class="project-profile-control"
                   :options="priorityOptions"
+                  :disabled="!canManageProject || activeNodeReadOnly"
+                  @change="markProfileDirty"
+                />
+                <a-select
+                  v-else-if="field.key === 'projectLevel'"
+                  v-model:value="profileForm.projectLevel"
+                  class="project-profile-control"
+                  :options="projectLevelOptions"
                   :disabled="!canManageProject || activeNodeReadOnly"
                   @change="markProfileDirty"
                 />
@@ -945,7 +950,7 @@ onBeforeUnmount(() => {
                 v-model="profileForm.projectManagerId"
                 class="project-profile-control project-people-control"
                 :options="nodeOwnerOptions"
-                :disabled="!canManageProject || activeNodeReadOnly"
+                :disabled="!canSetProjectManager || activeNodeReadOnly"
                 @change="markProfileDirty"
               />
             </div>
@@ -959,7 +964,7 @@ onBeforeUnmount(() => {
                 :options="profileUserOptions"
                 :placeholder="$t('detail.selectMembers')"
                 remote-search
-                :disabled="!canManageProject || activeNodeReadOnly"
+                :disabled="!canManageMembers || activeNodeReadOnly"
                 @search="onProfileUserSearch"
                 @change="markProfileDirty"
               />
@@ -974,7 +979,7 @@ onBeforeUnmount(() => {
                 :options="profileUserOptions"
                 :placeholder="$t('detail.selectFollowers')"
                 remote-search
-                :disabled="!canManageProject || activeNodeReadOnly"
+                :disabled="!canManageMembers || activeNodeReadOnly"
                 @search="onProfileUserSearch"
                 @change="markProfileDirty"
               />
@@ -984,6 +989,25 @@ onBeforeUnmount(() => {
 
         <a-divider />
       </div>
+
+      <RequirementScopeWorkbench
+        v-if="activeNode.nodeKey === 'requirement'"
+        :key="activeNode.id"
+        :project-id="projectId"
+        :node-id="activeNode.id"
+        :node-read-only="activeNodeReadOnly"
+        :can-edit="canEditActiveNode"
+        @baseline-status="onRequirementBaselineStatus"
+      />
+
+      <SolutionDesignWorkbench
+        v-if="activeNode.nodeKey === 'design'"
+        :key="activeNode.id"
+        :project-id="projectId"
+        :node-id="activeNode.id"
+        :node-read-only="activeNodeReadOnly"
+        :can-edit="canEditActiveNode"
+      />
 
       <a-divider />
 
@@ -1000,6 +1024,7 @@ onBeforeUnmount(() => {
           :node="activeNode"
           :focus-task-id="focusTaskId"
           @focused="onTaskFocusConsumed"
+          @task-progress="onTaskProgress"
         />
       </section>
     </section>
@@ -1028,9 +1053,12 @@ onBeforeUnmount(() => {
             :tasks="scheduleTasks"
             :milestones="scheduleMilestones"
             :selected-node-id="activeNodeId"
+            :can-edit-node="canEditScheduleNode"
+            :saving-node-id="scheduleSavingNodeId"
             @select-node="onScheduleSelectNode"
             @open-task="onScheduleOpenTask"
             @open-milestone="onScheduleOpenMilestone"
+            @update-node-schedule="onScheduleNodeScheduleChange"
           />
         </a-tab-pane>
         <a-tab-pane key="calendar" :tab="$t('detail.viewCalendar')">
@@ -1048,16 +1076,17 @@ onBeforeUnmount(() => {
           />
         </a-tab-pane>
         <a-tab-pane key="members" :tab="$t('detail.memberTab')">
-          <Members :project-id="projectId" :can-manage="canManageProject" />
+          <Members :project-id="projectId" :can-manage="canManageMembers" />
         </a-tab-pane>
         <a-tab-pane key="comments" :tab="$t('detail.comments')">
-          <Comments :project-id="projectId" />
+          <Comments :project-id="projectId" :can-write="canWriteComment" />
         </a-tab-pane>
       </a-tabs>
     </section>
 
     <a-modal
       v-model:open="reasonModal.open"
+      class="pms-project-modal"
       :title="reasonModal.title"
       :ok-text="reasonModal.okText"
       :ok-type="reasonModal.okType"
@@ -1091,43 +1120,59 @@ onBeforeUnmount(() => {
 .detail-breadcrumb__back { color: var(--pms-text-muted); cursor: pointer; }
 .detail-breadcrumb__back:hover { color: var(--pms-primary); }
 .detail-breadcrumb__separator { color: var(--pms-text-faint); }
-.project-header { display: flex; justify-content: space-between; gap: 32px; padding: 20px 28px; }
-.project-header__main { min-width: 0; flex: 1; }
-.project-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-.project-title-row h1, .section-title-row h2, .node-detail-title h2 { margin: 0; color: var(--pms-text); }
-.project-title-row h1 { font-size: var(--pms-font-size-title); font-weight: 650; line-height: var(--pms-line-height-tight); }
-.project-lifecycle-action { margin-left: 2px; }
-.project-terminate-button { font-weight: 600; }
-.project-status-icon, .node-detail-title__dot { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 20px; height: 20px; color: #fff; font-size: var(--pms-font-size-compact); border-radius: 6px; }
-.project-status-icon--active, .node-detail-title__dot--1 { background: var(--pms-warning); }
-.project-status-icon--completed, .node-detail-title__dot--2 { background: var(--pms-success); }
-.project-status-icon--terminated, .project-status-icon--deleted, .node-detail-title__dot--3 { background: var(--pms-danger); }
-.project-status-icon--pending, .node-detail-title__dot--0 { background: var(--pms-status-neutral); }
-.project-status-icon > span { width: 7px; height: 7px; background: #fff; border-radius: 50%; }
-.project-elapsed { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
-.project-meta-stack { display: grid; gap: 2px; margin-top: 6px; }
-.project-meta-line { display: flex; flex-wrap: wrap; gap: 7px; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-normal); }
-.project-created-line { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-normal); }
-.project-meta-person { display: inline-flex; align-items: center; gap: 5px; }
-.project-meta-person__label { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
-.project-meta-person__avatar { color: var(--pms-primary); background: var(--pms-primary-soft); }
-.project-meta-person strong { color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); font-weight: 600; }
-.project-people-line { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
-.project-person { display: flex; align-items: center; gap: 9px; min-width: 190px; padding: 8px 12px; border: 1px solid var(--pms-border); border-radius: 9px; box-shadow: 0 2px 8px rgb(15 23 42 / 4%); }
-.project-person--manager { background: #fff7e8; border-color: rgb(250 140 22 / 35%); }
-.project-person--business-line { max-width: min(430px, 100%); background: var(--pms-primary-soft); border-color: rgb(22 119 255 / 20%); }
-.project-person__avatar { color: #fff; background: var(--pms-primary); }
-.project-person__avatar--pending { color: var(--pms-text-muted); background: var(--pms-surface-strong); }
-.project-person__copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.project-person__copy span { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
-.project-person__copy strong { overflow: hidden; color: var(--pms-text); font-size: var(--pms-font-size-body); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.project-person__copy small { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
-.meta-separator { color: var(--pms-text-faint); }
-.project-header__summary { display: grid; grid-template-columns: repeat(3, minmax(88px, 1fr)); align-items: center; gap: 20px; min-width: 420px; padding-left: 28px; border-left: 1px solid var(--pms-border); }
-.summary-item, .summary-progress { display: flex; flex-direction: column; gap: 5px; }
-.summary-item__label { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
-.summary-item strong, .summary-progress strong { color: var(--pms-text); font-size: 16px; font-weight: 600; }
-.summary-progress { grid-column: span 3; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
+.project-header {
+  --pms-primary: #1769e0;
+  --pms-primary-dark: #1258bf;
+  --pms-primary-soft: #eaf2ff;
+  --pms-bg: #f5f7fb;
+  --pms-surface-muted: #f8faff;
+  --pms-text: #17243b;
+  --pms-text-muted: #5d6d85;
+  --pms-text-faint: #8997aa;
+  --pms-border: #e5eaf2;
+  --pms-border-strong: #d7dfeb;
+  --pms-success: #21a366;
+  --pms-success-soft: #eaf8f0;
+  --pms-warning: #b9680c;
+  --pms-warning-soft: #fff5e8;
+  --pms-status-active: #ef8e1b;
+  --pms-danger: #d95b58;
+  --pms-danger-soft: #fff0ef;
+  --pms-shadow-sm: 0 1px 2px rgb(31 54 92 / 4%), 0 8px 20px rgb(31 54 92 / 4%);
+  --pms-shadow-interactive: 0 5px 12px rgb(23 105 224 / 20%);
+  padding: 24px 26px 19px;
+  border-radius: 14px;
+  box-shadow: 0 12px 28px rgb(31 54 92 / 7%);
+}
+.project-header__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.project-header__meta, .project-header__insights { display: flex; align-items: baseline; justify-content: flex-start; }
+.project-header__identity, .project-header__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.project-header__identity { min-width: 0; }
+.project-header__identity h1, .section-title-row h2, .node-detail-title h2 { margin: 0; color: var(--pms-text); }
+.project-header__identity h1 { overflow: hidden; font-size: 24px; font-weight: 720; letter-spacing: -.02em; line-height: var(--pms-line-height-tight); text-overflow: ellipsis; white-space: nowrap; }
+.project-header__status { margin: 0; }
+.project-header__actions { flex: 0 0 auto; }
+.project-header__more { flex: 0 0 32px; color: var(--pms-text-muted); }
+.project-header__meta { flex-wrap: wrap; gap: 9px 25px; min-width: 0; margin-top: 13px; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); }
+.project-header__meta-item { display: flex; align-items: baseline; min-width: 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); white-space: nowrap; }
+.project-header__meta-item > span { flex: 0 0 auto; }
+.project-header__meta-item strong { min-width: 0; overflow: hidden; color: #3d4b63; font-weight: 650; text-overflow: ellipsis; }
+.project-header__meta-item--wide { flex: 0 1 auto; max-width: min(100%, 620px); }
+.project-header__meta-item--divider { padding-right: 20px; border-right: 1px solid #e8edf4; }
+.project-header__insights { gap: 24px; margin-top: 19px; padding-top: 17px; border-top: 1px solid var(--pms-border); }
+.project-header__insight { display: flex; align-items: baseline; min-width: 0; gap: 8px; }
+.project-header__insight > span { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
+.project-header__insight > strong { color: #31415b; font-size: 14px; font-weight: 720; }
+.project-header__insight small { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
+.project-header__insight-details { display: inline-flex; flex-wrap: wrap; align-items: baseline; min-width: 0; gap: 4px 8px; }
+.project-header__insight-submetric { color: var(--pms-text-muted); font-weight: 400; }
+.project-header__insight-submetric-value { margin-left: 4px; color: #31415b; font-weight: 720; }
+.project-header__insight-task-count { margin-left: 4px; font-weight: 400; }
+.node-detail-title__dot { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 20px; height: 20px; color: #fff; font-size: var(--pms-font-size-compact); border-radius: 6px; }
+.node-detail-title__dot--1 { background: var(--pms-status-active); }
+.node-detail-title__dot--2 { background: var(--pms-success); }
+.node-detail-title__dot--3 { background: var(--pms-danger); }
+.node-detail-title__dot--0 { background: var(--pms-status-neutral); }
 .flow-card, .node-detail-card, .management-card { margin-top: 14px; padding: 20px 24px; }
 .section-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .section-title-row h2 { font-size: var(--pms-font-size-section); font-weight: 600; line-height: var(--pms-line-height-tight); }
@@ -1168,12 +1213,6 @@ onBeforeUnmount(() => {
 .project-profile-control :deep(.ant-select-selector), .project-profile-control :deep(.ant-picker), .project-profile-control :deep(.ant-input) { min-height: 36px; }
 .project-description-control { min-height: 96px; max-height: 320px; resize: vertical; }
 .project-description-editor { min-width: 0; }
-.project-description-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; padding-top: 8px; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-normal); border-top: 1px solid var(--pms-border); }
-.project-description-toolbar__action { display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding-inline: 10px; color: var(--pms-primary) !important; background: var(--pms-surface) !important; border-color: var(--pms-border-strong) !important; border-radius: var(--pms-radius-sm); box-shadow: none; font-weight: 600; }
-.project-description-toolbar__action:hover:not(:disabled) { color: var(--pms-primary-dark) !important; background: var(--pms-primary-soft) !important; border-color: var(--pms-primary) !important; }
-.project-description-toolbar__action:disabled { color: var(--pms-text-faint) !important; background: var(--pms-surface-muted) !important; border-color: var(--pms-border) !important; }
-.project-description-toolbar__hint { display: inline-flex; align-items: center; min-height: 30px; color: var(--pms-text-faint); }
-.project-description-file-input { display: none; }
 .project-members-control :deep(.ant-select-selector) { max-height: 36px; min-height: 36px; overflow: hidden; align-items: center; }
 .project-members-control :deep(.ant-select-selection-overflow) { flex-wrap: nowrap; overflow: hidden; }
 .project-people-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 28px; }
@@ -1193,25 +1232,31 @@ onBeforeUnmount(() => {
 .reason-modal__field { display: grid; gap: 7px; }
 .reason-modal__label { color: var(--pms-text); font-size: var(--pms-font-size-body); }
 .reason-modal__label span { margin-right: 3px; color: var(--pms-danger); }
+@media (min-width: 1100px) {
+  .project-header { margin-inline: -7px; }
+}
 @media (max-width: 900px) {
-  .project-header { flex-direction: column; }
-  .project-header__summary { min-width: 0; padding-top: 20px; padding-left: 0; border-top: 1px solid var(--pms-border); border-left: 0; }
+  .project-header__top, .project-header__meta, .project-header__insights { align-items: flex-start; flex-wrap: wrap; }
+  .project-header__meta-item--wide { flex: 1 1 100%; }
+  .project-header__meta-item--divider { padding-right: 0; border-right: 0; }
 }
 @media (max-width: 640px) {
   .project-header, .flow-card, .node-detail-card, .management-card { padding: 18px 16px; }
   .node-tab-profile { padding: 14px; }
-  .project-header__summary { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .project-header__top, .project-header__meta, .project-header__insights { gap: 12px; }
+  .project-header__actions { width: auto; margin-left: auto; }
+  .project-header__actions .ant-btn { flex: 0 0 32px; }
+  .project-header__meta { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .project-header__meta-item, .project-header__meta-item--wide { min-width: 0; }
+  .project-header__insights { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .node-detail-header, .section-title-row { align-items: flex-start; flex-direction: column; }
   .node-detail-actions { align-self: stretch; justify-content: flex-end; }
   .node-assignment-row { align-items: stretch; flex-direction: column; gap: 10px; }
   .node-owner-row { align-items: flex-start; flex-direction: column; gap: 8px; width: 100%; min-width: 0; }
   .node-owner-row__control, .node-owner-row__select { width: 100%; }
-  .node-owner-row__control { flex-basis: auto; }
-  .node-schedule-picker { width: 100%; }
-  .project-description-toolbar { align-items: flex-start; }
-  .project-description-toolbar__hint { flex: 1 1 220px; }
-  .project-profile-grid, .project-people-grid { grid-template-columns: 1fr; }
+      .node-owner-row__control { flex-basis: auto; }
+      .node-schedule-picker { width: 100%; }
+      .project-profile-grid, .project-people-grid { grid-template-columns: 1fr; }
   .project-profile-field--wide { grid-column: auto; }
-  .summary-progress { grid-column: span 3; }
 }
 </style>

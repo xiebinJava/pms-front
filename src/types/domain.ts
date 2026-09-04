@@ -19,6 +19,7 @@ export interface Project {
   description?: string
   status: number
   priority: number
+  projectLevel: number
   ownerId: number
   ownerName?: string
   createdBy?: number
@@ -50,6 +51,7 @@ export interface ProjectPermissions {
   canTerminateProject: boolean
   canRestoreProject: boolean
   canDeleteProject: boolean
+  canWriteComment: boolean
 }
 
 export interface NodePermissions {
@@ -159,6 +161,7 @@ export interface TaskAttachment {
   createdBy?: number
   createdByName?: string
   createdAt: string
+  canDelete?: boolean
 }
 
 export interface TaskDetail extends Task {
@@ -187,6 +190,7 @@ export interface Comment {
   userId: number
   userNickname?: string
   createdAt: string
+  canDelete?: boolean
 }
 
 export interface ProjectNode {
@@ -208,12 +212,132 @@ export interface ProjectNode {
   permissions?: NodePermissions
 }
 
+export type NodeScopeDirection = 'IN' | 'OUT'
+export type NodeRequirementType = 'BUSINESS' | 'FUNCTIONAL' | 'CONSTRAINT'
+
+export interface NodeScopeItem {
+  id?: number
+  direction: NodeScopeDirection
+  title: string
+  sort?: number
+}
+
+export interface NodeRequirement {
+  id?: number
+  code?: string
+  name: string
+  description?: string
+  type: NodeRequirementType
+  priority: number
+  acceptanceCriteria: string
+  status: number
+  sort?: number
+}
+
+export interface NodeRequirementScope {
+  projectId: number
+  nodeId: number
+  objective?: string
+  deliverable?: string
+  version?: number
+  baselineStatus: number
+  confirmedBy?: number
+  confirmedByName?: string
+  confirmedAt?: string
+  canEdit: boolean
+  scopeItems: NodeScopeItem[]
+  requirements: NodeRequirement[]
+}
+
+export interface NodeRequirementScopeUpdate {
+  version?: number
+  objective?: string
+  deliverable?: string
+  scopeItems: NodeScopeItem[]
+  requirements: NodeRequirement[]
+}
+
+export type NodeSolutionPackageStatus = 'DRAFT' | 'SUBMITTED'
+export type NodeSolutionReviewType = 'BUSINESS_PRODUCT' | 'TECHNICAL' | 'TEST_RELEASE'
+export type NodeSolutionReviewStatus = 'PENDING' | 'PASSED'
+export type NodeSolutionDecisionResult = 'PASS' | 'CONDITIONAL_PASS' | 'RETURN_FOR_CHANGES'
+export type NodeSolutionDecisionStatus = 'DRAFT' | 'CONFIRMED'
+
+export interface NodeRequirementBaselineSummary {
+  available: boolean
+  confirmed: boolean
+  version?: number
+  inScopeCount: number
+  requirementCount: number
+}
+
+export interface NodeSolutionPackage {
+  id?: number
+  packageVersion: string
+  productSolution: string
+  technicalSolution: string
+  summary: string
+  scopeCoverage: string
+  rolloutPremise: string
+  status: NodeSolutionPackageStatus
+  version: number
+  canEdit: boolean
+}
+
+export interface NodeSolutionPackageUpdate {
+  version?: number
+  packageVersion?: string
+  productSolution?: string
+  technicalSolution?: string
+  summary?: string
+  scopeCoverage?: string
+  rolloutPremise?: string
+}
+
+export interface NodeSolutionReview {
+  reviewType: NodeSolutionReviewType
+  status: NodeSolutionReviewStatus
+  comment?: string
+  completedBy?: number
+  completedAt?: string
+}
+
+export interface NodeSolutionDecision {
+  id?: number
+  result?: NodeSolutionDecisionResult
+  reason?: string
+  conditions?: string
+  status: NodeSolutionDecisionStatus
+  confirmedBy?: number
+  confirmedAt?: string
+  version: number
+  canEdit: boolean
+}
+
+export interface NodeSolutionDecisionConfirm {
+  version?: number
+  result: NodeSolutionDecisionResult
+  reason: string
+  conditions?: string
+}
+
+export interface NodeSolutionDesign {
+  projectId: number
+  nodeId: number
+  upstreamBaseline: NodeRequirementBaselineSummary
+  solutionPackage: NodeSolutionPackage
+  reviews: NodeSolutionReview[]
+  decision: NodeSolutionDecision
+}
+
 export type NotificationType =
   | 'TASK_ASSIGNED'
   | 'TASK_COMMENTED'
   | 'PROJECT_COMMENTED'
   | 'NODE_COMPLETED'
   | 'NODE_ROLLED_BACK'
+  | 'TASK_DUE_SOON'
+  | 'TASK_OVERDUE'
 
 export interface UserNotification {
   id: number

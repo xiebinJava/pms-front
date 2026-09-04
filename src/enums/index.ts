@@ -38,6 +38,10 @@ export function priorityKey(priority: number): string {
   return `enum.priority.${priority}`
 }
 
+export function projectLevelKey(level: number): string {
+  return `enum.projectLevel.${level}`
+}
+
 export function milestoneStatusKey(status: number): string {
   return `enum.milestoneStatus.${status}`
 }
@@ -59,6 +63,13 @@ export const Priority = createEnum({
   URGENT: [3, '紧急'],
 })
 
+export const ProjectLevel = createEnum({
+  STRATEGIC: [3, '战略项目（S）'],
+  KEY: [2, '关键项目（A）'],
+  IMPORTANT: [1, '重要项目（B）'],
+  ROUTINE: [0, '常规项目（C）'],
+})
+
 export const MilestoneStatus = createEnum({
   PENDING: [0, '未开始'],
   ACTIVE: [1, '进行中'],
@@ -71,13 +82,65 @@ export const MemberRole = createEnum({
   MEMBER: [2, '成员'],
 })
 
+export type LifecycleStatusTone = 'pending' | 'active' | 'completed' | 'terminated' | 'deleted'
+
+/** Ant Design Tag colors for shared lifecycle tones. */
+export const lifecycleStatusTagColor: Record<LifecycleStatusTone, string> = {
+  pending: 'default',
+  active: 'orange',
+  completed: 'green',
+  terminated: 'red',
+  deleted: '#5d6b7e',
+}
+
+export function projectStatusTone(status?: number): Exclude<LifecycleStatusTone, 'pending'> {
+  const normalized = normalizeProjectStatus(status)
+  if (normalized === 2) return 'completed'
+  if (normalized === 3) return 'terminated'
+  if (normalized === 4) return 'deleted'
+  return 'active'
+}
+
+export function projectStatusTagColor(status?: number): string {
+  return lifecycleStatusTagColor[projectStatusTone(status)]
+}
+
+export function taskStatusTone(status?: number): Extract<LifecycleStatusTone, 'pending' | 'active' | 'completed'> {
+  if (status === 2) return 'completed'
+  if (status === 1) return 'active'
+  return 'pending'
+}
+
+export function taskStatusTagColor(status?: number): string {
+  return lifecycleStatusTagColor[taskStatusTone(status)]
+}
+
+export function nodeStatusTone(status?: number): Extract<LifecycleStatusTone, 'pending' | 'active' | 'completed' | 'terminated'> {
+  if (status === 1) return 'active'
+  if (status === 2) return 'completed'
+  if (status === 3) return 'terminated'
+  return 'pending'
+}
+
+export function nodeStatusTagColor(status?: number): string {
+  return lifecycleStatusTagColor[nodeStatusTone(status)]
+}
+
+export function milestoneStatusTone(status?: number): Extract<LifecycleStatusTone, 'pending' | 'active' | 'completed'> {
+  return taskStatusTone(status)
+}
+
+export function milestoneStatusTagColor(status?: number): string {
+  return lifecycleStatusTagColor[milestoneStatusTone(status)]
+}
+
+/** @deprecated Prefer typed helpers. Numeric keys follow project semantics (0/1 = 进行中). */
 export const statusTagColor: Record<number, string> = {
-  // 兼容历史项目状态 0，展示为“进行中”的橙色。
-  0: 'orange',
-  1: 'orange',
-  2: 'green',
-  3: 'red',
-  4: 'red',
+  0: lifecycleStatusTagColor.active,
+  1: lifecycleStatusTagColor.active,
+  2: lifecycleStatusTagColor.completed,
+  3: lifecycleStatusTagColor.terminated,
+  4: lifecycleStatusTagColor.deleted,
 }
 
 export const roleTagColor: Record<number, string> = {

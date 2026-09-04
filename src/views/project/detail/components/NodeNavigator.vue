@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ArrowRightOutlined, CheckOutlined } from '@ant-design/icons-vue'
 import type { ProjectNode } from '/@/types/domain'
+import { formatDate } from '/@/utils/format'
 import { getFlowNodeState } from '../workflow'
 
 defineProps<{ nodes: ProjectNode[]; activeId: number }>()
@@ -29,6 +30,16 @@ const emit = defineEmits<{ (e: 'select', node: ProjectNode): void }>()
             </span>
             <span class="flow-node__content">
               <span class="flow-node__name">{{ node.name }}</span>
+              <span class="flow-node__meta">
+                <span class="node-owner">
+                  <span>{{ $t('detail.nodeCardOwner') }}</span>
+                  <strong>{{ node.ownerName || $t('detail.unassigned') }}</strong>
+                </span>
+                <span class="node-deadline">
+                  <span>{{ $t('detail.nodeCardDeadline') }}</span>
+                  <strong>{{ node.endDate ? formatDate(node.endDate) : $t('detail.notSet') }}</strong>
+                </span>
+              </span>
             </span>
           </button>
           <span v-if="index < nodes.length - 1" class="flow-connector" aria-hidden="true">
@@ -59,7 +70,7 @@ const emit = defineEmits<{ (e: 'select', node: ProjectNode): void }>()
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  min-width: 138px;
+  min-width: 230px;
   padding: 10px 14px 10px 11px;
   color: var(--pms-text);
   text-align: left;
@@ -89,14 +100,14 @@ const emit = defineEmits<{ (e: 'select', node: ProjectNode): void }>()
 }
 
 .flow-node--completed .flow-node__dot {
-  color: #fff;
-  background: var(--pms-success);
-  border-color: var(--pms-success);
+  color: var(--pms-success);
+  background: var(--pms-success-soft);
+  border-color: color-mix(in srgb, var(--pms-success) 30%, var(--pms-border));
 }
 
 .flow-node--active .flow-node__dot {
   background: var(--pms-surface);
-  border-color: var(--pms-warning);
+  border-color: var(--pms-status-active);
 }
 
 .flow-node--locked .flow-node__dot {
@@ -136,7 +147,7 @@ const emit = defineEmits<{ (e: 'select', node: ProjectNode): void }>()
 }
 
 .flow-node--active .flow-node__dot-core {
-  background: var(--pms-warning);
+  background: var(--pms-status-active);
 }
 
 .flow-node__content {
@@ -147,14 +158,21 @@ const emit = defineEmits<{ (e: 'select', node: ProjectNode): void }>()
 }
 
 .flow-node__name {
-  max-width: 160px;
+  max-width: 210px;
   overflow: hidden;
+  color: var(--pms-text);
   font-size: var(--pms-font-size-body);
   font-weight: 500;
   line-height: var(--pms-line-height-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.flow-node__meta { display: grid; gap: 3px; margin-top: 5px; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-tight); }
+.node-owner, .node-deadline { display: flex; min-width: 0; gap: 4px; }
+.node-owner > span, .node-deadline > span { flex: 0 0 auto; }
+.node-owner strong, .node-deadline strong { overflow: hidden; color: var(--pms-text-muted); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.flow-node:disabled .node-owner strong, .flow-node:disabled .node-deadline strong { color: var(--pms-text-faint); }
 
 .flow-connector {
   display: inline-flex;

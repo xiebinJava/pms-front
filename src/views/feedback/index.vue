@@ -245,7 +245,7 @@ onMounted(() => { void load(); void loadAuxiliaryData() })
           <a-select v-model:value="filters.status" class="pms-filter-control" allow-clear :placeholder="$t('feedback.statusPlaceholder')" :aria-label="$t('feedback.status')" @change="search">
             <a-select-option v-for="value in statusOptions" :key="value" :value="value">{{ statusLabel(value) }}</a-select-option>
           </a-select>
-          <a-button class="pms-filter-button" type="primary" :aria-label="$t('common.query')" @click="search">{{ $t('common.query') }}</a-button>
+          <a-button class="pms-secondary-button pms-filter-button" :aria-label="$t('common.query')" @click="search"><ReloadOutlined /> {{ $t('common.query') }}</a-button>
         </div>
       </div>
 
@@ -313,7 +313,7 @@ onMounted(() => { void load(); void loadAuxiliaryData() })
               </div>
               <a-form-item :label="$t('feedback.assignee')"><a-select v-model:value="managerForm.assigneeId" show-search option-filter-prop="label"><a-select-option v-for="person in personnelOptions" :key="person.id" :value="person.id" :label="person.displayName || person.email">{{ person.displayName || person.email }}</a-select-option></a-select></a-form-item>
               <a-form-item :label="$t('feedback.resolutionNote')"><a-textarea v-model:value="managerForm.resolutionNote" :placeholder="$t('feedback.resolutionNotePlaceholder')" :rows="3" maxlength="2000" show-count /></a-form-item>
-              <a-button type="primary" :loading="updateLoading" @click="saveHandling">{{ $t('feedback.save') }}</a-button>
+              <a-button type="primary" class="pms-primary-button" :loading="updateLoading" @click="saveHandling">{{ $t('feedback.save') }}</a-button>
             </a-form>
           </section>
 

@@ -11,7 +11,7 @@ import {
   TeamOutlined,
 } from '@ant-design/icons-vue'
 import { getWorkbench } from '/@/api/workbench'
-import { priorityKey, projectStatusKey, taskStatusKey, priorityTagColor, statusTagColor } from '/@/enums'
+import { priorityKey, projectStatusKey, projectStatusTagColor, taskStatusKey, taskStatusTagColor, priorityTagColor } from '/@/enums'
 import type { Project } from '/@/types/domain'
 import { formatDate, formatDateTime } from '/@/utils/format'
 import { getProjectManagerDisplay } from '/@/views/project/detail/workflow'
@@ -72,10 +72,6 @@ async function loadData() {
     projects.value = payload.projects || []
     recentActivities.value = payload.activities || []
   } catch (error) {
-    summary.value = emptySummary()
-    projects.value = []
-    myTasks.value = []
-    recentActivities.value = []
     errorMessage.value = getErrorMessage(error, t('workbench.loadFailed'))
   } finally {
     loading.value = false
@@ -155,7 +151,7 @@ onMounted(loadData)
                 <small>{{ task.projectName }}<template v-if="task.projectCode"> · {{ task.projectCode }}</template></small>
               </span>
               <span class="workbench-task-row__meta">
-                <a-tag :color="statusTagColor[task.status]">{{ $t(taskStatusKey(task.status)) }}</a-tag>
+                <a-tag :color="taskStatusTagColor(task.status)">{{ $t(taskStatusKey(task.status)) }}</a-tag>
                 <a-tag :color="priorityTagColor[task.priority]">{{ $t(priorityKey(task.priority)) }}</a-tag>
                 <small>{{ formatDate(task.dueDate) }}</small>
               </span>
@@ -186,7 +182,7 @@ onMounted(loadData)
                 <small>{{ projectPath(project) }}</small>
               </span>
               <span class="workbench-project-row__progress">
-                <a-tag :color="statusTagColor[project.status]">{{ $t(projectStatusKey(project.status)) }}</a-tag>
+                <a-tag :color="projectStatusTagColor(project.status)">{{ $t(projectStatusKey(project.status)) }}</a-tag>
                 <a-progress :percent="project.progress || 0" size="small" :show-info="false" />
                 <small>{{ project.progress || 0 }}%</small>
               </span>

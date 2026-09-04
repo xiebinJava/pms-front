@@ -31,7 +31,7 @@ test('renders the project date range as a compact two-line value', () => {
 test('uses shared filter geometry for project search controls', () => {
   assert.match(source, /class="pms-search-input pms-filter-control"/)
   assert.match(source, /class="pms-status-select pms-filter-control"/)
-  assert.match(source, /class="pms-secondary-button pms-filter-button"/)
+  assert.match(source, /class="[^"]*pms-secondary-button[^"]*pms-filter-button[^"]*"/)
 })
 
 test('keeps project search controls close to the toolbar divider', () => {

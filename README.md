@@ -76,6 +76,7 @@ docker compose -f docker-compose.example.yml down
 | 配置管理 / 角色管理   | 角色编码、中文名称、权限点和数据范围                    |
 | 配置管理 / 批量导入   | Excel/CSV 预览、错误校验、幂等提交、错误报告下载        |
 | 配置管理 / 审计日志   | 按动作、资源、操作人和时间查询敏感操作                  |
+| 通知中心              | 查看站内通知，按未读/临期/逾期筛选并分页处理             |
 | 使用手册              | 按当前导航结构查找模块说明、截图和操作步骤              |
 
 业务规则以 [后端业务规范](../pms-backend/docs/business-specification.md) 为准。特别注意：组织负责人和员工主归属是两套独立关系。
@@ -178,7 +179,7 @@ docker run --rm -p 5173:8080 pms-front:local
 
 | 现象                                           | 处理                                                                        |
 | ---------------------------------------------- | --------------------------------------------------------------------------- |
-| 页面提示 `Request failed with status code 500` | 查看后端日志；先确认 OceanBase 迁移已到 V1–V12，再访问 `/api/health/ready`  |
+| 页面提示 `Request failed with status code 500` | 查看后端日志；先确认 OceanBase 迁移已到 V1–V18，再访问 `/api/health/ready`  |
 | 一直跳回登录页                                 | 检查后端登录接口、JWT 密钥和浏览器时间；刷新令牌失败会主动清理会话          |
 | `localhost` 能访问、`127.0.0.1` 异常           | 开发环境优先使用 <http://localhost:5173>，并检查 `VITE_PROXY_TARGET`        |
 | 页面能打开但 API 404                           | 确认访问的是前端开发端口 5173，且 Vite 代理目标为后端 8080                  |

@@ -1,5 +1,11 @@
 import type { SearchHit, SearchResult, UserNotification } from '/@/types/domain'
 
+export const NOTIFICATIONS_CHANGED_EVENT = 'pms:notifications-changed'
+
+export function notifyNotificationsChanged(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED_EVENT))
+}
+
 export interface ChromeRoute {
   path: string
   query?: { task?: string; node?: string; milestone?: string }

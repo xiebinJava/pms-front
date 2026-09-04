@@ -5,7 +5,10 @@ import {
   buildCalendarWeeks,
   buildScheduleModel,
   buildTimelineWindow,
+  clampDayWidth,
   dayWidthForSpan,
+  applyScheduleDrag,
+  createScheduleFromDrag,
   nodeScheduleTone,
   toDateKey,
 } from './schedule.ts'
@@ -89,5 +92,106 @@ test('calendar keeps range bars on week rows and day chips on dates', () => {
 test('keeps day width readable as the window grows', () => {
   assert.equal(dayWidthForSpan(21), 34)
   assert.equal(dayWidthForSpan(80), 18)
+  assert.equal(clampDayWidth(8), 14)
+  assert.equal(clampDayWidth(31.5), 32)
+  assert.equal(clampDayWidth(60), 52)
   assert.equal(toDateKey('not-a-date'), undefined)
+})
+
+test('moves a scheduled node by whole days while preserving its duration', () => {
+  assert.deepEqual(applyScheduleDrag({
+    start: '2026-09-01',
+    end: '2026-09-04',
+    mode: 'move',
+    deltaDays: 3,
+  }), {
+    start: '2026-09-04',
+    end: '2026-09-07',
+  })
+})
+
+test('resizes a scheduled node from either edge and clamps invalid ranges', () => {
+  assert.deepEqual(applyScheduleDrag({
+    start: '2026-09-01',
+    end: '2026-09-10',
+    mode: 'resize-start',
+    deltaDays: 3,
+  }), {
+    start: '2026-09-04',
+    end: '2026-09-10',
+  })
+  assert.deepEqual(applyScheduleDrag({
+    start: '2026-09-01',
+    end: '2026-09-10',
+    mode: 'resize-end',
+    deltaDays: -20,
+  }), {
+    start: '2026-09-01',
+    end: '2026-09-01',
+  })
+})
+
+test('keeps moved node dates inside the visible timeline window', () => {
+  assert.deepEqual(applyScheduleDrag({
+    start: '2026-09-01',
+    end: '2026-09-04',
+    mode: 'move',
+    deltaDays: -20,
+    minDate: '2026-08-30',
+    maxDate: '2026-09-30',
+  }), {
+    start: '2026-08-30',
+    end: '2026-09-02',
+  })
+  assert.deepEqual(applyScheduleDrag({
+    start: '2026-09-01',
+    end: '2026-09-04',
+    mode: 'resize-end',
+    deltaDays: 20,
+    minDate: '2026-08-30',
+    maxDate: '2026-09-05',
+  }), {
+    start: '2026-09-01',
+    end: '2026-09-05',
+  })
+})
+
+test('creates a node schedule from a blank timeline drag', () => {
+  assert.deepEqual(createScheduleFromDrag({
+    anchor: '2026-09-10',
+    current: '2026-09-13',
+  }), {
+    start: '2026-09-10',
+    end: '2026-09-13',
+  })
+  assert.deepEqual(createScheduleFromDrag({
+    anchor: '2026-09-13',
+    current: '2026-09-10',
+  }), {
+    start: '2026-09-10',
+    end: '2026-09-13',
+  })
+  assert.deepEqual(createScheduleFromDrag({
+    anchor: '2026-09-10',
+    current: '2026-09-10',
+  }), {
+    start: '2026-09-10',
+    end: '2026-09-10',
+  })
+})
+
+test('clamps a blank timeline drag to the visible window', () => {
+  assert.deepEqual(createScheduleFromDrag({
+    anchor: '2026-09-01',
+    current: '2026-09-20',
+    minDate: '2026-09-05',
+    maxDate: '2026-09-15',
+  }), {
+    start: '2026-09-05',
+    end: '2026-09-15',
+  })
+  assert.equal(createScheduleFromDrag({
+    anchor: 'invalid',
+    current: '2026-09-10',
+  }), undefined)
 })

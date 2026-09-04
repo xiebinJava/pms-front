@@ -142,6 +142,75 @@ export function dayWidthForSpan(dayCount: number): number {
   return 14
 }
 
+export function clampDayWidth(value: number, min = 14, max = 52): number {
+  if (!Number.isFinite(value)) return min
+  return Math.min(max, Math.max(min, Math.round(value)))
+}
+
+export type ScheduleDragMode = 'move' | 'resize-start' | 'resize-end'
+
+export function applyScheduleDrag(input: {
+  start: string
+  end: string
+  mode: ScheduleDragMode
+  deltaDays: number
+  minDate?: string
+  maxDate?: string
+}): { start: string; end: string } | undefined {
+  const start = toDateKey(input.start)
+  const end = toDateKey(input.end)
+  if (!start || !end || start > end || !Number.isFinite(input.deltaDays)) return undefined
+
+  const minDate = toDateKey(input.minDate)
+  const maxDate = toDateKey(input.maxDate)
+  if (minDate && maxDate && minDate > maxDate) return undefined
+
+  const shift = (date: string, days: number) => dayjs(date).add(days, 'day').format('YYYY-MM-DD')
+  let nextStart = start
+  let nextEnd = end
+
+  if (input.mode === 'move') {
+    let delta = Math.round(input.deltaDays)
+    if (minDate && shift(start, delta) < minDate) delta += dayjs(minDate).diff(dayjs(shift(start, delta)), 'day')
+    if (maxDate && shift(end, delta) > maxDate) delta -= dayjs(shift(end, delta)).diff(dayjs(maxDate), 'day')
+    nextStart = shift(start, delta)
+    nextEnd = shift(end, delta)
+  } else if (input.mode === 'resize-start') {
+    nextStart = shift(start, Math.round(input.deltaDays))
+    if (minDate && nextStart < minDate) nextStart = minDate
+    if (nextStart > end) nextStart = end
+  } else {
+    nextEnd = shift(end, Math.round(input.deltaDays))
+    if (maxDate && nextEnd > maxDate) nextEnd = maxDate
+    if (nextEnd < start) nextEnd = start
+  }
+
+  return { start: nextStart, end: nextEnd }
+}
+
+export function createScheduleFromDrag(input: {
+  anchor: string
+  current: string
+  minDate?: string
+  maxDate?: string
+}): { start: string; end: string } | undefined {
+  const anchor = toDateKey(input.anchor)
+  const current = toDateKey(input.current)
+  if (!anchor || !current) return undefined
+
+  const minDate = toDateKey(input.minDate)
+  const maxDate = toDateKey(input.maxDate)
+  if (minDate && maxDate && minDate > maxDate) return undefined
+
+  const clamp = (date: string) => {
+    if (minDate && date < minDate) return minDate
+    if (maxDate && date > maxDate) return maxDate
+    return date
+  }
+  const dates = [clamp(anchor), clamp(current)].sort()
+  return { start: dates[0], end: dates[1] }
+}
+
 function collectKeys(values: Array<string | undefined>): string[] {
   return values.filter((value): value is string => Boolean(value && dayjs(value).isValid()))
 }

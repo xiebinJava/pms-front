@@ -30,17 +30,6 @@ export function updateProject(id: number | string, data: ProjectUpdatePayload): 
   return http.put(`/projects/${id}`, data)
 }
 
-export interface ProjectImageUpload {
-  name: string
-  url: string
-}
-
-export function uploadProjectImage(file: File): Promise<ProjectImageUpload> {
-  const formData = new FormData()
-  formData.append('file', file)
-  return http.post('/projects/images', formData)
-}
-
 export function deleteProject(id: number | string): Promise<void> {
   return http.delete(`/projects/${id}`)
 }

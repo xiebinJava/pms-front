@@ -10,7 +10,8 @@ import { getNotifications, getUnreadNotificationCount, markAllNotificationsRead,
 import { searchWorkspace } from '/@/api/search'
 import { formatDateTime } from '/@/utils/format'
 import type { SearchResult, UserNotification } from '/@/types/domain'
-import { canSearch, firstSearchHit, notificationRoute, searchHitRoute } from './chrome'
+import { canSearch, firstSearchHit, NOTIFICATIONS_CHANGED_EVENT, notificationRoute, searchHitRoute } from './chrome'
+import { notificationTypeClass, notificationTypeKey } from '/@/views/notifications/notification-center'
 
 const route = useRoute()
 const router = useRouter()
@@ -167,7 +168,7 @@ async function loadNotifications() {
   notifyLoading.value = true
   try {
     notifications.value = await getNotifications()
-    unreadCount.value = notifications.value.filter((item) => !item.readAt).length
+    await refreshUnreadCount()
   } catch {
     notifications.value = []
   } finally {
@@ -180,13 +181,18 @@ function onNotifyOpenChange(open: boolean) {
   if (open) void loadNotifications()
 }
 
+function openNotificationCenter() {
+  notifyOpen.value = false
+  void router.push('/notifications')
+}
+
 async function openNotification(item: UserNotification) {
   notifyOpen.value = false
   if (!item.readAt) {
     try {
       await markNotificationRead(item.id)
       item.readAt = new Date().toISOString()
-      unreadCount.value = Math.max(0, unreadCount.value - 1)
+      await refreshUnreadCount()
     } catch { /* keep the list usable even if the mark-read call fails */ }
   }
   const target = notificationRoute(item)
@@ -196,10 +202,15 @@ async function openNotification(item: UserNotification) {
 async function onMarkAllRead() {
   await markAllNotificationsRead()
   notifications.value = notifications.value.map((item) => ({ ...item, readAt: item.readAt || new Date().toISOString() }))
-  unreadCount.value = 0
+  await refreshUnreadCount()
+}
+
+function onNotificationsChanged() {
+  void refreshUnreadCount()
 }
 
 onMounted(async () => {
+  window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, onNotificationsChanged)
   if (userStore.token && !userStore.user) {
     try {
       await userStore.fetchMe()
@@ -216,6 +227,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   if (searchTimer) clearTimeout(searchTimer)
   if (unreadTimer) clearInterval(unreadTimer)
+  window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, onNotificationsChanged)
 })
 
 </script>
@@ -311,11 +323,17 @@ onBeforeUnmount(() => {
                   :class="{ 'pms-notify-item--unread': !item.readAt }"
                   @click="openNotification(item)"
                 >
+                  <span class="pms-notify-item__type" :class="notificationTypeClass(item.type)">
+                    {{ $t(notificationTypeKey(item.type)) }}
+                  </span>
                   <strong>{{ item.title }}</strong>
                   <span>{{ item.content }}</span>
                   <small>{{ formatDateTime(item.createdAt) }}</small>
                 </button>
               </a-spin>
+              <button class="pms-notify-view-all" type="button" @click="openNotificationCenter">
+                {{ $t('layout.viewAllNotifications') }}
+              </button>
             </div>
           </template>
         </a-dropdown>

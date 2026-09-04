@@ -7,7 +7,7 @@ import { addComment, deleteComment, getComments } from '/@/api/comment'
 import { formatDateTime } from '/@/utils/format'
 import type { Comment } from '/@/types/domain'
 
-const props = defineProps<{ projectId: number }>()
+const props = defineProps<{ projectId: number; canWrite: boolean }>()
 const { t } = useI18n()
 
 const list = ref<Comment[]>([])
@@ -59,9 +59,9 @@ onMounted(loadData)
 
 <template>
   <div class="max-w-[720px]">
-    <div class="flex gap-2 mb-5">
+    <div v-if="canWrite" class="flex gap-2 mb-5">
       <a-textarea v-model:value="content" :rows="3" :placeholder="$t('detail.activityPlaceholder')" :maxlength="2000" />
-      <a-button type="primary" class="pms-primary-button self-end" :loading="submitting" @click="onAdd">{{ $t('task.publish') }}</a-button>
+      <a-button type="primary" class="pms-primary-button pms-project-button pms-project-button--primary self-end" :loading="submitting" @click="onAdd">{{ $t('task.publish') }}</a-button>
     </div>
 
     <a-spin :spinning="loading">
@@ -75,7 +75,7 @@ onMounted(loadData)
             <span class="pms-strong-text">{{ item.userNickname }}</span>
             <span class="pms-faint-text pms-comment-item__time">
               {{ formatDateTime(item.createdAt) }}
-              <DeleteOutlined class="pms-delete-icon" @click="onDelete(item)" />
+              <DeleteOutlined v-if="item.canDelete" class="pms-delete-icon" @click="onDelete(item)" />
             </span>
           </div>
           <p class="pms-comment-item__content">{{ item.content }}</p>

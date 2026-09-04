@@ -13,7 +13,7 @@ import type { ProjectMember } from '/@/types/domain'
 import type { PersonOption } from '../workflow'
 
 const props = withDefaults(defineProps<{ projectId: number; canManage?: boolean }>(), {
-  canManage: true,
+  canManage: false,
 })
 const { t } = useI18n()
 
@@ -87,7 +87,7 @@ onMounted(loadData)
 <template>
   <div class="flex items-center justify-between mb-4">
     <span class="pms-muted-text">{{ $t('member.count', { count: list.length }) }}</span>
-    <a-button v-if="canManage" type="primary" class="pms-primary-button" @click="openAdd">
+    <a-button v-if="canManage" type="primary" class="pms-primary-button pms-project-button pms-project-button--primary" @click="openAdd">
       <PlusOutlined /> {{ $t('member.add') }}
     </a-button>
   </div>
@@ -106,14 +106,14 @@ onMounted(loadData)
       <template v-else-if="column.key === 'createdAt'">{{ formatDateTime(record.createdAt) }}</template>
       <template v-else-if="column.key === 'action'">
         <span v-if="!canManage" class="pms-faint-text">{{ $t('common.readonly') }}</span>
-        <span v-else-if="record.role !== 0" class="pms-action-link pms-action-link--danger" @click="onRemove(record)">{{ $t('member.remove') }}</span>
+        <button v-else-if="record.role !== 0" type="button" class="pms-action-link pms-action-link--danger pms-project-button pms-project-button--text pms-project-button--danger" @click="onRemove(record)">{{ $t('member.remove') }}</button>
         <span v-else class="pms-faint-text">{{ $t('member.ownerLocked') }}</span>
       </template>
     </template>
     </a-table>
   </div>
 
-  <a-modal v-model:open="modalState.open" :title="$t('member.add')" @ok="onSave">
+  <a-modal v-model:open="modalState.open" class="pms-project-modal" :title="$t('member.add')" @ok="onSave">
     <a-form ref="formRef" :model="form" :rules="rules" layout="vertical">
       <a-form-item :label="$t('member.selectUser')" name="userId">
         <PersonSelect
