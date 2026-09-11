@@ -5,7 +5,7 @@
 
 PMS Front 是 PMS 的浏览器端应用，负责页面展示、交互和前端路由；账号、权限、组织关系、项目数据和文件上传都由 [`pms-backend`](https://github.com/xiebinJava/pms-backend) 提供。项目面向单个企业本地部署，不是独立 SaaS 前端。
 
-当前统一发行包镜像版本：`1.0.6`。最终用户请使用 [`pms-distribution`](https://github.com/xiebinJava/pms-distribution) 的预构建镜像；本仓库面向前端本地开发。
+当前统一发行包镜像版本：`1.0.7`。最终用户请使用 [`pms-distribution`](https://github.com/xiebinJava/pms-distribution) 的预构建镜像；本仓库面向前端本地开发。
 
 第一次使用时，先启动后端，再按下面的「本地开发」运行前端。只想快速体验完整系统时，使用发行仓库的 `./scripts/bootstrap.sh`。
 
