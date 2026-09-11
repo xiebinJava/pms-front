@@ -1,0 +1,14 @@
+---
+description: Block company and personal identifiers from entering the public tree
+alwaysApply: true
+---
+
+# Open-source privacy
+
+Before finishing any edit in this repo, run `./scripts/check-privacy.sh`.
+
+- Do not add company brand names, company domains, or internal hostnames.
+- Do not use real employees as examples, seeds, fixtures, or placeholders.
+- Allowed demo identity: `张伟` / `Alex.Zhang` / `alex.zhang@example.com`.
+- Allowed generic emails: `admin@example.com`, `name@example.com`.
+- Put new forbidden terms only in `scripts/privacy-denylist.txt`.

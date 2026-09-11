@@ -1,0 +1,13 @@
+node_modules/
+dist/
+dist-ssr/
+test-results/
+.playwright-browsers/
+*.local
+.env
+.DS_Store
+*.log
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.e2e.local.env

@@ -1,0 +1,42 @@
+name: frontend-ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check repository for company and personal identifiers
+        run: ./scripts/check-privacy.sh
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm typecheck
+      - run: pnpm build
+      - name: Build frontend image for security scan
+        run: docker build --tag pms-front:ci .
+      - name: Scan frontend image (high and critical)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: pms-front:ci
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+      - name: Generate frontend SPDX SBOM
+        uses: anchore/sbom-action@v0.17.0
+        with:
+          image: pms-front:ci
+          format: spdx-json
+          output-file: frontend-sbom.spdx.json
+          artifact-name: frontend-sbom.spdx.json
