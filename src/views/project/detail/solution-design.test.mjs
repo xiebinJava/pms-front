@@ -77,8 +77,8 @@ test('exposes the solution design API endpoints and only mounts its workbench fo
   assert.match(api, /saveNodeSolutionDecisionDraft[\s\S]*http\.put/)
   assert.doesNotMatch(api, /decision\/reopen|reopenNodeSolutionDecision/)
   assert.match(detail, /SolutionDesignWorkbench/)
-  assert.match(detail, /activeNode\.nodeKey === 'design'/)
-  assert.match(detail, /activeNode\.nodeKey === 'requirement'/)
+  assert.match(detail, /nodeHasComponent\(activeNode, 'solution-design'\)/)
+  assert.match(detail, /nodeHasComponent\(activeNode, 'requirement-scope'\)/)
 })
 
 test('keeps the design workbench bounded to one package and three review rows', () => {

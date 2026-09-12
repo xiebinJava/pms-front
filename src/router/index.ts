@@ -87,6 +87,7 @@ const router = createRouter({
         { path: 'admin/org', name: 'admin-org', component: () => import('/@/views/admin/org/index.vue'), meta: { titleKey: 'route.adminOrg', permission: 'admin:org:read' } },
         { path: 'admin/roles', name: 'admin-roles', component: () => import('/@/views/admin/roles/index.vue'), meta: { titleKey: 'route.adminRoles', permission: 'admin:role:read' } },
         { path: 'admin/import', name: 'admin-import', component: () => import('/@/views/admin/import/index.vue'), meta: { titleKey: 'route.adminImport', permission: 'admin:import:write' } },
+        { path: 'admin/workflows', name: 'admin-workflows', component: () => import('/@/views/admin/workflows/index.vue'), meta: { titleKey: 'route.adminWorkflows', permission: 'admin:workflow:read' } },
         { path: 'admin/audit', name: 'admin-audit', component: () => import('/@/views/admin/audit/index.vue'), meta: { titleKey: 'route.adminAudit', permission: 'admin:audit:read' } },
       ],
     },

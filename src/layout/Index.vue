@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { BellOutlined, BookOutlined, CloudUploadOutlined, DashboardOutlined, DownOutlined, ExperimentOutlined, LogoutOutlined, MenuOutlined, ProjectOutlined, SearchOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, MessageOutlined } from '@ant-design/icons-vue'
+import { BellOutlined, BookOutlined, CloudUploadOutlined, DashboardOutlined, DownOutlined, ExperimentOutlined, LogoutOutlined, MenuOutlined, ProjectOutlined, SearchOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, MessageOutlined, NodeIndexOutlined } from '@ant-design/icons-vue'
 import { useUserStore } from '/@/store/user'
 import LocaleSwitch from '/@/components/LocaleSwitch.vue'
 import { message } from 'ant-design-vue'
@@ -58,10 +58,11 @@ const selectedKeys = computed(() => {
   if (route.path.startsWith('/admin/roles')) return ['admin-roles']
   if (route.path.startsWith('/admin/audit')) return ['admin-audit']
   if (route.path.startsWith('/admin/import')) return ['admin-import']
+  if (route.path.startsWith('/admin/workflows')) return ['admin-workflows']
   return []
 })
 
-const canConfig = computed(() => ['admin:user:read', 'admin:org:read', 'admin:role:read', 'admin:audit:read', 'admin:import:write'].some(can))
+const canConfig = computed(() => ['admin:user:read', 'admin:org:read', 'admin:role:read', 'admin:audit:read', 'admin:import:write', 'admin:workflow:read'].some(can))
 
 const menuRoutes: Record<string, string> = {
   dashboard: '/dashboard',
@@ -74,6 +75,7 @@ const menuRoutes: Record<string, string> = {
   'admin-org': '/admin/org',
   'admin-roles': '/admin/roles',
   'admin-import': '/admin/import',
+  'admin-workflows': '/admin/workflows',
   'admin-audit': '/admin/audit',
 }
 
@@ -384,10 +386,13 @@ onBeforeUnmount(() => {
                     <button v-if="can('admin:role:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-roles') }" :aria-current="selectedKeys.includes('admin-roles') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'admin-roles' })">
                   <SafetyCertificateOutlined /><span>{{ $t('nav.roles') }}</span>
                 </button>
-                    <button v-if="can('admin:import:write')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-import') }" :aria-current="selectedKeys.includes('admin-import') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'admin-import' })">
+                <button v-if="can('admin:import:write')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-import') }" :aria-current="selectedKeys.includes('admin-import') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'admin-import' })">
                   <CloudUploadOutlined /><span>{{ $t('nav.import') }}</span>
                 </button>
-                    <button v-if="can('admin:audit:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-audit') }" :aria-current="selectedKeys.includes('admin-audit') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'admin-audit' })">
+                <button v-if="can('admin:workflow:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-workflows') }" :aria-current="selectedKeys.includes('admin-workflows') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'admin-workflows' })">
+                  <NodeIndexOutlined /><span>{{ $t('nav.workflows') }}</span>
+                </button>
+                <button v-if="can('admin:audit:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-audit') }" :aria-current="selectedKeys.includes('admin-audit') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'admin-audit' })">
                   <AuditOutlined /><span>{{ $t('nav.audit') }}</span>
                 </button>
               </div>

@@ -24,7 +24,7 @@ test('mounts the acceptance workbench without a separate reopen endpoint', () =>
   const api = fs.readFileSync(path.join(detailRoot, '../../../api/node-acceptance.ts'), 'utf8')
   const workbench = fs.readFileSync(path.join(detailRoot, 'components/AcceptanceWorkbench.vue'), 'utf8')
   assert.match(page, /AcceptanceWorkbench/)
-  assert.match(page, /activeNode\.nodeKey === 'acceptance'/)
+  assert.match(page, /nodeHasComponent\(activeNode, 'business-acceptance'\)/)
   assert.match(api, /acceptance/)
   assert.match(api, /confirmNodeAcceptance/)
   assert.doesNotMatch(api, /reopenNodeAcceptance|\/reopen/)

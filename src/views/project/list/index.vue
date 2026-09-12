@@ -16,6 +16,7 @@ import { Modal, message } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import { apiErrorMessage } from '/@/plugins/http'
 import { getProjectOrgTree } from '/@/api/admin-org'
+import { getWorkflowTemplateOptions } from '/@/api/admin-workflow'
 import {
   createProject,
   deleteProject,
@@ -31,6 +32,8 @@ import { formatDate } from '/@/utils/format'
 import { getProjectManagerDisplay } from '../detail/workflow'
 import PmsPageHeader from '/@/components/PmsPageHeader.vue'
 import type { OrgUnit, Project } from '/@/types/domain'
+import type { WorkflowTemplateOptions } from '/@/types/workflow'
+import { getWorkflowTemplateVersionOptions } from './workflow-template-options.mjs'
 import { useUserStore } from '/@/store/user'
 
 const router = useRouter()
@@ -125,6 +128,7 @@ const modalState = reactive({
   open: false,
   editingId: null as number | null,
 })
+const workflowOptions = ref<WorkflowTemplateOptions>({ projectTypes: [], templates: [] })
 const formRef = ref()
 const form = reactive({
   version: undefined as number | undefined,
@@ -134,7 +138,14 @@ const form = reactive({
   startDate: null as string | null,
   endDate: null as string | null,
   ownerId: undefined as number | undefined,
+  projectTypeId: undefined as number | undefined,
+  workflowTemplateVersionId: undefined as number | undefined,
 })
+const availableWorkflowTemplateVersions = computed(() => getWorkflowTemplateVersionOptions(
+  workflowOptions.value.templates,
+  form.projectTypeId,
+  workflowOptions.value.projectTypes.find((type) => type.id === form.projectTypeId)?.defaultTemplateVersionId,
+))
 
 const rules = computed(() => ({
   name: [{ required: true, message: t('project.nameRequired') }],
@@ -208,7 +219,7 @@ function onTableChange(p: { current?: number; pageSize?: number }) {
   loadData()
 }
 
-function openCreate() {
+async function openCreate() {
   if (!canCreateProject.value) {
     message.info(t('project.noCreatePermission'))
     return
@@ -222,8 +233,24 @@ function openCreate() {
     startDate: null,
     endDate: null,
     ownerId: undefined,
+    projectTypeId: undefined,
+    workflowTemplateVersionId: undefined,
   })
+  try {
+    workflowOptions.value = await getWorkflowTemplateOptions()
+    const defaultType = workflowOptions.value.projectTypes.find((item) => item.code === 'general')
+      || workflowOptions.value.projectTypes[0]
+    form.projectTypeId = defaultType?.id
+    form.workflowTemplateVersionId = defaultType?.defaultTemplateVersionId
+  } catch (error) {
+    message.error((error as Error).message || t('project.workflowOptionsFailed'))
+  }
   modalState.open = true
+}
+
+function onProjectTypeChange(projectTypeId?: number) {
+  const type = workflowOptions.value.projectTypes.find((item) => item.id === projectTypeId)
+  form.workflowTemplateVersionId = type?.defaultTemplateVersionId
 }
 
 function openEdit(record: Project) {
@@ -240,6 +267,8 @@ function openEdit(record: Project) {
     startDate: record.startDate || null,
     endDate: record.endDate || null,
     ownerId: record.ownerId,
+    projectTypeId: undefined,
+    workflowTemplateVersionId: undefined,
   })
   modalState.open = true
 }
@@ -253,7 +282,10 @@ async function onSave() {
       endDate: form.endDate || undefined,
     }
     if (modalState.editingId) {
-      await updateProject(modalState.editingId, payload)
+      const updatePayload = { ...payload }
+      delete updatePayload.projectTypeId
+      delete updatePayload.workflowTemplateVersionId
+      await updateProject(modalState.editingId, updatePayload)
       message.success(t('common.updated'))
     } else {
       await createProject(payload)
@@ -459,6 +491,23 @@ onMounted(async () => {
       @ok="onSave"
     >
       <a-form ref="formRef" :model="form" :rules="rules" layout="vertical">
+        <div v-if="!modalState.editingId" class="pms-workflow-selection">
+          <a-form-item :label="$t('project.projectType')">
+            <a-select v-model:value="form.projectTypeId" @change="onProjectTypeChange">
+              <a-select-option v-for="item in workflowOptions.projectTypes" :key="item.id" :value="item.id">
+                {{ item.name }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item :label="$t('project.workflowTemplate')">
+            <a-select v-model:value="form.workflowTemplateVersionId" :placeholder="$t('project.chooseWorkflowTemplate')">
+              <a-select-option v-for="version in availableWorkflowTemplateVersions" :key="version.id" :value="version.id">
+                {{ version.templateName }} · v{{ version.versionNo }}<span v-if="version.isDefault">（{{ $t('project.defaultTemplate') }}）</span>
+              </a-select-option>
+            </a-select>
+            <div class="pms-workflow-selection__hint">{{ $t('project.workflowTemplateHint') }}</div>
+          </a-form-item>
+        </div>
         <a-form-item :label="$t('project.name')" name="name">
           <a-input v-model:value="form.name" :placeholder="$t('project.namePlaceholder')" />
         </a-form-item>
@@ -540,6 +589,8 @@ onMounted(async () => {
 }
 
 .pms-search-input { width: 220px; }
+.pms-workflow-selection { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 14px 0; margin-bottom: 12px; background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: 8px; }
+.pms-workflow-selection__hint { margin-top: 5px; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
 .pms-org-select, .pms-manager-select, .pms-level-select, .pms-node-select { width: 168px; }
 .pms-status-select { width: 130px; }
 .pms-table-toolbar__filters { display: flex; flex-wrap: wrap; }
@@ -583,6 +634,7 @@ onMounted(async () => {
 
 @media (max-width: 640px) {
   .pms-page-header, .pms-table-toolbar { align-items: stretch; flex-direction: column; }
+  .pms-workflow-selection { grid-template-columns: 1fr; gap: 0; }
   .pms-table-toolbar__filters {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 96px;

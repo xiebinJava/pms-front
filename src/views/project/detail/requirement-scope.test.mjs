@@ -49,7 +49,7 @@ test('counts in-scope and out-of-scope items independently', () => {
 test('integrates the requirement workbench only into the requirement node', () => {
   const source = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
   assert.match(source, /RequirementScopeWorkbench/)
-  assert.match(source, /activeNode\.nodeKey === 'requirement'/)
+  assert.match(source, /nodeHasComponent\(activeNode, 'requirement-scope'\)/)
   assert.match(source, /<TaskKanban/) 
 })
 

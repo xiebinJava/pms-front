@@ -31,11 +31,9 @@ import { formatDate } from '/@/utils/format'
 import {
   buildBusinessLineOptions,
   getBusinessLineDisplay,
-  getMissingKickoffProfileFields,
   formatPersonLabel,
   getNodeOwnerDisplay,
   getPersonDisplay,
-  getProjectProfileFields,
   getProjectManagerDisplay,
   getNodeProgress,
   getNodeStatusMeta,
@@ -43,7 +41,6 @@ import {
   getInitialActiveNodeId,
   listDefaultNodeOwnerAssignments,
   isNodeReadOnly,
-  isKickoffNode,
   mergeMemberIdsAfterRefresh,
   normalizeRequiredReason,
   NOTE_ASSIGNED_PROJECT_MEMBER,
@@ -66,6 +63,8 @@ import DevelopmentControlWorkbench from './components/DevelopmentControlWorkbenc
 import ReleaseDecisionHandoverWorkbench from './components/ReleaseDecisionHandoverWorkbench.vue'
 import ValueReviewWorkbench from './components/ValueReviewWorkbench.vue'
 import KnowledgeStandardWorkbench from './components/KnowledgeStandardWorkbench.vue'
+import WorkflowCustomFields from './components/WorkflowCustomFields.vue'
+import { missingConfiguredProjectFields, nodeHasComponent, visibleProjectFields } from './workflow-config.mjs'
 import type { PersonOption } from './workflow'
 import type { NodeIterationPlan, NodeRequirement, OrgUnit, Project, ProjectMember, ProjectNode, Task, User } from '/@/types/domain'
 
@@ -102,7 +101,6 @@ let assignedMemberRefreshTimer: ReturnType<typeof setTimeout> | undefined
 const profileContainer = ref<HTMLElement | null>(null)
 const activeNodeId = ref<number | null>(null)
 const activeSection = ref('gantt')
-const projectProfileFields = getProjectProfileFields()
 const priorityOptions = computed(() => Priority.options().map((opt) => ({
   ...opt,
   label: t(priorityKey(opt.value)),
@@ -135,6 +133,7 @@ const acceptanceRef = ref<{ flushAutoSave: () => Promise<boolean> } | null>(null
 const releaseWorkbenchRef = ref<{ saveDraft: () => Promise<boolean> } | null>(null)
 const valueReviewWorkbenchRef = ref<{ saveDraft: () => Promise<boolean> } | null>(null)
 const knowledgeStandardRef = ref<{ flushAutoSave: () => Promise<boolean> } | null>(null)
+const workflowCustomFieldsRef = ref<{ flushAutoSave: () => Promise<boolean> } | null>(null)
 const taskKanbanRef = ref<{
   openCreateForRequirement: (requirementId: number) => void
   refreshRequirements: () => Promise<void> | void
@@ -177,7 +176,10 @@ const currentNodeProgress = computed(() => getNodeProgress(
   activeNodeTaskSummary.value.done,
   activeNodeTaskSummary.value.total,
 ))
-const showKickoffProfile = computed(() => isKickoffNode(activeNode.value?.nodeKey))
+const showKickoffProfile = computed(() => Boolean(activeNode.value && (
+  activeNode.value.projectBasicInfo || nodeHasComponent(activeNode.value, 'project-basic-info')
+)))
+const projectProfileFields = computed(() => visibleProjectFields(activeNode.value?.projectBasicInfoFields))
 const nodeOwnerOptions = computed(() => members.value.map((member) => ({
   value: member.userId,
   label: formatPersonLabel({ id: member.userId, nickname: member.nickname, username: member.username, email: member.email }),
@@ -273,6 +275,25 @@ function getPriorityBadge(priority: number): string {
 
 function joinLocalizedFields(keys: string[]): string {
   return keys.map((key) => t(key)).join(locale.value.startsWith('zh') ? '、' : ', ')
+}
+
+function projectProfileFieldLabel(key: string): string {
+  const labels: Record<string, string> = {
+    description: 'detail.profileDescription', priority: 'detail.profilePriority', projectLevel: 'detail.profileProjectLevel',
+    schedule: 'detail.profileSchedule', businessLine: 'detail.businessLine', projectManager: 'detail.manager',
+    projectMembers: 'detail.members', followers: 'detail.followers',
+  }
+  return t(labels[key] || key)
+}
+
+function componentSlotStyle(componentKey: string): Record<string, number> {
+  const components = activeNode.value?.components || []
+  const index = components.indexOf(componentKey)
+  return { order: index < 0 ? components.length + 1 : index }
+}
+
+function customFieldsSlotStyle(): Record<string, number> {
+  return { order: (activeNode.value?.components || []).length + 1 }
 }
 
 async function loadData() {
@@ -425,7 +446,7 @@ watch(activeNodeId, () => {
 function onTaskProgress(payload: { projectId: number; nodeId: number; done: number; total: number }) {
   if (payload.projectId !== projectId.value || payload.nodeId !== activeNodeId.value) return
   activeNodeTaskSummary.value = { done: payload.done, total: payload.total }
-  if (activeNode.value?.nodeKey === 'requirement') void requirementScopeRef.value?.refresh()
+  if (nodeHasComponent(activeNode.value, 'requirement-scope')) void requirementScopeRef.value?.refresh()
 }
 
 function onCreateTaskFromRequirement(requirement: NodeRequirement) {
@@ -785,54 +806,62 @@ async function onComplete() {
     message.info(t('detail.cannotComplete'))
     return
   }
-  if (nodeToComplete.nodeKey === 'requirement') {
+  if (nodeHasComponent(nodeToComplete, 'requirement-scope')) {
     const ready = await requirementScopeRef.value?.flushAutoSave()
     if (!ready || requirementBaselineStatus.value !== 1) {
       message.warning(t('detail.requirementContentIncomplete'))
       return
     }
   }
-  if (nodeToComplete.nodeKey === 'plan') {
+  if (nodeHasComponent(nodeToComplete, 'plan-resource-risk')) {
     const ready = await planResourceRiskRef.value?.flushAutoSave()
     if (!ready || planBaselineStatus.value !== 1) {
       message.warning(t('detail.planContentIncomplete'))
       return
     }
   }
-  if (nodeToComplete.nodeKey === 'acceptance') {
+  if (nodeHasComponent(nodeToComplete, 'business-acceptance')) {
     const ready = await acceptanceRef.value?.flushAutoSave()
     if (!ready || acceptanceStatus.value !== 1) {
       message.warning(t('detail.acceptanceContentIncomplete'))
       return
     }
   }
-  if (nodeToComplete.nodeKey === 'release' && !releaseCompletionReady.value) {
+  if (nodeHasComponent(nodeToComplete, 'release-handover') && !releaseCompletionReady.value) {
     message.warning(t('detail.release.completionRequired'))
     return
   }
-  if (nodeToComplete.nodeKey === 'review' && !valueReviewCompletionReady.value) {
+  if (nodeHasComponent(nodeToComplete, 'value-review') && !valueReviewCompletionReady.value) {
     message.warning(t('detail.valueReview.completionRequired'))
     return
   }
-  if (isKickoffNode(nodeToComplete.nodeKey)) {
-    const missingFields = getMissingKickoffProfileFields(profileForm)
+  if (nodeHasComponent(nodeToComplete, 'project-basic-info') || nodeToComplete.projectBasicInfo) {
+    const requiredProfileFields: Record<string, string> = {
+      description: 'detail.profileDescription', priority: 'detail.profilePriority', projectLevel: 'detail.profileProjectLevel',
+      schedule: 'detail.profileSchedule', businessLine: 'detail.businessLine', projectManager: 'detail.manager',
+      projectMembers: 'detail.members', followers: 'detail.followers',
+    }
+    const missingFields = missingConfiguredProjectFields(nodeToComplete.projectBasicInfoFields, profileForm)
+      .map((field) => requiredProfileFields[field] || field)
     if (missingFields.length) {
       message.warning(t('detail.completeMissing', { fields: joinLocalizedFields(missingFields) }))
       return
     }
   }
-  if (nodeToComplete.nodeKey === 'release') {
+  if (nodeHasComponent(nodeToComplete, 'release-handover')) {
     const saved = await releaseWorkbenchRef.value?.saveDraft()
     if (!saved) return
   }
-  if (nodeToComplete.nodeKey === 'review') {
+  if (nodeHasComponent(nodeToComplete, 'value-review')) {
     const saved = await valueReviewWorkbenchRef.value?.saveDraft()
     if (!saved) return
   }
-  if (nodeToComplete.nodeKey === 'knowledge') {
+  if (nodeHasComponent(nodeToComplete, 'knowledge-standard')) {
     const saved = await knowledgeStandardRef.value?.flushAutoSave()
     if (!saved) return
   }
+  const customFieldsReady = await workflowCustomFieldsRef.value?.flushAutoSave()
+  if (customFieldsReady === false) return
   Modal.confirm({
     title: t('detail.completeTitle'),
     content: t('detail.completeContent', { name: nodeToComplete.name }),
@@ -1129,25 +1158,23 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div v-if="showKickoffProfile" ref="profileContainer" class="node-tab-profile">
+      <div class="workflow-details-stack">
+      <div v-if="showKickoffProfile" ref="profileContainer" class="node-tab-profile" :style="componentSlotStyle('project-basic-info')">
         <div class="project-profile-section">
           <div class="profile-section-title-row">
             <div class="profile-section-title">{{ $t('detail.profileBasics') }}</div>
             <span v-if="profileSaving" class="profile-save-state">{{ $t('detail.profileSaving') }}</span>
           </div>
           <div class="project-profile-grid">
-            <template
-              v-for="field in projectProfileFields"
-              :key="field.key"
-            >
+            <template v-for="field in projectProfileFields" :key="field.key">
               <div
                 class="project-profile-field"
                 :class="{
-                  'project-profile-field--wide': field.wide,
-                  'project-profile-field--multiline': field.multiline,
+                  'project-profile-field--wide': field.key === 'description' || field.key === 'projectMembers' || field.key === 'followers',
+                  'project-profile-field--multiline': field.key === 'description',
                 }"
               >
-                <span class="project-profile-field__label project-profile-field__label--required">{{ $t(field.label) }}</span>
+                <span class="project-profile-field__label" :class="{ 'project-profile-field__label--required': field.required }">{{ projectProfileFieldLabel(field.key) }}</span>
                 <div v-if="field.key === 'description'" class="project-description-editor">
                   <a-textarea
                     v-model:value="profileForm.description"
@@ -1190,64 +1217,49 @@ onBeforeUnmount(() => {
                   :disabled="!canManageProject || activeNodeReadOnly"
                   @change="markProfileDirty"
                 />
+                <PersonSelect
+                  v-else-if="field.key === 'projectManager'"
+                  v-model="profileForm.projectManagerId"
+                  class="project-profile-control project-people-control"
+                  :options="nodeOwnerOptions"
+                  :disabled="!canSetProjectManager || activeNodeReadOnly"
+                  @change="onProjectManagerChange"
+                />
+                <PersonSelect
+                  v-else-if="field.key === 'projectMembers'"
+                  v-model="profileForm.memberIds"
+                  class="project-profile-control project-people-control project-members-control"
+                  multiple
+                  allow-clear
+                  :max-tag-count="2"
+                  :options="profileUserOptions"
+                  :placeholder="$t('detail.selectMembers')"
+                  :disabled="!canManageMembers || activeNodeReadOnly"
+                  @change="markMembersDirty"
+                />
+                <PersonSelect
+                  v-else-if="field.key === 'followers'"
+                  v-model="profileForm.followerIds"
+                  class="project-profile-control project-people-control project-members-control"
+                  multiple
+                  allow-clear
+                  :max-tag-count="2"
+                  :options="profileUserOptions"
+                  :placeholder="$t('detail.selectFollowers')"
+                  :disabled="!canManageMembers || activeNodeReadOnly"
+                  @change="markFollowersDirty"
+                />
               </div>
             </template>
           </div>
         </div>
-
-        <a-divider />
-
-        <div class="project-profile-section">
-          <div class="profile-section-title">{{ $t('detail.profilePeople') }}</div>
-          <div class="project-people-grid">
-            <div class="project-people-item">
-              <span class="project-profile-field__label project-profile-field__label--required">{{ $t('detail.manager') }}</span>
-              <PersonSelect
-                v-model="profileForm.projectManagerId"
-                class="project-profile-control project-people-control"
-                :options="nodeOwnerOptions"
-                :disabled="!canSetProjectManager || activeNodeReadOnly"
-                @change="onProjectManagerChange"
-              />
-            </div>
-            <div class="project-people-item">
-              <span class="project-profile-field__label project-profile-field__label--required">{{ $t('detail.members') }}</span>
-              <PersonSelect
-                v-model="profileForm.memberIds"
-                class="project-profile-control project-people-control project-members-control"
-                multiple
-                allow-clear
-                :max-tag-count="2"
-                :options="profileUserOptions"
-                :placeholder="$t('detail.selectMembers')"
-                :disabled="!canManageMembers || activeNodeReadOnly"
-                @change="markMembersDirty"
-              />
-            </div>
-            <div class="project-people-item">
-              <span class="project-profile-field__label">{{ $t('detail.followers') }}</span>
-              <PersonSelect
-                v-model="profileForm.followerIds"
-                class="project-profile-control project-people-control project-members-control"
-                multiple
-                allow-clear
-                :max-tag-count="2"
-                :options="profileUserOptions"
-                :placeholder="$t('detail.selectFollowers')"
-                :disabled="!canManageMembers || activeNodeReadOnly"
-                @change="markFollowersDirty"
-              />
-            </div>
-          </div>
-        </div>
-
-        <a-divider />
       </div>
 
       <RequirementScopeWorkbench
-        v-if="activeNode.nodeKey === 'requirement'"
+        v-if="nodeHasComponent(activeNode, 'requirement-scope')"
         ref="requirementScopeRef"
         :key="activeNode.id"
+        :style="componentSlotStyle('requirement-scope')"
         :project-id="projectId"
         :node-id="activeNode.id"
         :node-read-only="activeNodeReadOnly"
@@ -1259,8 +1271,9 @@ onBeforeUnmount(() => {
       />
 
       <SolutionDesignWorkbench
-        v-if="activeNode.nodeKey === 'design'"
+        v-if="nodeHasComponent(activeNode, 'solution-design')"
         :key="activeNode.id"
+        :style="componentSlotStyle('solution-design')"
         :project-id="projectId"
         :node-id="activeNode.id"
         :node-read-only="activeNodeReadOnly"
@@ -1269,9 +1282,10 @@ onBeforeUnmount(() => {
       />
 
       <PlanResourceRiskWorkbench
-        v-if="activeNode.nodeKey === 'plan'"
+        v-if="nodeHasComponent(activeNode, 'plan-resource-risk')"
         ref="planResourceRiskRef"
         :key="activeNode.id"
+        :style="componentSlotStyle('plan-resource-risk')"
         :project-id="projectId"
         :node-id="activeNode.id"
         :node-roles="activeNode.roles"
@@ -1282,9 +1296,10 @@ onBeforeUnmount(() => {
       />
 
       <AcceptanceWorkbench
-        v-if="activeNode.nodeKey === 'acceptance'"
+        v-if="nodeHasComponent(activeNode, 'business-acceptance')"
         ref="acceptanceRef"
         :key="activeNode.id"
+        :style="componentSlotStyle('business-acceptance')"
         :project-id="projectId"
         :node-id="activeNode.id"
         :node-read-only="activeNodeReadOnly"
@@ -1293,8 +1308,9 @@ onBeforeUnmount(() => {
       />
 
       <DevelopmentControlWorkbench
-        v-if="activeNode.nodeKey === 'develop'"
+        v-if="nodeHasComponent(activeNode, 'development-control')"
         :key="activeNode.id"
+        :style="componentSlotStyle('development-control')"
         :project-id="projectId"
         :node-id="activeNode.id"
         :project-name="project.name"
@@ -1305,9 +1321,10 @@ onBeforeUnmount(() => {
       />
 
       <ReleaseDecisionHandoverWorkbench
-        v-if="activeNode.nodeKey === 'release'"
+        v-if="nodeHasComponent(activeNode, 'release-handover')"
         ref="releaseWorkbenchRef"
         :key="activeNode.id"
+        :style="componentSlotStyle('release-handover')"
         :project-id="projectId"
         :node-id="activeNode.id"
         :node-read-only="activeNodeReadOnly"
@@ -1316,9 +1333,10 @@ onBeforeUnmount(() => {
       />
 
       <ValueReviewWorkbench
-        v-if="activeNode.nodeKey === 'review'"
+        v-if="nodeHasComponent(activeNode, 'value-review')"
         ref="valueReviewWorkbenchRef"
         :key="activeNode.id"
+        :style="componentSlotStyle('value-review')"
         :project-id="projectId"
         :node-id="activeNode.id"
         :node-read-only="activeNodeReadOnly"
@@ -1327,15 +1345,30 @@ onBeforeUnmount(() => {
       />
 
       <KnowledgeStandardWorkbench
-        v-if="activeNode.nodeKey === 'knowledge'"
+        v-if="nodeHasComponent(activeNode, 'knowledge-standard')"
         ref="knowledgeStandardRef"
         :key="activeNode.id"
+        :style="componentSlotStyle('knowledge-standard')"
         :project-id="projectId"
         :node-id="activeNode.id"
         :node-read-only="activeNodeReadOnly"
         :can-edit="canEditActiveNode"
         :owner-options="nodeOwnerOptions"
       />
+
+      <WorkflowCustomFields
+        v-if="activeNode.fields?.length"
+        ref="workflowCustomFieldsRef"
+        :key="`custom-fields-${activeNode.id}`"
+        :style="customFieldsSlotStyle()"
+        :project-id="projectId"
+        :node-id="activeNode.id"
+        :fields="activeNode.fields"
+        :person-options="nodeOwnerOptions"
+        :can-edit="canEditActiveNode"
+        :read-only="activeNodeReadOnly"
+      />
+      </div>
 
       <a-divider />
 
@@ -1529,6 +1562,7 @@ onBeforeUnmount(() => {
 .node-owner-row__select { width: 100%; }
 .node-schedule-row { margin-top: 0; }
 .node-schedule-picker { width: min(100%, 380px); }
+.workflow-details-stack { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
 .profile-section-title { margin-bottom: 14px; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
 .profile-section-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .profile-section-title-row .profile-section-title { margin-bottom: 0; }

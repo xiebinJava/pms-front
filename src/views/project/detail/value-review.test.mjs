@@ -27,7 +27,7 @@ test('mounts the value review workbench only for the review node and keeps compl
   const workbench = fs.readFileSync(path.join(detailRoot, 'components/ValueReviewWorkbench.vue'), 'utf8')
 
   assert.match(page, /ValueReviewWorkbench/)
-  assert.match(page, /activeNode\.nodeKey === 'review'/)
+  assert.match(page, /nodeHasComponent\(activeNode, 'value-review'\)/)
   assert.match(page, /valueReviewCompletionReady\.value/)
   assert.match(page, /detail\.valueReview\.completionRequired/)
   assert.match(api, /nodes\/\$\{nodeId\}\/value-review/)

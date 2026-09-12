@@ -35,7 +35,7 @@ test('mounts the knowledge workbench only for the knowledge node and keeps archi
   const api = fs.readFileSync(path.join(import.meta.dirname, '../../../api/node-knowledge-standard.ts'), 'utf8')
 
   assert.match(detail, /KnowledgeStandardWorkbench/)
-  assert.match(detail, /activeNode\.nodeKey === 'knowledge'/)
+  assert.match(detail, /nodeHasComponent\(activeNode, 'knowledge-standard'\)/)
   assert.match(workbench, /标准与知识资产/)
   assert.match(workbench, /改进行动清单/)
   assert.match(workbench, /@focusout="handleWorkbenchFocusOut"/)

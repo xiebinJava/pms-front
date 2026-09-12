@@ -1,3 +1,5 @@
+import type { WorkflowFieldAttachment, WorkflowFieldDefinition, WorkflowProjectFieldDefinition } from './workflow'
+
 export interface User {
   id: number
   username?: string
@@ -21,6 +23,8 @@ export interface Project {
   status: number
   priority: number
   projectLevel: number
+  projectTypeId?: number
+  workflowTemplateVersionId?: number
   ownerId: number
   ownerName?: string
   createdBy?: number
@@ -214,6 +218,14 @@ export interface ProjectNode {
   endDate?: string
   createdAt: string
   permissions?: NodePermissions
+  components?: string[]
+  fields?: WorkflowFieldDefinition[]
+  projectBasicInfo?: boolean
+  projectBasicInfoFields?: WorkflowProjectFieldDefinition[]
+  fieldValues?: Record<string, unknown>
+  fieldValueVersions?: Record<string, number>
+  fieldAttachments?: Record<string, WorkflowFieldAttachment[]>
+  fixedBlocks?: string[]
 }
 
 export type NodeDevelopmentStoryStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'TESTING' | 'DONE' | 'BLOCKED'

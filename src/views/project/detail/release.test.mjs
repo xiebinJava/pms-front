@@ -45,7 +45,7 @@ test('mounts the release workbench only for the release node and uses the lifecy
   const page = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
   const api = fs.readFileSync(path.join(detailRoot, '../../../api/node-release.ts'), 'utf8')
   assert.match(page, /ReleaseDecisionHandoverWorkbench/)
-  assert.match(page, /activeNode\.nodeKey === 'release'/)
+  assert.match(page, /nodeHasComponent\(activeNode, 'release-handover'\)/)
   assert.match(page, /releaseCompletionReady\.value/)
   assert.match(page, /detail\.release\.completionRequired/)
   assert.match(api, /nodes\/\$\{nodeId\}\/release/)

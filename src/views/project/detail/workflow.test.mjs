@@ -338,6 +338,16 @@ test('node workbenches keep per-node keys while the shared detail chrome stays s
   assert.match(detail, /class="node-detail-card/)
 })
 
+test('workflow workbenches are resolved by component identity rather than fixed node names', () => {
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  for (const component of ['requirement-scope', 'solution-design', 'plan-resource-risk', 'development-control', 'business-acceptance', 'release-handover', 'value-review', 'knowledge-standard']) {
+    assert.match(detail, new RegExp(`nodeHasComponent\\(activeNode, '${component}'\\)`))
+  }
+  assert.doesNotMatch(detail, /activeNode\.nodeKey === '(requirement|design|plan|develop|acceptance|release|review|knowledge)'/)
+  assert.match(detail, /class="node-assignment-row pms-assignment-grid"/)
+  assert.match(detail, /class="node-task-section"/)
+})
+
 test('only allows rollback for completed nodes', () => {
   assert.equal(canRollbackNode(0, 0), false)
   assert.equal(canRollbackNode(1, 0), false)

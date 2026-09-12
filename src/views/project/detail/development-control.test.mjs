@@ -146,7 +146,7 @@ test('mounts the development tree inside the develop node detail', () => {
   const workbench = fs.readFileSync(path.join(detailRoot, 'components/DevelopmentControlWorkbench.vue'), 'utf8')
 
   assert.match(page, /DevelopmentControlWorkbench/)
-  assert.match(page, /activeNode\.nodeKey === 'develop'/)
+  assert.match(page, /nodeHasComponent\(activeNode, 'development-control'\)/)
   assert.match(page, /:project-manager-name="projectManagerDisplay\.label"/)
   assert.match(workbench, /项目开发树/)
   assert.match(workbench, /项目 → 专题 → 故事/)

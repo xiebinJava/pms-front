@@ -19,6 +19,7 @@ import {
   shouldReloadNodeTasks,
   sortTasksByPriority,
 } from '../workflow'
+import { nodeHasComponent } from '../workflow-config.mjs'
 import PersonSelect from './PersonSelect.vue'
 import TaskWorkPanel from './TaskWorkPanel.vue'
 
@@ -143,7 +144,7 @@ async function loadAll() {
   if (!hasLoadedOnce.value) loading.value = true
   else softLoading.value = true
   try {
-    const requirementScopePromise = props.node.nodeKey === 'requirement'
+    const requirementScopePromise = nodeHasComponent(props.node, 'requirement-scope')
       ? getNodeRequirementScope(props.projectId, props.nodeId).catch(() => null)
       : Promise.resolve(null)
     const [taskList, memberList, requirementScope] = await Promise.all([
@@ -415,7 +416,7 @@ defineExpose({ openCreateForRequirement, refreshRequirements })
       <a-form-item :label="$t('task.title')" name="title">
         <a-input v-model:value="form.title" :disabled="!canEditModal" :placeholder="$t('task.titlePlaceholder')" />
       </a-form-item>
-      <a-form-item v-if="node.nodeKey === 'requirement'" :label="$t('task.requirement')">
+      <a-form-item v-if="nodeHasComponent(node, 'requirement-scope')" :label="$t('task.requirement')">
         <a-select
           v-model:value="form.requirementId"
           :disabled="!canManageModal"

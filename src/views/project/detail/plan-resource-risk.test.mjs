@@ -120,7 +120,7 @@ test('mounts the plan workbench without a separate reopen endpoint', () => {
   const page = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
   const api = fs.readFileSync(path.join(detailRoot, '../../../api/node-plan-resource-risk.ts'), 'utf8')
   assert.match(page, /PlanResourceRiskWorkbench/)
-  assert.match(page, /activeNode\.nodeKey === 'plan'/)
+  assert.match(page, /nodeHasComponent\(activeNode, 'plan-resource-risk'\)/)
   assert.match(page, /planBaselineStatus\.value !== 1/)
   assert.match(api, /plan-resource-risk/)
   assert.match(api, /confirmNodePlanResourceRisk/)
