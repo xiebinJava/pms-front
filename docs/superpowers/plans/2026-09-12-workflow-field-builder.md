@@ -43,6 +43,7 @@
 - Create: `pms-front/src/views/admin/workflows/workflow-template-schema.mjs`
 - Create: `pms-front/src/views/admin/workflows/workflow-template-schema.test.mjs`
 - Modify: `pms-front/src/views/admin/workflows/workflow-template-model.mjs`
+- Modify: `pms-front/src/views/admin/workflows/workflow-template-model.d.mts`
 - Modify: `pms-front/src/views/admin/workflows/workflow-template-model.test.mjs`
 
 - [ ] 写 v1 适配测试：八个旧项目资料字段转换成带稳定 binding 的字段；自定义字段 key、值类型、required、options 保留；`project-basic-info` 转为 `fields` 内容项；所有其他工作台保留原顺序；重复适配 v2 结果不变。
