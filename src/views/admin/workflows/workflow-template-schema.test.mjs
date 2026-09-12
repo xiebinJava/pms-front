@@ -66,3 +66,36 @@ test('does not revive project fields retained by a disabled v1 project-basic-inf
   assert.deepEqual(definition.nodes[0].fields, [])
   assert.deepEqual(definition.nodes[0].contentOrder, ['component:requirement-scope'])
 })
+
+test('keeps an explicit disabled project-basic-info flag authoritative over a stale component marker', () => {
+  const definition = normalizeWorkflowDefinition({
+    schemaVersion: 1,
+    nodes: [{
+      key: 'disabled-marker',
+      name: '禁用资料区组件标记',
+      components: ['project-basic-info'],
+      projectBasicInfo: false,
+      projectBasicInfoFields: legacyDefinition.nodes[0].projectBasicInfoFields,
+      fields: [],
+    }],
+  })
+
+  assert.deepEqual(definition.nodes[0].fields, [])
+  assert.deepEqual(definition.nodes[0].contentOrder, [])
+})
+
+test('uses the legacy component marker only when project-basic-info flag is absent', () => {
+  const definition = normalizeWorkflowDefinition({
+    schemaVersion: 1,
+    nodes: [{
+      key: 'legacy-marker-only',
+      name: '仅旧组件标记',
+      components: ['project-basic-info'],
+      projectBasicInfoFields: legacyDefinition.nodes[0].projectBasicInfoFields,
+      fields: [],
+    }],
+  })
+
+  assert.equal(definition.nodes[0].fields.length, 8)
+  assert.deepEqual(definition.nodes[0].contentOrder, ['fields'])
+})

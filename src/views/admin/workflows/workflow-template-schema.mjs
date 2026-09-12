@@ -45,7 +45,10 @@ function normalizeCustomFields(fields) {
 
 function normalizeNode(node) {
   const components = Array.isArray(node.components) ? node.components : []
-  const hasProjectFields = node.projectBasicInfo || components.includes('project-basic-info')
+  const hasExplicitProjectBasicInfo = Object.hasOwn(node, 'projectBasicInfo')
+  const hasProjectFields = hasExplicitProjectBasicInfo
+    ? node.projectBasicInfo === true
+    : components.includes('project-basic-info')
   const hasFields = hasProjectFields || Array.isArray(node.fields) && node.fields.length > 0
   const contentOrder = components.flatMap((component) => component === 'project-basic-info'
     ? (hasFields ? ['fields'] : [])
