@@ -30,7 +30,7 @@ export interface WorkflowNodeDefinition {
   projectBasicInfoFields: WorkflowProjectFieldDefinition[]
 }
 
-export interface WorkflowTemplateDefinition {
+export interface WorkflowTemplateDefinitionV1 {
   schemaVersion: number
   nodes: WorkflowNodeDefinition[]
 }
@@ -51,6 +51,8 @@ export interface WorkflowTemplateDefinitionV2 {
   schemaVersion: 2
   nodes: WorkflowNodeDefinitionV2[]
 }
+
+export type WorkflowTemplateDefinition = WorkflowTemplateDefinitionV1 | WorkflowTemplateDefinitionV2
 
 export interface ProjectType {
   id: number

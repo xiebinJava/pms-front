@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, toRaw } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -16,14 +16,18 @@ import {
   saveWorkflowTemplateDraft,
   setWorkflowDefault,
 } from '/@/api/admin-workflow'
-import type { ProjectType, WorkflowFieldDefinition, WorkflowFieldType, WorkflowNodeDefinition, WorkflowTemplateDefinition, WorkflowTemplateSummary } from '/@/types/workflow'
+import type { ProjectType, WorkflowContentOrderItem, WorkflowFieldBinding, WorkflowFieldDefinition, WorkflowFieldType, WorkflowNodeDefinitionV2, WorkflowTemplateDefinitionV2, WorkflowTemplateSummary } from '/@/types/workflow'
 import {
-  DEFAULT_PROJECT_BASIC_INFO_FIELDS,
   FIXED_NODE_BLOCKS,
+  addWorkflowField,
   createWorkflowNode,
+  moveWorkflowContentItem,
+  moveWorkflowField,
   moveWorkflowNode,
+  removeWorkflowField,
   removeWorkflowNode,
 } from './workflow-template-model.mjs'
+import { normalizeWorkflowDefinition, PROJECT_FIELD_BINDINGS } from './workflow-template-schema.mjs'
 
 const { t } = useI18n()
 const userStore = useUserStore()
@@ -37,28 +41,33 @@ const selectedTemplateId = ref<number | null>(null)
 const selectedNodeKey = ref('')
 const templateName = ref('')
 const templateDescription = ref('')
-const definition = ref<WorkflowTemplateDefinition>({ schemaVersion: 1, nodes: [] })
+const definition = ref<WorkflowTemplateDefinitionV2>({ schemaVersion: 2, nodes: [] })
 const dirty = ref(false)
 const dragKey = ref<string>()
+const contentDragItem = ref<WorkflowContentOrderItem>()
+const fieldDragKey = ref<string>()
 const previewOpen = ref(false)
 const typeModalOpen = ref(false)
 const typeForm = reactive({ code: '', name: '', description: '' })
 
 const COMPONENTS = [
-  { key: 'project-basic-info' }, { key: 'requirement-scope' }, { key: 'solution-design' },
+  { key: 'requirement-scope' }, { key: 'solution-design' },
   { key: 'plan-resource-risk' }, { key: 'development-control' }, { key: 'business-acceptance' },
   { key: 'release-handover' }, { key: 'value-review' }, { key: 'knowledge-standard' },
 ]
-const fieldTypes: WorkflowFieldType[] = ['TEXT', 'TEXTAREA', 'NUMBER', 'DATE', 'SINGLE_SELECT', 'MULTI_SELECT', 'PERSON', 'ATTACHMENT']
+const fieldTypes: WorkflowFieldType[] = ['TEXT', 'TEXTAREA', 'NUMBER', 'RADIO', 'SINGLE_SELECT', 'MULTI_SELECT', 'PERSON', 'PERSON_MULTI', 'DATE', 'DATE_RANGE', 'ATTACHMENT']
 const selectedType = computed(() => types.value.find((type) => type.id === selectedTypeId.value))
 const selectedTemplateSummary = computed(() => templates.value.find((template) => template.id === selectedTemplateId.value))
 const currentNode = computed(() => definition.value.nodes.find((node) => node.key === selectedNodeKey.value))
-const projectFields = computed(() => currentNode.value?.projectBasicInfoFields || [])
+const configuredComponents = computed(() => (currentNode.value?.contentOrder || [])
+  .filter((item) => item.startsWith('component:'))
+  .map((item) => item.slice('component:'.length)))
+const availableBindings = computed(() => Object.entries(PROJECT_FIELD_BINDINGS)
+  .filter(([, binding]) => !currentNode.value?.fields.some((field) => field.binding === binding.binding)))
 const selectedNodeIndex = computed(() => definition.value.nodes.findIndex((node) => node.key === selectedNodeKey.value))
 const publishedVersion = computed(() => selectedTemplateSummary.value?.publishedVersionNo)
 
 function markDirty() { dirty.value = true }
-function setDefinition(next: WorkflowTemplateDefinition) { definition.value = structuredClone(toRaw(next)); selectedNodeKey.value = next.nodes[0]?.key || ''; dirty.value = true }
 
 async function loadTypes(preferredTypeId?: number) {
   types.value = await listWorkflowProjectTypes()
@@ -83,7 +92,7 @@ function clearEditor() {
   selectedTemplateId.value = null
   templateName.value = ''
   templateDescription.value = ''
-  definition.value = { schemaVersion: 1, nodes: [] }
+  definition.value = { schemaVersion: 2, nodes: [] }
   selectedNodeKey.value = ''
   dirty.value = false
 }
@@ -97,7 +106,7 @@ async function selectTemplate(id: number) {
     selectedTypeId.value = template.projectTypeId
     templateName.value = template.name
     templateDescription.value = template.description || ''
-    definition.value = structuredClone(template.definition)
+    definition.value = normalizeWorkflowDefinition(template.definition)
     selectedNodeKey.value = definition.value.nodes[0]?.key || ''
     dirty.value = false
   } catch (error) {
@@ -129,12 +138,12 @@ async function newTemplate() {
   const hadUnsavedChanges = dirty.value
   if (!(await confirmDiscard())) return
   const base = templates.value.find((template) => template.defaultTemplate) || templates.value[0]
-  let nodes: WorkflowNodeDefinition[] = []
+  let nodes: WorkflowNodeDefinitionV2[] = []
   if (base) {
     loading.value = true
     try {
       const baseTemplate = await getWorkflowTemplate(base.id)
-      nodes = structuredClone(toRaw(baseTemplate.definition?.nodes || []))
+      nodes = normalizeWorkflowDefinition(baseTemplate.definition).nodes
     } catch (error) {
       dirty.value = hadUnsavedChanges
       message.error((error as Error).message || t('admin.workflow.loadFailed'))
@@ -145,8 +154,8 @@ async function newTemplate() {
   templateName.value = t('admin.workflow.newTemplateName')
   templateDescription.value = ''
   definition.value = nodes.length
-    ? { schemaVersion: 1, nodes }
-    : { schemaVersion: 1, nodes: [createWorkflowNode([], { name: t('admin.workflow.newNodeName'), key: 'stage-1' })] }
+    ? { schemaVersion: 2, nodes }
+    : { schemaVersion: 2, nodes: [createWorkflowNode([], { name: t('admin.workflow.newNodeName'), key: 'stage-1' })] }
   selectedNodeKey.value = definition.value.nodes[0]?.key || ''
   dirty.value = true
 }
@@ -158,7 +167,7 @@ function addNode() {
   markDirty()
 }
 
-function removeNode(node: WorkflowNodeDefinition) {
+function removeNode(node: WorkflowNodeDefinitionV2) {
   Modal.confirm({
     title: t('admin.workflow.removeNodeTitle', { name: node.name }),
     content: t('admin.workflow.removeNodeContent'), okType: 'danger', okText: t('common.delete'), cancelText: t('common.cancel'),
@@ -187,65 +196,82 @@ function onDrop(targetIndex: number) {
 function toggleComponent(componentKey: string, checked: boolean) {
   const node = currentNode.value
   if (!node) return
-  const next = new Set(node.components)
-  if (checked) {
-    if (!next.has(componentKey)) node.components.push(componentKey)
-  } else {
-    node.components = node.components.filter((key) => key !== componentKey)
-  }
-  if (componentKey === 'project-basic-info') {
-    node.projectBasicInfo = checked
-    node.projectBasicInfoFields = checked
-      ? (node.projectBasicInfoFields?.length ? node.projectBasicInfoFields : structuredClone(DEFAULT_PROJECT_BASIC_INFO_FIELDS))
-      : []
-  }
+  const contentItem = `component:${componentKey}` as WorkflowContentOrderItem
+  node.contentOrder = checked
+    ? (node.contentOrder.includes(contentItem) ? node.contentOrder : [...node.contentOrder, contentItem])
+    : node.contentOrder.filter((item) => item !== contentItem)
   markDirty()
 }
 
-function addField() {
+function addField(type: WorkflowFieldType = 'TEXT') {
   const node = currentNode.value
   if (!node) return
-  const base = `field-${node.fields.length + 1}`
-  let key = base
-  let index = 2
-  while (node.fields.some((field) => field.key === key)) key = `${base}-${index++}`
-  node.fields.push({ key, label: t('admin.workflow.newFieldName'), type: 'TEXT', required: false, options: [] })
+  replaceCurrentNode(addWorkflowField(node, { label: t('admin.workflow.newFieldName'), type }))
+}
+
+function addBoundField(projectFieldKey: string) {
+  const node = currentNode.value
+  const binding = PROJECT_FIELD_BINDINGS[projectFieldKey]
+  if (!node || !binding) return
+  replaceCurrentNode(addWorkflowField(node, {
+    key: `project-${projectFieldKey.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`,
+    label: t(`admin.workflow.projectFieldLabels.${projectFieldKey}`),
+    type: binding.type,
+    binding: binding.binding,
+  }))
+}
+
+function replaceCurrentNode(next: WorkflowNodeDefinitionV2) {
+  const index = definition.value.nodes.findIndex((node) => node.key === next.key)
+  if (index >= 0) definition.value.nodes[index] = next
   markDirty()
 }
 
-function moveComponent(componentKey: string, delta: number) {
+function moveContentItem(contentItem: WorkflowContentOrderItem, delta: number) {
   const node = currentNode.value
   if (!node) return
-  const index = node.components.indexOf(componentKey)
+  const index = node.contentOrder.indexOf(contentItem)
   const target = index + delta
-  if (index < 0 || target < 0 || target >= node.components.length) return
-  const components = [...node.components]
-  ;[components[index], components[target]] = [components[target], components[index]]
-  node.components = components
-  markDirty()
+  if (index < 0 || target < 0 || target >= node.contentOrder.length) return
+  replaceCurrentNode(moveWorkflowContentItem(node, contentItem, target))
 }
 
-function moveProjectField(fieldKey: string, delta: number) {
-  const fields = currentNode.value?.projectBasicInfoFields
-  if (!fields) return
-  const index = fields.findIndex((field) => field.key === fieldKey)
-  const target = index + delta
-  if (index < 0 || target < 0 || target >= fields.length) return
-  ;[fields[index], fields[target]] = [fields[target], fields[index]]
-  markDirty()
+function onContentDrop(targetIndex: number) {
+  if (!contentDragItem.value) return
+  const source = contentDragItem.value
+  contentDragItem.value = undefined
+  const node = currentNode.value
+  if (node && node.contentOrder.indexOf(source) !== targetIndex) {
+    replaceCurrentNode(moveWorkflowContentItem(node, source, targetIndex))
+  }
 }
 
-function moveCustomField(index: number, delta: number) {
-  const fields = currentNode.value?.fields
+function moveField(fieldKey: string, delta: number) {
+  const node = currentNode.value
+  const index = node?.fields.findIndex((field) => field.key === fieldKey) ?? -1
   const target = index + delta
-  if (!fields || target < 0 || target >= fields.length) return
-  ;[fields[index], fields[target]] = [fields[target], fields[index]]
-  markDirty()
+  if (!node || index < 0 || target < 0 || target >= node.fields.length) return
+  replaceCurrentNode(moveWorkflowField(node, fieldKey, target))
 }
 
-function removeField(index: number) {
-  currentNode.value?.fields.splice(index, 1)
-  markDirty()
+function onFieldDrop(targetIndex: number) {
+  if (!fieldDragKey.value) return
+  const source = fieldDragKey.value
+  fieldDragKey.value = undefined
+  const node = currentNode.value
+  if (node && node.fields.findIndex((field) => field.key === source) !== targetIndex) {
+    replaceCurrentNode(moveWorkflowField(node, source, targetIndex))
+  }
+}
+
+function removeField(fieldKey: string) {
+  const node = currentNode.value
+  if (node) replaceCurrentNode(removeWorkflowField(node, fieldKey))
+}
+
+function removeContentItem(contentItem: WorkflowContentOrderItem) {
+  const componentKey = contentItem.replace(/^component:/, '')
+  if (componentKey) toggleComponent(componentKey, false)
 }
 
 function setFieldOptions(field: WorkflowFieldDefinition, text: string) {
@@ -254,18 +280,16 @@ function setFieldOptions(field: WorkflowFieldDefinition, text: string) {
 }
 
 function updateFieldType(field: WorkflowFieldDefinition, type: WorkflowFieldType) {
+  if (field.binding) return
   field.type = type
-  if (type !== 'SINGLE_SELECT' && type !== 'MULTI_SELECT') field.options = []
+  if (!['RADIO', 'SINGLE_SELECT', 'MULTI_SELECT'].includes(type)) field.options = []
   markDirty()
 }
 
-function updateTypeField(fieldKey: string, property: 'visible' | 'required', value: boolean) {
-  const field = projectFields.value.find((item) => item.key === fieldKey)
-  if (field) {
-    field[property] = property === 'required' && !field.visible ? false : value
-    if (property === 'visible' && !value) field.required = false
-    markDirty()
-  }
+function updateFieldVisibility(field: WorkflowFieldDefinition, visible: boolean) {
+  field.visible = visible
+  if (!visible) field.required = false
+  markDirty()
 }
 
 async function saveDraft(): Promise<boolean> {
@@ -334,13 +358,14 @@ async function saveType() {
 
 function componentLabel(key: string) { return t(`admin.workflow.componentLabels.${key}`) }
 function fieldTypeLabel(type: WorkflowFieldType) { return t(`admin.workflow.fieldTypes.${type}`) }
+function bindingLabel(binding: WorkflowFieldBinding) { return t(`admin.workflow.bindingLabels.${binding}`) }
 function setFieldOptionsFromEvent(field: WorkflowFieldDefinition, event: unknown) {
   setFieldOptions(field, String((event as { target?: { value?: string } })?.target?.value || ''))
 }
 function checkboxChecked(event: unknown): boolean {
   return Boolean((event as { target?: { checked?: boolean } })?.target?.checked)
 }
-function moveByKeyboard(node: WorkflowNodeDefinition, delta: number) {
+function moveByKeyboard(node: WorkflowNodeDefinitionV2, delta: number) {
   const index = definition.value.nodes.findIndex((item) => item.key === node.key)
   reorder(node.key, Math.max(0, Math.min(definition.value.nodes.length - 1, index + delta)))
 }
@@ -417,10 +442,10 @@ onMounted(async () => {
                       @drop.prevent="onDrop(index)"
                       @dragend="dragKey = undefined"
                     >
-                      <div class="workflow-node-card__top"><span class="stage-index">{{ String(index + 1).padStart(2, '0') }}</span><span class="stage-status">{{ node.components.length ? $t('admin.workflow.reuses') : $t('admin.workflow.custom') }}</span></div>
+                      <div class="workflow-node-card__top"><span class="stage-index">{{ String(index + 1).padStart(2, '0') }}</span><span class="stage-status">{{ node.contentOrder.some((item) => item.startsWith('component:')) ? $t('admin.workflow.reuses') : $t('admin.workflow.custom') }}</span></div>
                       <strong>{{ node.name || $t('admin.workflow.unnamedNode') }}</strong>
                       <p>{{ node.description || $t('admin.workflow.noNodeDescription') }}</p>
-                      <div class="node-component-chips"><a-tag v-for="component in node.components" :key="component">{{ componentLabel(component) }}</a-tag><a-tag v-for="field in node.fields" :key="field.key" color="purple">{{ field.label }}</a-tag></div>
+                      <div class="node-component-chips"><a-tag v-for="contentItem in node.contentOrder.filter((item) => item.startsWith('component:'))" :key="contentItem">{{ componentLabel(contentItem.slice('component:'.length)) }}</a-tag><a-tag v-for="field in node.fields" :key="field.key" color="purple">{{ field.label }}</a-tag></div>
                       <div class="node-card-tools" @click.stop>
                         <a-button size="small" :disabled="!canWrite || index === 0" :aria-label="$t('admin.workflow.moveUp')" @click="moveByKeyboard(node, -1)"><ArrowUpOutlined /></a-button>
                         <a-button size="small" :disabled="!canWrite || index === definition.nodes.length - 1" :aria-label="$t('admin.workflow.moveDown')" @click="moveByKeyboard(node, 1)"><ArrowDownOutlined /></a-button>
@@ -448,42 +473,36 @@ onMounted(async () => {
                       <a-form-item :label="$t('admin.workflow.roles')"><a-textarea v-model:value="currentNode.roles" :disabled="!canWrite" :rows="2" @input="markDirty" /></a-form-item>
                     </div>
                   </a-form>
-                  <section class="inspector-section">
-                    <div class="section-title"><div><h3>{{ $t('admin.workflow.builtInComponents') }}</h3><p>{{ $t('admin.workflow.componentsHint') }}</p></div></div>
-                    <label v-for="component in COMPONENTS" :key="component.key" class="component-option">
-                      <a-checkbox :checked="currentNode.components.includes(component.key)" :disabled="!canWrite" @change="toggleComponent(component.key, checkboxChecked($event))">{{ componentLabel(component.key) }}</a-checkbox>
-                      <small>{{ $t(`admin.workflow.componentHints.${component.key}`) }}</small>
-                    </label>
-                    <div v-if="currentNode.components.length" class="component-order-list">
-                      <span>{{ $t('admin.workflow.componentOrder') }}</span>
-                      <div v-for="(component, index) in currentNode.components" :key="component" class="component-order-item">
-                        <strong>{{ index + 1 }}. {{ componentLabel(component) }}</strong>
-                        <a-button size="small" :disabled="!canWrite || index === 0" :aria-label="$t('admin.workflow.moveUp')" @click="moveComponent(component, -1)"><ArrowUpOutlined /></a-button>
-                        <a-button size="small" :disabled="!canWrite || index === currentNode.components.length - 1" :aria-label="$t('admin.workflow.moveDown')" @click="moveComponent(component, 1)"><ArrowDownOutlined /></a-button>
-                      </div>
-                    </div>
+                  <section class="inspector-section component-library">
+                    <div class="section-title"><div><h3>{{ $t('admin.workflow.componentLibrary') }}</h3><p>{{ $t('admin.workflow.componentLibraryHint') }}</p></div></div>
+                    <div class="field-palette" :aria-label="$t('admin.workflow.fieldPaletteAria')"><a-button v-for="type in fieldTypes" :key="type" size="small" :disabled="!canWrite" @click="addField(type)"><PlusOutlined /> {{ fieldTypeLabel(type) }}</a-button></div>
+                    <div class="binding-palette" :aria-label="$t('admin.workflow.bindingPaletteAria')"><a-button v-for="[key, binding] in availableBindings" :key="binding.binding" size="small" :disabled="!canWrite" @click="addBoundField(key)"><PlusOutlined /> {{ $t(`admin.workflow.projectFieldLabels.${key}`) }}</a-button></div>
+                    <label v-for="component in COMPONENTS" :key="component.key" class="component-option"><a-checkbox :checked="configuredComponents.includes(component.key)" :disabled="!canWrite" @change="toggleComponent(component.key, checkboxChecked($event))">{{ componentLabel(component.key) }}</a-checkbox><small>{{ $t(`admin.workflow.componentHints.${component.key}`) }}</small></label>
                   </section>
 
-                  <section v-if="currentNode.projectBasicInfo" class="inspector-section project-fields-editor">
-                    <div class="section-title"><div><h3>{{ $t('admin.workflow.projectBasicsConfig') }}</h3><p>{{ $t('admin.workflow.projectBasicsHint') }}</p></div></div>
-                    <div v-for="(field, index) in projectFields" :key="field.key" class="project-field-option">
-                      <span>{{ $t(`admin.workflow.projectFieldLabels.${field.key}`) }}</span>
-                      <a-checkbox :checked="field.visible" :disabled="!canWrite" @change="updateTypeField(field.key, 'visible', checkboxChecked($event))">{{ $t('admin.workflow.visible') }}</a-checkbox>
-                      <a-checkbox :checked="field.required" :disabled="!canWrite || !field.visible" @change="updateTypeField(field.key, 'required', checkboxChecked($event))">{{ $t('admin.workflow.required') }}</a-checkbox>
-                      <div class="field-order-tools"><a-button size="small" :disabled="!canWrite || index === 0" :aria-label="$t('admin.workflow.moveUp')" @click="moveProjectField(field.key, -1)"><ArrowUpOutlined /></a-button><a-button size="small" :disabled="!canWrite || index === projectFields.length - 1" :aria-label="$t('admin.workflow.moveDown')" @click="moveProjectField(field.key, 1)"><ArrowDownOutlined /></a-button></div>
+                  <section class="inspector-section">
+                    <div class="section-title"><div><h3>{{ $t('admin.workflow.componentOrder') }}</h3><p>{{ $t('admin.workflow.contentOrderHint') }}</p></div></div>
+                    <div v-if="currentNode.contentOrder.length" class="component-order-list">
+                      <article v-for="(contentItem, index) in currentNode.contentOrder" :key="contentItem" class="content-order-item" :draggable="canWrite" tabindex="0" @dragstart="contentDragItem = contentItem" @dragover.prevent @drop.prevent="onContentDrop(index)" @dragend="contentDragItem = undefined">
+                        <strong>{{ contentItem === 'fields' ? $t('admin.workflow.fieldsSection') : componentLabel(contentItem.slice('component:'.length)) }}</strong>
+                        <div class="field-order-tools"><a-button size="small" :disabled="!canWrite || index === 0" :aria-label="$t('admin.workflow.moveUp')" @click="moveContentItem(contentItem, -1)"><ArrowUpOutlined /></a-button><a-button size="small" :disabled="!canWrite || index === currentNode.contentOrder.length - 1" :aria-label="$t('admin.workflow.moveDown')" @click="moveContentItem(contentItem, 1)"><ArrowDownOutlined /></a-button><a-button v-if="contentItem !== 'fields'" size="small" danger type="text" :disabled="!canWrite" :aria-label="$t('admin.workflow.removeComponent')" @click="removeContentItem(contentItem)"><DeleteOutlined /></a-button></div>
+                      </article>
                     </div>
+                    <a-empty v-else :description="$t('admin.workflow.noContentItems')" />
                   </section>
 
                   <section class="inspector-section">
                     <div class="section-title"><div><h3>{{ $t('admin.workflow.customFields') }}</h3><p>{{ $t('admin.workflow.customFieldsHint') }}</p></div><a-button v-if="canWrite" size="small" @click="addField"><PlusOutlined /> {{ $t('admin.workflow.addField') }}</a-button></div>
                     <div v-if="currentNode.fields.length" class="custom-field-list">
-                      <article v-for="(field, index) in currentNode.fields" :key="field.key" class="custom-field-row">
+                      <article v-for="(field, index) in currentNode.fields" :key="field.key" class="field-card custom-field-row" :draggable="canWrite" tabindex="0" @dragstart="fieldDragKey = field.key" @dragover.prevent @drop.prevent="onFieldDrop(index)" @dragend="fieldDragKey = undefined">
                         <label class="custom-field-cell custom-field-label"><span>{{ $t('admin.workflow.fieldLabel') }}</span><a-input v-model:value="field.label" :disabled="!canWrite" :placeholder="$t('admin.workflow.fieldLabel')" :aria-label="$t('admin.workflow.fieldLabel')" @input="markDirty" /></label>
-                        <label class="custom-field-cell custom-field-key"><span>{{ $t('admin.workflow.fieldKey') }}</span><a-input v-model:value="field.key" :disabled="!canWrite" :placeholder="$t('admin.workflow.fieldKey')" :aria-label="$t('admin.workflow.fieldKey')" @input="markDirty" /></label>
-                        <label class="custom-field-cell custom-field-type"><span>{{ $t('admin.workflow.fieldType') }}</span><a-select :value="field.type" :disabled="!canWrite" :aria-label="$t('admin.workflow.fieldType')" @change="updateFieldType(field, $event)"><a-select-option v-for="type in fieldTypes" :key="type" :value="type">{{ fieldTypeLabel(type) }}</a-select-option></a-select></label>
-                        <div class="custom-field-cell custom-field-required"><a-checkbox v-model:checked="field.required" :disabled="!canWrite" @change="markDirty">{{ $t('admin.workflow.required') }}</a-checkbox></div>
-                        <label class="custom-field-cell custom-field-options"><span>{{ $t('admin.workflow.fieldOptions') }}</span><a-input v-if="field.type === 'SINGLE_SELECT' || field.type === 'MULTI_SELECT'" :value="field.options.join(', ')" :disabled="!canWrite" :placeholder="$t('admin.workflow.optionsComma')" :aria-label="$t('admin.workflow.fieldOptions')" @change="setFieldOptionsFromEvent(field, $event)" /><span v-else class="custom-field-no-options">—</span></label>
-                        <div class="custom-field-actions"><div class="field-order-tools"><a-button size="small" :disabled="!canWrite || index === 0" :aria-label="$t('admin.workflow.moveUp')" @click="moveCustomField(index, -1)"><ArrowUpOutlined /></a-button><a-button size="small" :disabled="!canWrite || index === currentNode.fields.length - 1" :aria-label="$t('admin.workflow.moveDown')" @click="moveCustomField(index, 1)"><ArrowDownOutlined /></a-button></div><a-button v-if="canWrite" danger type="text" :aria-label="$t('admin.workflow.removeField')" @click="removeField(index)"><DeleteOutlined /></a-button></div>
+                        <label class="custom-field-cell custom-field-key"><span>{{ $t('admin.workflow.fieldKey') }}</span><a-input :value="field.key" readonly :aria-label="$t('admin.workflow.fieldKey')" /></label>
+                        <label v-if="!field.binding" class="custom-field-cell custom-field-type"><span>{{ $t('admin.workflow.fieldType') }}</span><a-select :value="field.type" :disabled="!canWrite" :aria-label="$t('admin.workflow.fieldType')" @change="updateFieldType(field, $event)"><a-select-option v-for="type in fieldTypes" :key="type" :value="type">{{ fieldTypeLabel(type) }}</a-select-option></a-select></label>
+                        <div v-else class="custom-field-cell custom-field-type"><span>{{ $t('admin.workflow.binding') }}</span><strong>{{ bindingLabel(field.binding) }} · {{ fieldTypeLabel(field.type) }}</strong></div>
+                        <div class="custom-field-cell custom-field-visible"><a-checkbox :checked="field.visible !== false" :disabled="!canWrite" @change="updateFieldVisibility(field, checkboxChecked($event))">{{ $t('admin.workflow.visible') }}</a-checkbox></div>
+                        <div class="custom-field-cell custom-field-required"><a-checkbox v-model:checked="field.required" :disabled="!canWrite || field.visible === false" @change="markDirty">{{ $t('admin.workflow.required') }}</a-checkbox></div>
+                        <label class="custom-field-cell custom-field-options"><span>{{ $t('admin.workflow.fieldOptions') }}</span><a-input v-if="['RADIO', 'SINGLE_SELECT', 'MULTI_SELECT'].includes(field.type)" :value="field.options.join(', ')" :disabled="!canWrite" :placeholder="$t('admin.workflow.optionsComma')" :aria-label="$t('admin.workflow.fieldOptions')" @change="setFieldOptionsFromEvent(field, $event)" /><span v-else class="custom-field-no-options">—</span></label>
+                        <div class="custom-field-actions"><div class="field-order-tools"><a-button size="small" :disabled="!canWrite || index === 0" :aria-label="$t('admin.workflow.moveUp')" @click="moveField(field.key, -1)"><ArrowUpOutlined /></a-button><a-button size="small" :disabled="!canWrite || index === currentNode.fields.length - 1" :aria-label="$t('admin.workflow.moveDown')" @click="moveField(field.key, 1)"><ArrowDownOutlined /></a-button></div><a-button v-if="canWrite" danger type="text" :aria-label="$t('admin.workflow.removeField')" @click="removeField(field.key)"><DeleteOutlined /></a-button></div>
                       </article>
                     </div>
                     <a-empty v-else :description="$t('admin.workflow.noCustomFields')" />
@@ -493,9 +512,10 @@ onMounted(async () => {
                   <div class="preview-sticky-title"><EyeOutlined /><strong>{{ $t('admin.workflow.nodePreview') }}</strong></div>
                   <div class="preview-title"><span>{{ selectedNodeIndex + 1 }}</span><div><strong>{{ currentNode.name }}</strong><small>{{ currentNode.description || $t('admin.workflow.noNodeDescription') }}</small></div></div>
                   <div class="preview-fixed"><b>{{ $t('admin.workflow.fixedBlocksTitle') }}</b><div class="preview-owner-schedule"><span>{{ $t('admin.workflow.fixedBlocks.owner') }}<small>{{ $t('admin.workflow.previewPerson') }}</small></span><span>{{ $t('admin.workflow.fixedBlocks.schedule') }}<small>{{ $t('admin.workflow.previewDateRange') }}</small></span></div><div class="preview-task-board"><span>{{ $t('admin.workflow.fixedBlocks.task-board') }}</span><i>{{ $t('admin.workflow.previewTaskColumns') }}</i></div></div>
-                  <div v-if="currentNode.projectBasicInfo" class="preview-section"><b>{{ $t('admin.workflow.projectBasics') }}</b><label v-for="field in projectFields.filter((item) => item.visible)" :key="field.key">{{ $t(`admin.workflow.projectFieldLabels.${field.key}`) }} <em v-if="field.required">*</em><input disabled :placeholder="$t('admin.workflow.previewValue')" /></label></div>
-                  <div v-for="component in currentNode.components.filter((key) => key !== 'project-basic-info')" :key="component" class="preview-section preview-component-card"><b>{{ componentLabel(component) }}</b><p>{{ $t(`admin.workflow.componentHints.${component}`) }}</p><div class="preview-module-placeholder">{{ $t('admin.workflow.reusedComponent') }}</div></div>
-                  <div v-if="currentNode.fields.length" class="preview-section"><b>{{ $t('admin.workflow.customFields') }}</b><label v-for="field in currentNode.fields" :key="field.key">{{ field.label }} <em v-if="field.required">*</em><small>{{ fieldTypeLabel(field.type) }}</small><input v-if="['TEXT', 'NUMBER', 'DATE', 'PERSON'].includes(field.type)" disabled :placeholder="$t('admin.workflow.previewValue')" /><textarea v-else-if="field.type === 'TEXTAREA'" disabled :placeholder="$t('admin.workflow.previewValue')" /><span v-else-if="field.type === 'ATTACHMENT'" class="preview-module-placeholder">{{ $t('admin.workflow.previewAttachment') }}</span><span v-else class="preview-module-placeholder">{{ field.options.join(' / ') || $t('admin.workflow.previewValue') }}</span></label></div>
+                  <template v-for="contentItem in currentNode.contentOrder" :key="contentItem">
+                    <div v-if="contentItem === 'fields'" class="preview-section"><b>{{ $t('admin.workflow.fieldsSection') }}</b><label v-for="field in currentNode.fields.filter((item) => item.visible !== false)" :key="field.key">{{ field.label }} <em v-if="field.required">*</em><small>{{ fieldTypeLabel(field.type) }}</small><input v-if="field.type === 'TEXT'" disabled :placeholder="$t('admin.workflow.previewValue')" /><textarea v-else-if="field.type === 'TEXTAREA'" disabled :placeholder="$t('admin.workflow.previewValue')" /><input v-else-if="field.type === 'NUMBER'" type="number" disabled :placeholder="$t('admin.workflow.previewValue')" /><a-radio-group v-else-if="field.type === 'RADIO'" disabled><a-radio v-for="option in field.options" :key="option" :value="option">{{ option }}</a-radio></a-radio-group><a-select v-else-if="field.type === 'SINGLE_SELECT'" disabled :placeholder="$t('admin.workflow.previewValue')"><a-select-option v-for="option in field.options" :key="option" :value="option">{{ option }}</a-select-option></a-select><a-select v-else-if="field.type === 'MULTI_SELECT'" mode="multiple" disabled :placeholder="$t('admin.workflow.previewValue')"><a-select-option v-for="option in field.options" :key="option" :value="option">{{ option }}</a-select-option></a-select><a-select v-else-if="field.type === 'PERSON'" disabled :placeholder="$t('admin.workflow.previewPerson')" /><a-select v-else-if="field.type === 'PERSON_MULTI'" mode="multiple" disabled :placeholder="$t('admin.workflow.previewPeople')" /><a-date-picker v-else-if="field.type === 'DATE'" disabled /><a-range-picker v-else-if="field.type === 'DATE_RANGE'" disabled /><span v-else-if="field.type === 'ATTACHMENT'" class="preview-module-placeholder">{{ $t('admin.workflow.previewAttachment') }}</span></label></div>
+                    <div v-else class="preview-section preview-component-card"><b>{{ componentLabel(contentItem.slice('component:'.length)) }}</b><p>{{ $t(`admin.workflow.componentHints.${contentItem.slice('component:'.length)}`) }}</p><div class="preview-module-placeholder">{{ $t('admin.workflow.reusedComponent') }}</div></div>
+                  </template>
                 </aside>
               </div>
             </section>
@@ -507,7 +527,7 @@ onMounted(async () => {
     </div>
 
     <a-modal v-model:open="previewOpen" :title="$t('admin.workflow.previewTitle')" width="780px" :footer="null">
-      <div class="template-preview-flow"><div v-for="(node, index) in definition.nodes" :key="node.key" class="template-preview-node"><span>{{ String(index + 1).padStart(2, '0') }}</span><strong>{{ node.name }}</strong><small>{{ node.components.map(componentLabel).join(' · ') || $t('admin.workflow.custom') }}</small><div>{{ $t('admin.workflow.fixedBlocksTitle') }}：{{ FIXED_NODE_BLOCKS.map((block) => t(`admin.workflow.fixedBlocks.${block}`)).join('、') }}</div><div v-for="field in node.fields" :key="field.key" class="preview-field-line">{{ field.label }} · {{ fieldTypeLabel(field.type) }}<b v-if="field.required">*</b></div></div></div>
+      <div class="template-preview-flow"><div v-for="(node, index) in definition.nodes" :key="node.key" class="template-preview-node"><span>{{ String(index + 1).padStart(2, '0') }}</span><strong>{{ node.name }}</strong><small>{{ node.contentOrder.map((item) => item === 'fields' ? $t('admin.workflow.fieldsSection') : componentLabel(item.slice('component:'.length))).join(' · ') || $t('admin.workflow.custom') }}</small><div>{{ $t('admin.workflow.fixedBlocksTitle') }}：{{ FIXED_NODE_BLOCKS.map((block) => t(`admin.workflow.fixedBlocks.${block}`)).join('、') }}</div><div v-for="field in node.fields.filter((item) => item.visible !== false)" :key="field.key" class="preview-field-line">{{ field.label }} · {{ fieldTypeLabel(field.type) }}<b v-if="field.required">*</b></div></div></div>
     </a-modal>
 
     <a-modal v-model:open="typeModalOpen" :title="$t('admin.workflow.addType')" :ok-text="$t('common.save')" :cancel-text="$t('common.cancel')" @ok="saveType">
@@ -584,8 +604,13 @@ onMounted(async () => {
 .field-order-tools { display: flex; align-items: center; gap: var(--pms-space-2); }
 .field-order-tools :deep(.ant-btn) { width: 32px; min-width: 32px; height: var(--pms-control-height-compact); min-height: var(--pms-control-height-compact); padding: 0; border-radius: var(--pms-radius-sm); }
 .project-field-option { display: grid; grid-template-columns: minmax(130px, 1fr) 82px 82px 72px; align-items: center; gap: var(--pms-space-2); padding: var(--pms-space-2) var(--pms-space-3); color: var(--pms-text); border-bottom: 1px solid var(--pms-border); font-size: var(--pms-font-size-compact); }
+.component-library { display: grid; gap: var(--pms-space-3); }
+.field-palette, .binding-palette { display: flex; flex-wrap: wrap; gap: var(--pms-space-2); }
+.component-order-list { display: grid; gap: var(--pms-space-2); }
+.content-order-item { display: flex; align-items: center; justify-content: space-between; gap: var(--pms-space-3); padding: var(--pms-space-3); color: var(--pms-text); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); cursor: grab; font-size: var(--pms-font-size-compact); }
+.content-order-item:focus-visible, .field-card:focus-visible { outline: 0; box-shadow: var(--pms-focus-ring); }
 .custom-field-list { display: grid; gap: var(--pms-space-3); }
-.custom-field-row { display: grid; grid-template-columns: minmax(120px, 1.1fr) minmax(110px, .9fr) minmax(110px, .9fr) minmax(90px, .7fr) minmax(140px, 1.2fr) auto; align-items: end; gap: var(--pms-space-3); padding: var(--pms-space-4); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); }
+.custom-field-row { display: grid; grid-template-columns: minmax(120px, 1.1fr) minmax(110px, .9fr) minmax(110px, .9fr) minmax(84px, .6fr) minmax(84px, .6fr) minmax(140px, 1.2fr) auto; align-items: end; gap: var(--pms-space-3); padding: var(--pms-space-4); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); cursor: grab; }
 .custom-field-cell { display: grid; min-width: 0; gap: var(--pms-space-2); color: var(--pms-text); font-size: var(--pms-font-size-compact); }
 .custom-field-cell > span:first-child { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); font-weight: 650; line-height: var(--pms-line-height-normal); }
 .custom-field-cell :deep(.ant-input), .custom-field-cell :deep(.ant-select) { width: 100%; min-width: 0; }
@@ -594,11 +619,12 @@ onMounted(async () => {
 .custom-field-no-options { min-height: var(--pms-control-height-compact); align-content: center; color: var(--pms-text-faint); }
 .custom-field-actions { display: flex; align-items: center; gap: var(--pms-space-2); }
 @container (max-width: 760px) {
-  .custom-field-row { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "label key" "type options" "required actions"; align-items: start; }
+  .custom-field-row { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "label key" "type options" "visible required" "actions actions"; align-items: start; }
   .custom-field-label { grid-area: label; }
   .custom-field-key { grid-area: key; }
   .custom-field-type { grid-area: type; }
   .custom-field-required { grid-area: required; align-self: end; }
+  .custom-field-visible { grid-area: visible; align-self: end; }
   .custom-field-options { grid-area: options; }
   .custom-field-actions { grid-area: actions; align-self: end; justify-content: flex-end; }
 }

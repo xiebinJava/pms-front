@@ -31,8 +31,10 @@ test('creates a generic node with a unique stable key and no accidental workbenc
   const second = createWorkflowNode([...nodes, first], { name: '数据复核' })
   assert.equal(first.name, '数据复核')
   assert.notEqual(first.key, second.key)
-  assert.deepEqual(first.components, [])
   assert.deepEqual(first.fields, [])
+  assert.deepEqual(first.contentOrder, [])
+  assert.equal(Object.hasOwn(first, 'components'), false)
+  assert.equal(Object.hasOwn(first, 'projectBasicInfo'), false)
 })
 
 test('prevents deleting the final stage and keeps the three platform blocks fixed', () => {
@@ -91,13 +93,13 @@ test('confirms before leaving the workflow editor with unsaved changes', () => {
   assert.match(source, /onBeforeRouteLeave\(async \(\) => \{[\s\S]*?return confirmDiscard\(\)/)
 })
 
-test('new templates clone the persisted base definition rather than discarded editor state', () => {
+test('new templates normalize the persisted base definition rather than discarded editor state', () => {
   const source = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
   const handler = source.match(/async function newTemplate\(\)[\s\S]*?\n\}/)?.[0]
 
   assert.ok(handler)
   assert.ok(handler.indexOf('confirmDiscard') < handler.indexOf('getWorkflowTemplate(base.id)'))
-  assert.match(handler, /structuredClone\(toRaw\(baseTemplate\.definition\?\.nodes \|\| \[\]\)\)/)
+  assert.match(handler, /normalizeWorkflowDefinition\(baseTemplate\.definition\)\.nodes/)
   assert.doesNotMatch(handler, /structuredClone\(toRaw\(definition\.value\.nodes\)\)/)
 })
 

@@ -82,10 +82,8 @@ export function createWorkflowNode(nodes, { name = '新节点', description = ''
     description,
     deliverable: '',
     roles: '',
-    components: [],
     fields: [],
-    projectBasicInfo: false,
-    projectBasicInfoFields: [],
+    contentOrder: [],
   }
 }
 

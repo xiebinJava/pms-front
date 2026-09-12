@@ -42,7 +42,57 @@ test('custom field controls have persistent visible labels', () => {
 test('custom field rows adapt to the inspector column instead of overlapping the preview', () => {
   assert.match(style, /\.inspector-main\s*\{[^}]*container-type:\s*inline-size/)
   assert.match(style, /@container\s*\([^)]*max-width:\s*760px\)[\s\S]*?\.custom-field-row\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/)
-  assert.match(style, /@container\s*\([^)]*max-width:\s*760px\)[\s\S]*?grid-template-areas:\s*"label key"\s*"type options"\s*"required actions"/)
+  assert.match(style, /@container\s*\([^)]*max-width:\s*760px\)[\s\S]*?grid-template-areas:\s*"label key"\s*"type options"\s*"visible required"\s*"actions actions"/)
+})
+
+test('workflow editor normalizes legacy definitions before editing and persists schema v2', () => {
+  assert.match(source, /import\s*\{[^}]*normalizeWorkflowDefinition[^}]*\}\s*from '\.\/workflow-template-schema\.mjs'/)
+  assert.match(source, /definition\.value = normalizeWorkflowDefinition\(template\.definition\)/)
+  assert.match(source, /normalizeWorkflowDefinition\(baseTemplate\.definition\)/)
+  assert.match(source, /const definition = ref<WorkflowTemplateDefinitionV2>\(\{ schemaVersion: 2, nodes: \[\] \}\)/)
+  assert.match(source, /definition:\s*definition\.value/)
+})
+
+test('content editor uses v2 contentOrder and model helpers rather than legacy component arrays', () => {
+  assert.match(source, /addWorkflowField,[\s\S]*moveWorkflowContentItem,[\s\S]*moveWorkflowField,[\s\S]*removeWorkflowField/)
+  assert.match(source, /function toggleComponent\(componentKey: string, checked: boolean\)[\s\S]*?component:\$\{componentKey\}/)
+  assert.match(source, /function moveContentItem\(contentItem: WorkflowContentOrderItem, delta: number\)[\s\S]*?moveWorkflowContentItem/)
+  assert.doesNotMatch(source, /node\.components/)
+  assert.doesNotMatch(source, /projectBasicInfoFields/)
+})
+
+test('field cards support keyboard and pointer reordering while keeping fixed blocks outside deletion', () => {
+  assert.match(template, /class="content-order-item"[\s\S]*?:draggable="canWrite"/)
+  assert.match(template, /class="field-card custom-field-row"[\s\S]*?:draggable="canWrite"/)
+  assert.match(template, /:aria-label="\$t\('admin\.workflow\.moveUp'\)"[\s\S]*?moveContentItem/)
+  assert.match(template, /:aria-label="\$t\('admin\.workflow\.moveDown'\)"[\s\S]*?moveField/)
+  assert.match(template, /v-if="contentItem !== 'fields'"[\s\S]*?removeContentItem/)
+  assert.match(template, /FIXED_NODE_BLOCKS/)
+})
+
+test('bound fields expose only editable label visibility and requiredness', () => {
+  assert.match(template, /<a-input :value="field\.key" readonly/)
+  assert.match(template, /v-if="!field\.binding"[\s\S]*?custom-field-type/)
+  assert.match(template, /field\.binding[\s\S]*?bindingLabel/)
+  assert.match(template, /@change="updateFieldVisibility\(field, checkboxChecked\(\$event\)\)"/)
+  assert.match(template, /v-model:checked="field\.required"/)
+})
+
+test('field palette and preview include every schema v2 control type', () => {
+  for (const type of ['RADIO', 'PERSON_MULTI', 'DATE_RANGE']) {
+    assert.match(source, new RegExp(`'${type}'`))
+  }
+  assert.match(template, /v-else-if="field\.type === 'RADIO'"/)
+  assert.match(template, /v-else-if="field\.type === 'PERSON_MULTI'"/)
+  assert.match(template, /v-else-if="field\.type === 'DATE_RANGE'"/)
+})
+
+test('preview uses dedicated controls for numeric, people, and date field types', () => {
+  assert.match(template, /v-else-if="field\.type === 'NUMBER'"[\s\S]*?type="number"/)
+  assert.match(template, /<a-select v-else-if="field\.type === 'PERSON'"/)
+  assert.match(template, /<a-select v-else-if="field\.type === 'PERSON_MULTI'" mode="multiple"/)
+  assert.match(template, /<a-date-picker v-else-if="field\.type === 'DATE'"/)
+  assert.match(template, /<a-range-picker v-else-if="field\.type === 'DATE_RANGE'"/)
 })
 
 test('node preview sizes to its content instead of stretching beside the full editor', () => {
