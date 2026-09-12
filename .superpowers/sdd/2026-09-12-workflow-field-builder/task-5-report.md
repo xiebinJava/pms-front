@@ -23,6 +23,7 @@
 - `node src/views/project/detail/workflow.test.mjs` — 59 passing, 0 failing.
 - `node_modules\\.bin\\vue-tsc.cmd --noEmit` — exit 0.
 - `git diff --check` — exit 0 before commit.
+- Full direct Node regression sweep: 48 `*.test.mjs` files passed after updating the pre-existing business-line-owner assertion to the canonical v2 `project.businessLine` binding (the runtime adapter maps the old v1 key to this binding).
 
 `node --test` could not start child workers in this sandbox (`spawn EPERM`), so the focused test files were run directly, following the repository plan's sandbox convention. `pnpm typecheck` attempted an automatic dependency reset and was blocked by pnpm's non-interactive install wrapper; after restoring the locked dependencies, the underlying `vue-tsc --noEmit` command completed successfully.
 

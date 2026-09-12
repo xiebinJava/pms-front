@@ -7,7 +7,7 @@ const picker = fs.readFileSync(new URL('./components/BusinessLineSelect.vue', im
 
 test('selecting a business line does not assign the node owner', () => {
   assert.match(source, /BusinessLineSelect/)
-  assert.match(source, /field\.key === 'businessLine'/)
+  assert.match(source, /field\.binding === 'project\.businessLine'/)
   assert.match(source, /class="project-detail-root"/)
   assert.match(source, /businessLineDisplay/)
   assert.match(source, /getBusinessLineDisplay/)
