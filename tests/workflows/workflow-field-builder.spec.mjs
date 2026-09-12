@@ -94,6 +94,9 @@ async function installApi(page, { definition = v2Definition(), onProjectUpdate, 
     if (path === '/projects/7/members') return json(members)
     if (path === '/projects/7/followers') return json([])
     if (path === '/org/tree') return json([])
+    if (path === '/notifications/unread-count' && method === 'GET') return json({ unreadCount: 0 })
+    if (path === '/projects/7/tasks' && method === 'GET') return json([])
+    if (path === '/projects/7/iteration-plans' && method === 'GET') return json([])
     if (path === '/users/search' && method === 'GET') return json(allPeople)
     if (path === '/projects/7/nodes/11/fields' && method === 'GET') return json({ values: {}, attachments: {}, version: 1 })
     if (path === '/projects/7/nodes/11/fields' && method === 'PUT') {
