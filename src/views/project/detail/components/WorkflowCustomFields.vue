@@ -31,6 +31,7 @@ const versions = ref<Record<string, number>>({})
 const attachments = ref<Record<string, WorkflowFieldAttachment[]>>({})
 const pendingUploads = new Set<Promise<void>>()
 let requestSequence = 0
+let activeSave: Promise<boolean> | null = null
 
 const hasFields = computed(() => props.fields.length > 0)
 
@@ -62,7 +63,18 @@ function validateRequired(): boolean {
 
 function localeSeparator(): string { return t('detail.workflowFields.listSeparator') }
 
-async function save(): Promise<boolean> {
+function save(): Promise<boolean> {
+  if (activeSave) return activeSave
+  const pending = persistChanges()
+  activeSave = pending
+  const clearActiveSave = () => {
+    if (activeSave === pending) activeSave = null
+  }
+  void pending.then(clearActiveSave, clearActiveSave)
+  return pending
+}
+
+async function persistChanges(): Promise<boolean> {
   if (pendingUploads.size) await Promise.all([...pendingUploads])
   if (!dirty.value) return true
   if (!props.canEdit || props.readOnly) {
@@ -134,9 +146,9 @@ async function onDownload(field: WorkflowFieldDefinition, attachment: WorkflowFi
   await downloadWorkflowFieldAttachment(props.projectId, props.nodeId, field.key, attachment.id, attachment.originalName)
 }
 
-watch(() => [props.projectId, props.nodeId, props.fields], loadValues, { immediate: true })
+watch(() => [props.projectId, props.nodeId], loadValues, { immediate: true })
 
-defineExpose({ flushAutoSave })
+defineExpose({ flushAutoSave, saveIfDirty: save })
 </script>
 
 <template>
@@ -149,15 +161,15 @@ defineExpose({ flushAutoSave })
       <div class="workflow-custom-fields__grid">
         <div v-for="field in fields" :key="field.key" class="workflow-custom-fields__field" :class="{ 'workflow-custom-fields__field--wide': field.type === 'TEXTAREA' || field.type === 'ATTACHMENT' }">
           <label :for="`workflow-field-${nodeId}-${field.key}`">{{ field.label }}<span v-if="field.required" class="workflow-custom-fields__required">*</span></label>
-          <a-input v-if="field.type === 'TEXT'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" :disabled="!canEdit || readOnly" :maxlength="500" @change="markDirty" />
-          <a-textarea v-else-if="field.type === 'TEXTAREA'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" :disabled="!canEdit || readOnly" :rows="3" :maxlength="10000" @change="markDirty" />
-          <a-input-number v-else-if="field.type === 'NUMBER'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" :disabled="!canEdit || readOnly" class="workflow-custom-fields__control" @change="markDirty" />
-          <a-date-picker v-else-if="field.type === 'DATE'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" value-format="YYYY-MM-DD" :disabled="!canEdit || readOnly" class="workflow-custom-fields__control" @change="markDirty" />
-          <a-select v-else-if="field.type === 'SINGLE_SELECT'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" :disabled="!canEdit || readOnly" :options="field.options.map((label) => ({ label, value: label }))" allow-clear @change="markDirty" />
-          <a-select v-else-if="field.type === 'MULTI_SELECT'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" mode="multiple" :disabled="!canEdit || readOnly" :options="field.options.map((label) => ({ label, value: label }))" @change="markDirty" />
-          <a-select v-else-if="field.type === 'PERSON'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" :disabled="!canEdit || readOnly" :options="personOptions" allow-clear show-search option-filter-prop="label" @change="markDirty" />
+          <a-input v-if="field.type === 'TEXT'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" :disabled="!canEdit || readOnly || saving" :maxlength="500" @change="markDirty" />
+          <a-textarea v-else-if="field.type === 'TEXTAREA'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" :disabled="!canEdit || readOnly || saving" :rows="3" :maxlength="10000" @change="markDirty" />
+          <a-input-number v-else-if="field.type === 'NUMBER'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" :disabled="!canEdit || readOnly || saving" class="workflow-custom-fields__control" @change="markDirty" />
+          <a-date-picker v-else-if="field.type === 'DATE'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" value-format="YYYY-MM-DD" :disabled="!canEdit || readOnly || saving" class="workflow-custom-fields__control" @change="markDirty" />
+          <a-select v-else-if="field.type === 'SINGLE_SELECT'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" :disabled="!canEdit || readOnly || saving" :options="field.options.map((label) => ({ label, value: label }))" allow-clear @change="markDirty" />
+          <a-select v-else-if="field.type === 'MULTI_SELECT'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" mode="multiple" :disabled="!canEdit || readOnly || saving" :options="field.options.map((label) => ({ label, value: label }))" @change="markDirty" />
+          <a-select v-else-if="field.type === 'PERSON'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" :disabled="!canEdit || readOnly || saving" :options="personOptions" allow-clear show-search option-filter-prop="label" @change="markDirty" />
           <div v-else-if="field.type === 'ATTACHMENT'" class="workflow-custom-fields__attachments">
-            <input :id="`workflow-field-${nodeId}-${field.key}`" type="file" :disabled="!canEdit || readOnly" @change="onFileSelected(field, $event)" />
+            <input :id="`workflow-field-${nodeId}-${field.key}`" type="file" :disabled="!canEdit || readOnly || saving" @change="onFileSelected(field, $event)" />
             <div v-for="attachment in attachments[field.key] || []" :key="attachment.id" class="workflow-custom-fields__attachment">
               <span><PaperClipOutlined /> {{ attachment.originalName }}</span>
               <div><a-button type="text" size="small" :aria-label="$t('detail.workflowFields.download')" @click="onDownload(field, attachment)"><DownloadOutlined /></a-button><a-button v-if="canEdit && !readOnly" type="text" size="small" danger :aria-label="$t('detail.workflowFields.delete')" @click="onDeleteAttachment(field, attachment)"><DeleteOutlined /></a-button></div>

@@ -50,6 +50,29 @@ test('confirms before a type switch can clear an unsaved workflow draft', () => 
   assert.ok(handler.indexOf('confirmDiscard') < handler.indexOf('selectedTypeId.value = typeId'))
 })
 
+test('confirms before leaving the workflow editor with unsaved changes', () => {
+  const source = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+  assert.match(source, /onBeforeRouteLeave\(async \(\) => \{[\s\S]*?return confirmDiscard\(\)/)
+})
+
+test('new templates clone the persisted base definition rather than discarded editor state', () => {
+  const source = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+  const handler = source.match(/async function newTemplate\(\)[\s\S]*?\n\}/)?.[0]
+
+  assert.ok(handler)
+  assert.ok(handler.indexOf('confirmDiscard') < handler.indexOf('getWorkflowTemplate(base.id)'))
+  assert.match(handler, /structuredClone\(toRaw\(baseTemplate\.definition\?\.nodes \|\| \[\]\)\)/)
+  assert.doesNotMatch(handler, /structuredClone\(toRaw\(definition\.value\.nodes\)\)/)
+})
+
+test('existing workflow drafts send the revision loaded by the editor', () => {
+  const source = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+  const handler = source.match(/async function saveDraft\(\)[\s\S]*?\n\}/)?.[0]
+
+  assert.ok(handler)
+  assert.match(handler, /expectedDraftRevision:\s*selectedTemplateSummary\.value\?\.draftRevision\s*\?\?\s*null/)
+})
+
 test('node preview shows fixed sections and configured components and fields', () => {
   const source = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
   assert.match(source, /preview-owner-schedule/)

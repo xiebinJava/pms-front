@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, toRaw } from 'vue'
 import { message, Modal } from 'ant-design-vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { PlusOutlined, EyeOutlined, SaveOutlined, SendOutlined, ArrowUpOutlined, ArrowDownOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import PmsPageHeader from '/@/components/PmsPageHeader.vue'
@@ -112,6 +113,11 @@ async function confirmDiscard(): Promise<boolean> {
   }))
 }
 
+onBeforeRouteLeave(async () => {
+  if (saving.value) return false
+  return confirmDiscard()
+})
+
 async function changeProjectType(typeId: number) {
   if (typeId === selectedTypeId.value || !(await confirmDiscard())) return
   selectedTypeId.value = typeId
@@ -120,9 +126,21 @@ async function changeProjectType(typeId: number) {
 
 async function newTemplate() {
   if (!selectedTypeId.value) { message.warning(t('admin.workflow.chooseTypeFirst')); return }
+  const hadUnsavedChanges = dirty.value
   if (!(await confirmDiscard())) return
   const base = templates.value.find((template) => template.defaultTemplate) || templates.value[0]
-  const nodes = base ? structuredClone(toRaw(definition.value.nodes)) : []
+  let nodes: WorkflowNodeDefinition[] = []
+  if (base) {
+    loading.value = true
+    try {
+      const baseTemplate = await getWorkflowTemplate(base.id)
+      nodes = structuredClone(toRaw(baseTemplate.definition?.nodes || []))
+    } catch (error) {
+      dirty.value = hadUnsavedChanges
+      message.error((error as Error).message || t('admin.workflow.loadFailed'))
+      return
+    } finally { loading.value = false }
+  }
   selectedTemplateId.value = null
   templateName.value = t('admin.workflow.newTemplateName')
   templateDescription.value = ''
@@ -257,7 +275,12 @@ async function saveDraft(): Promise<boolean> {
   }
   saving.value = true
   try {
-    const payload = { name: templateName.value.trim(), description: templateDescription.value.trim(), definition: definition.value }
+    const payload = {
+      name: templateName.value.trim(),
+      description: templateDescription.value.trim(),
+      definition: definition.value,
+      expectedDraftRevision: selectedTemplateSummary.value?.draftRevision ?? null,
+    }
     const saved = selectedTemplateId.value
       ? await saveWorkflowTemplateDraft(selectedTemplateId.value, payload)
       : await createWorkflowTemplate({ ...payload, projectTypeId: selectedTypeId.value })

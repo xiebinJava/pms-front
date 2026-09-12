@@ -51,6 +51,7 @@ export interface WorkflowTemplateSummary {
   name: string
   description?: string
   draftVersionNo?: number
+  draftRevision?: number
   publishedVersionNo?: number
   publishedVersionId?: number
   publishedVersions?: WorkflowTemplateVersionSummary[]

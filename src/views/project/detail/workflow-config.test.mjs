@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
-import { emptyWorkflowFieldValue, isWorkflowFieldEmpty, legacyWorkflowComponents, missingConfiguredProjectFields, nodeHasComponent, visibleProjectFields } from './workflow-config.mjs'
+import { emptyWorkflowFieldValue, isWorkflowFieldEmpty, legacyWorkflowComponents, missingConfiguredProjectFields, nodeHasComponent, transitionActiveNode, visibleProjectFields } from './workflow-config.mjs'
 
 test('workflow components follow published definitions and retain legacy project compatibility', () => {
   assert.equal(nodeHasComponent({ nodeKey: 'requirement', components: ['solution-design'] }, 'solution-design'), true)
@@ -9,6 +9,53 @@ test('workflow components follow published definitions and retain legacy project
   assert.equal(nodeHasComponent({ nodeKey: 'requirement' }, 'requirement-scope'), true)
   assert.equal(nodeHasComponent({ nodeKey: 'custom-stage' }, 'requirement-scope'), false)
   assert.deepEqual(legacyWorkflowComponents.kickoff, ['project-basic-info'])
+})
+
+test('saves pending node data before switching and stays put when saving fails', async () => {
+  const events = []
+  const blocked = await transitionActiveNode(1, 2, async () => {
+    events.push('save')
+    return false
+  }, (nodeId) => events.push(`select:${nodeId}`))
+
+  assert.equal(blocked, false)
+  assert.deepEqual(events, ['save'])
+
+  const switched = await transitionActiveNode(1, 2, async () => {
+    events.push('save')
+    return true
+  }, (nodeId) => events.push(`select:${nodeId}`))
+
+  assert.equal(switched, true)
+  assert.deepEqual(events, ['save', 'save', 'select:2'])
+})
+
+test('does not save or reselect the already active node', async () => {
+  const events = []
+  const switched = await transitionActiveNode(3, 3, () => events.push('save'), (nodeId) => events.push(nodeId))
+
+  assert.equal(switched, true)
+  assert.deepEqual(events, [])
+})
+
+test('node navigation waits for custom field persistence before replacing the editor', () => {
+  const detailPage = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+  const customFields = readFileSync(new URL('./components/WorkflowCustomFields.vue', import.meta.url), 'utf8')
+  const activateNode = detailPage.match(/async function activateNode\([\s\S]*?\n\}/)?.[0]
+
+  assert.ok(activateNode)
+  assert.match(activateNode, /transitionActiveNode/)
+  assert.match(activateNode, /saveIfDirty/)
+  assert.match(customFields, /defineExpose\(\{ flushAutoSave, saveIfDirty: save \}\)/)
+  assert.match(detailPage, /onBeforeRouteLeave\(async \(\) => \{[\s\S]*?saveIfDirty\(\)/)
+  assert.match(customFields, /:disabled="!canEdit \|\| readOnly \|\| saving"/)
+  assert.match(customFields, /watch\(\(\) => \[props\.projectId, props\.nodeId\], loadValues/)
+  assert.match(customFields, /if \(activeSave\) return activeSave/)
+})
+
+test('project parameter changes save custom fields even when the route component is reused', () => {
+  const detailPage = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+  assert.match(detailPage, /onBeforeRouteUpdate\(async \(to, from\) => \{[\s\S]*?to\.params\.id !== from\.params\.id[\s\S]*?saveIfDirty\(\)/)
 })
 
 test('project basics use configured visibility and requiredness, with the canonical fallback', () => {

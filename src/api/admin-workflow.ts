@@ -43,6 +43,7 @@ export function saveWorkflowTemplateDraft(id: number, payload: {
   name: string
   description?: string
   definition: WorkflowTemplateDefinition
+  expectedDraftRevision: number | null
 }): Promise<WorkflowTemplate> {
   return http.put(`/admin/workflow-config/templates/${id}/draft`, payload)
 }

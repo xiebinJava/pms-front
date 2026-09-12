@@ -27,6 +27,13 @@ export function nodeHasComponent(node, componentKey) {
   return (legacyWorkflowComponents[node.nodeKey] || []).includes(componentKey)
 }
 
+export async function transitionActiveNode(currentNodeId, nextNodeId, savePendingChanges, selectNode) {
+  if (currentNodeId === nextNodeId) return true
+  if (typeof savePendingChanges === 'function' && await savePendingChanges() === false) return false
+  selectNode(nextNodeId)
+  return true
+}
+
 export function visibleProjectFields(fields) {
   const configured = Array.isArray(fields) ? fields : defaultProjectFields
   return configured.filter((field) => field.visible !== false)

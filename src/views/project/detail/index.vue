@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeftOutlined,
   MoreOutlined,
@@ -64,7 +64,7 @@ import ReleaseDecisionHandoverWorkbench from './components/ReleaseDecisionHandov
 import ValueReviewWorkbench from './components/ValueReviewWorkbench.vue'
 import KnowledgeStandardWorkbench from './components/KnowledgeStandardWorkbench.vue'
 import WorkflowCustomFields from './components/WorkflowCustomFields.vue'
-import { missingConfiguredProjectFields, nodeHasComponent, visibleProjectFields } from './workflow-config.mjs'
+import { missingConfiguredProjectFields, nodeHasComponent, transitionActiveNode, visibleProjectFields } from './workflow-config.mjs'
 import type { PersonOption } from './workflow'
 import type { NodeIterationPlan, NodeRequirement, OrgUnit, Project, ProjectMember, ProjectNode, Task, User } from '/@/types/domain'
 
@@ -100,6 +100,7 @@ let profileSavePromise: Promise<void> | null = null
 let assignedMemberRefreshTimer: ReturnType<typeof setTimeout> | undefined
 const profileContainer = ref<HTMLElement | null>(null)
 const activeNodeId = ref<number | null>(null)
+const switchingNode = ref(false)
 const activeSection = ref('gantt')
 const priorityOptions = computed(() => Priority.options().map((opt) => ({
   ...opt,
@@ -133,7 +134,10 @@ const acceptanceRef = ref<{ flushAutoSave: () => Promise<boolean> } | null>(null
 const releaseWorkbenchRef = ref<{ saveDraft: () => Promise<boolean> } | null>(null)
 const valueReviewWorkbenchRef = ref<{ saveDraft: () => Promise<boolean> } | null>(null)
 const knowledgeStandardRef = ref<{ flushAutoSave: () => Promise<boolean> } | null>(null)
-const workflowCustomFieldsRef = ref<{ flushAutoSave: () => Promise<boolean> } | null>(null)
+const workflowCustomFieldsRef = ref<{
+  flushAutoSave: () => Promise<boolean>
+  saveIfDirty: () => Promise<boolean>
+} | null>(null)
 const taskKanbanRef = ref<{
   openCreateForRequirement: (requirementId: number) => void
   refreshRequirements: () => Promise<void> | void
@@ -319,7 +323,7 @@ async function loadData() {
     await persistDefaultNodeOwners()
     activeNodeId.value = getInitialActiveNodeId(nodes.value)
     await applyFocusTask()
-    applyFocusNode()
+    await applyFocusNode()
     if (isScheduleSection(activeSection.value)) {
       scheduleLoaded.value = false
       void loadSchedule()
@@ -337,16 +341,16 @@ async function applyFocusTask() {
   try {
     const task = await getTask(focusTaskId.value)
     if (task.projectId !== projectId.value) return
-    if (task.nodeId) activeNodeId.value = task.nodeId
+    if (task.nodeId) await activateNode(task.nodeId)
   } catch {
     // Keep the default node when the focused task is gone or unreadable.
   }
 }
 
-function applyFocusNode() {
+async function applyFocusNode() {
   if (focusTaskId.value || !focusNodeId.value) return
   if (nodes.value.some((node) => node.id === focusNodeId.value)) {
-    activeNodeId.value = focusNodeId.value
+    await activateNode(focusNodeId.value)
   }
 }
 
@@ -357,9 +361,25 @@ function onTaskFocusConsumed() {
   void router.replace({ query })
 }
 
-function onSelectNode(node: ProjectNode) {
+async function activateNode(nodeId: number): Promise<boolean> {
+  if (activeNodeId.value === nodeId) return true
+  if (switchingNode.value) return false
+  switchingNode.value = true
+  try {
+    return await transitionActiveNode(
+      activeNodeId.value,
+      nodeId,
+      () => workflowCustomFieldsRef.value?.saveIfDirty(),
+      (nextNodeId) => { activeNodeId.value = nextNodeId },
+    )
+  } finally {
+    switchingNode.value = false
+  }
+}
+
+async function onSelectNode(node: ProjectNode) {
   if (profileDirty.value) void onSaveProfile()
-  activeNodeId.value = node.id
+  await activateNode(node.id)
 }
 
 function isScheduleSection(section: string) {
@@ -398,16 +418,16 @@ watch(focusTaskId, (taskId) => {
 })
 
 watch(focusNodeId, () => {
-  applyFocusNode()
+  void applyFocusNode()
 })
 
 function onScheduleSelectNode(nodeId: number) {
   const node = nodes.value.find((item) => item.id === nodeId)
-  if (node) onSelectNode(node)
+  if (node) void onSelectNode(node)
 }
 
-function onScheduleOpenTask(taskId: number, nodeId?: number) {
-  if (nodeId) activeNodeId.value = nodeId
+async function onScheduleOpenTask(taskId: number, nodeId?: number) {
+  if (nodeId && !(await activateNode(nodeId))) return
   void router.replace({ query: { ...route.query, task: String(taskId) } })
   document.querySelector('.node-task-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
@@ -930,6 +950,8 @@ async function onReasonModalOk() {
   else lifecycleSaving.value = true
 
   try {
+    const fieldsSaved = await workflowCustomFieldsRef.value?.saveIfDirty()
+    if (fieldsSaved === false) return
     if (action === 'terminate') {
       await terminateProject(projectId.value, reason)
       await refreshAfterLifecycle(3)
@@ -985,6 +1007,19 @@ function onRollback() {
 onMounted(() => {
   loadData()
   document.addEventListener('pointerdown', onDocumentPointerDown)
+})
+
+onBeforeRouteLeave(async () => {
+  const saved = await workflowCustomFieldsRef.value?.saveIfDirty()
+  return saved !== false
+})
+
+onBeforeRouteUpdate(async (to, from) => {
+  if (to.params.id !== from.params.id) {
+    const saved = await workflowCustomFieldsRef.value?.saveIfDirty()
+    return saved !== false
+  }
+  return true
 })
 
 onBeforeUnmount(() => {
