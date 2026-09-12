@@ -1,4 +1,5 @@
-export type WorkflowFieldType = 'TEXT' | 'TEXTAREA' | 'NUMBER' | 'DATE' | 'SINGLE_SELECT' | 'MULTI_SELECT' | 'PERSON' | 'ATTACHMENT'
+export type WorkflowFieldType = 'TEXT' | 'TEXTAREA' | 'NUMBER' | 'RADIO' | 'SINGLE_SELECT' | 'MULTI_SELECT' | 'PERSON' | 'PERSON_MULTI' | 'DATE' | 'DATE_RANGE' | 'ATTACHMENT'
+export type WorkflowFieldBinding = 'project.description' | 'project.priority' | 'project.projectLevel' | 'project.schedule' | 'project.businessLine' | 'project.projectManager' | 'project.projectMembers' | 'project.followers'
 
 export interface WorkflowFieldDefinition {
   key: string
@@ -6,6 +7,8 @@ export interface WorkflowFieldDefinition {
   type: WorkflowFieldType
   required: boolean
   options: string[]
+  visible?: boolean
+  binding?: WorkflowFieldBinding | null
 }
 
 export interface WorkflowProjectFieldDefinition {
@@ -30,6 +33,23 @@ export interface WorkflowNodeDefinition {
 export interface WorkflowTemplateDefinition {
   schemaVersion: number
   nodes: WorkflowNodeDefinition[]
+}
+
+export type WorkflowContentOrderItem = 'fields' | `component:${string}`
+
+export interface WorkflowNodeDefinitionV2 {
+  key: string
+  name: string
+  description: string
+  deliverable: string
+  roles: string
+  fields: WorkflowFieldDefinition[]
+  contentOrder: WorkflowContentOrderItem[]
+}
+
+export interface WorkflowTemplateDefinitionV2 {
+  schemaVersion: 2
+  nodes: WorkflowNodeDefinitionV2[]
 }
 
 export interface ProjectType {

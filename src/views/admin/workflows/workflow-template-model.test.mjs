@@ -4,8 +4,12 @@ import { readFileSync } from 'node:fs'
 import {
   DEFAULT_PROJECT_BASIC_INFO_FIELDS,
   FIXED_NODE_BLOCKS,
+  addWorkflowField,
   createWorkflowNode,
+  moveWorkflowContentItem,
+  moveWorkflowField,
   moveWorkflowNode,
+  removeWorkflowField,
   removeWorkflowNode,
 } from './workflow-template-model.mjs'
 
@@ -41,6 +45,38 @@ test('ships canonical project profile fields as configurable visibility/required
     'description', 'priority', 'projectLevel', 'schedule', 'businessLine', 'projectManager', 'projectMembers', 'followers',
   ])
   assert.equal(DEFAULT_PROJECT_BASIC_INFO_FIELDS.find((field) => field.key === 'description').required, true)
+})
+
+test('adds fields with unique keys and creates the fields content item only when needed', () => {
+  const node = { ...nodes[0], contentOrder: ['component:requirement-scope'], fields: [{ key: 'risk', label: '风险', type: 'TEXT', required: false, options: [] }] }
+  const next = addWorkflowField(node, { key: 'risk', label: '风险说明', type: 'TEXTAREA' })
+
+  assert.equal(next.fields.at(-1).key, 'risk-2')
+  assert.equal(next.fields.at(-1).visible, true)
+  assert.equal(next.fields.at(-1).binding, null)
+  assert.deepEqual(next.contentOrder, ['component:requirement-scope', 'fields'])
+  assert.deepEqual(node.contentOrder, ['component:requirement-scope'])
+})
+
+test('moves fields and content items immutably and removes fields content after the last field is deleted', () => {
+  const node = {
+    ...nodes[0],
+    fields: [
+      { key: 'first', label: '第一项', type: 'TEXT', required: false, options: [] },
+      { key: 'second', label: '第二项', type: 'TEXT', required: false, options: [] },
+    ],
+    contentOrder: ['component:requirement-scope', 'fields', 'component:solution-design'],
+  }
+  const movedFields = moveWorkflowField(node, 'second', 0)
+  const movedContent = moveWorkflowContentItem(movedFields, 'fields', 2)
+  const oneRemaining = removeWorkflowField(movedContent, 'first')
+  const empty = removeWorkflowField(oneRemaining, 'second')
+
+  assert.deepEqual(movedFields.fields.map((field) => field.key), ['second', 'first'])
+  assert.deepEqual(movedContent.contentOrder, ['component:requirement-scope', 'component:solution-design', 'fields'])
+  assert.deepEqual(empty.fields, [])
+  assert.deepEqual(empty.contentOrder, ['component:requirement-scope', 'component:solution-design'])
+  assert.deepEqual(node.fields.map((field) => field.key), ['first', 'second'])
 })
 
 test('confirms before a type switch can clear an unsaved workflow draft', () => {
