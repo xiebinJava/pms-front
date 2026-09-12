@@ -33,16 +33,25 @@ const pendingUploads = new Set<Promise<void>>()
 let requestSequence = 0
 let activeSave: Promise<boolean> | null = null
 
-const hasFields = computed(() => props.fields.length > 0)
+const visibleFields = computed(() => props.fields.filter((field) => field.visible !== false))
+const editableFields = computed(() => visibleFields.value.filter((field) => !field.binding))
+const hasFields = computed(() => visibleFields.value.length > 0)
 
 async function loadValues() {
   const sequence = ++requestSequence
+  if (!editableFields.value.length) {
+    values.value = {}
+    versions.value = {}
+    attachments.value = {}
+    dirty.value = false
+    return
+  }
   loading.value = true
   dirty.value = false
   try {
     const result = await getNodeFieldValues(props.projectId, props.nodeId)
     if (sequence !== requestSequence) return
-    values.value = Object.fromEntries(props.fields.map((field) => [field.key, result.values?.[field.key] ?? emptyWorkflowFieldValue(field.type)]))
+    values.value = Object.fromEntries(editableFields.value.map((field) => [field.key, result.values?.[field.key] ?? emptyWorkflowFieldValue(field.type)]))
     versions.value = result.versions || {}
     attachments.value = result.attachments || {}
   } catch {
@@ -55,7 +64,7 @@ async function loadValues() {
 function markDirty() { dirty.value = true }
 
 function validateRequired(): boolean {
-  const missing = props.fields.filter((field) => field.required && isWorkflowFieldEmpty(values.value[field.key]))
+  const missing = editableFields.value.filter((field) => field.required && isWorkflowFieldEmpty(values.value[field.key]))
   if (!missing.length) return true
   message.warning(t('detail.workflowFields.requiredMissing', { fields: missing.map((field) => field.label).join(localeSeparator()) }))
   return false
@@ -84,11 +93,11 @@ async function persistChanges(): Promise<boolean> {
   saving.value = true
   try {
     const payload: WorkflowNodeFieldValuesSavePayload = {
-      values: Object.fromEntries(props.fields.map((field) => [field.key, values.value[field.key] ?? null])),
+      values: Object.fromEntries(editableFields.value.map((field) => [field.key, values.value[field.key] ?? null])),
       versions: versions.value,
     }
     const saved = await saveNodeFieldValues(props.projectId, props.nodeId, payload)
-    values.value = Object.fromEntries(props.fields.map((field) => [field.key, saved.values?.[field.key] ?? emptyWorkflowFieldValue(field.type)]))
+    values.value = Object.fromEntries(editableFields.value.map((field) => [field.key, saved.values?.[field.key] ?? emptyWorkflowFieldValue(field.type)]))
     versions.value = saved.versions || {}
     attachments.value = saved.attachments || {}
     dirty.value = false
@@ -164,15 +173,19 @@ defineExpose({ flushAutoSave, saveIfDirty: save })
     </header>
     <a-spin :spinning="loading">
       <div class="workflow-custom-fields__grid">
-        <div v-for="field in fields" :key="field.key" class="workflow-custom-fields__field" :class="{ 'workflow-custom-fields__field--wide': field.type === 'TEXTAREA' || field.type === 'ATTACHMENT' }">
-          <label :for="`workflow-field-${nodeId}-${field.key}`">{{ field.label }}<span v-if="field.required" class="workflow-custom-fields__required">*</span></label>
-          <a-input v-if="field.type === 'TEXT'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" :disabled="!canEdit || readOnly || saving" :maxlength="500" @change="markDirty" />
+        <div v-for="field in visibleFields" :key="field.key" class="workflow-custom-fields__field" :class="{ 'workflow-custom-fields__field--wide': field.type === 'TEXTAREA' || field.type === 'ATTACHMENT' || field.type === 'PERSON_MULTI' }">
+          <label :for="`workflow-field-${nodeId}-${field.key}`">{{ $t(field.label) }}<span v-if="field.required" class="workflow-custom-fields__required">*</span></label>
+          <slot v-if="field.binding" name="bound-field" :field="field" />
+          <a-input v-else-if="field.type === 'TEXT'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" :disabled="!canEdit || readOnly || saving" :maxlength="500" @change="markDirty" />
           <a-textarea v-else-if="field.type === 'TEXTAREA'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" :disabled="!canEdit || readOnly || saving" :rows="3" :maxlength="10000" @change="markDirty" />
           <a-input-number v-else-if="field.type === 'NUMBER'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" :disabled="!canEdit || readOnly || saving" class="workflow-custom-fields__control" @change="markDirty" />
           <a-date-picker v-else-if="field.type === 'DATE'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" value-format="YYYY-MM-DD" :disabled="!canEdit || readOnly || saving" class="workflow-custom-fields__control" @change="markDirty" />
+          <a-radio-group v-else-if="field.type === 'RADIO'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" :disabled="!canEdit || readOnly || saving" :options="field.options.map((label) => ({ label, value: label }))" @change="markDirty" />
           <a-select v-else-if="field.type === 'SINGLE_SELECT'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" :disabled="!canEdit || readOnly || saving" :options="field.options.map((label) => ({ label, value: label }))" allow-clear @change="markDirty" />
           <a-select v-else-if="field.type === 'MULTI_SELECT'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" mode="multiple" :disabled="!canEdit || readOnly || saving" :options="field.options.map((label) => ({ label, value: label }))" @change="markDirty" />
           <a-select v-else-if="field.type === 'PERSON'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" :disabled="!canEdit || readOnly || saving" :options="personOptions" allow-clear show-search option-filter-prop="label" @change="markDirty" />
+          <a-select v-else-if="field.type === 'PERSON_MULTI'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" mode="multiple" :disabled="!canEdit || readOnly || saving" :options="personOptions" show-search option-filter-prop="label" @change="markDirty" />
+          <a-range-picker v-else-if="field.type === 'DATE_RANGE'" :id="`workflow-field-${nodeId}-${field.key}`" v-model:value="values[field.key]" value-format="YYYY-MM-DD" :disabled="!canEdit || readOnly || saving" class="workflow-custom-fields__control" @change="markDirty" />
           <div v-else-if="field.type === 'ATTACHMENT'" class="workflow-custom-fields__attachments">
             <input :id="`workflow-field-${nodeId}-${field.key}`" type="file" :disabled="!canEdit || readOnly || saving" @change="onFileSelected(field, $event)" />
             <div v-for="attachment in attachments[field.key] || []" :key="attachment.id" class="workflow-custom-fields__attachment">

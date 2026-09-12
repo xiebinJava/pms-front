@@ -1,4 +1,4 @@
-import type { WorkflowProjectFieldDefinition } from '../../../types/workflow'
+import type { WorkflowFieldDefinition, WorkflowProjectFieldDefinition } from '../../../types/workflow'
 
 export const legacyWorkflowComponents: Readonly<Record<string, readonly string[]>>
 export const defaultProjectFields: readonly WorkflowProjectFieldDefinition[]
@@ -20,8 +20,23 @@ export function transitionActiveNode<T>(
   selectNode: (nodeId: T) => void,
 ): Promise<boolean>
 export function visibleProjectFields(fields?: WorkflowProjectFieldDefinition[] | null): WorkflowProjectFieldDefinition[]
+export function nodeWorkflowFields(node: {
+  components?: string[]
+  contentOrder?: string[]
+  fields?: WorkflowFieldDefinition[]
+  projectBasicInfo?: boolean
+  projectBasicInfoFields?: WorkflowProjectFieldDefinition[]
+} | null | undefined): WorkflowFieldDefinition[]
+export function nodeWorkflowContentOrder(node: {
+  nodeKey?: string
+  components?: string[]
+  contentOrder?: string[]
+  fields?: WorkflowFieldDefinition[]
+  projectBasicInfo?: boolean
+  projectBasicInfoFields?: WorkflowProjectFieldDefinition[]
+} | null | undefined): string[]
 export function missingConfiguredProjectFields(
-  fields: WorkflowProjectFieldDefinition[] | null | undefined,
+  fields: Array<WorkflowProjectFieldDefinition | WorkflowFieldDefinition> | null | undefined,
   profile: {
     description?: string
     priority?: number | null

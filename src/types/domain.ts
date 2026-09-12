@@ -219,6 +219,7 @@ export interface ProjectNode {
   createdAt: string
   permissions?: NodePermissions
   components?: string[]
+  contentOrder?: string[]
   fields?: WorkflowFieldDefinition[]
   projectBasicInfo?: boolean
   projectBasicInfoFields?: WorkflowProjectFieldDefinition[]

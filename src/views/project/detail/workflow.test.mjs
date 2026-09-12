@@ -338,6 +338,15 @@ test('node workbenches keep per-node keys while the shared detail chrome stays s
   assert.match(detail, /class="node-detail-card/)
 })
 
+test('project detail places bound and free fields in one content-order slot while fixed modules remain outside it', () => {
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  assert.match(detail, /nodeWorkflowContentOrder\(activeNode\.value\)/)
+  assert.match(detail, /<WorkflowCustomFields[\s\S]*?#bound-field/)
+  assert.match(detail, /:fields="activeNodeWorkflowFields"/)
+  assert.match(detail, /class="node-assignment-row pms-assignment-grid"/)
+  assert.match(detail, /class="node-task-section"/)
+})
+
 test('workflow workbenches are resolved by component identity rather than fixed node names', () => {
   const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
   for (const component of ['requirement-scope', 'solution-design', 'plan-resource-risk', 'development-control', 'business-acceptance', 'release-handover', 'value-review', 'knowledge-standard']) {
@@ -406,7 +415,7 @@ test('project level is placed after priority in the editable project profile', (
   assert.match(detail, /profileForm\.projectLevel/)
   assert.match(detail, /ProjectLevel\.options\(\)/)
   assert.match(detail, /projectLevel: profileForm\.projectLevel/)
-  assert.match(detail, /field\.key === 'projectLevel'/)
+  assert.match(detail, /field\.binding === 'project\.projectLevel'/)
 })
 
 test('profile member save keeps a baseline so auto-joined people are not replaced away', () => {

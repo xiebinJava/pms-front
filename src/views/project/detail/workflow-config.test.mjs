@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
-import { emptyWorkflowFieldValue, isWorkflowFieldEmpty, legacyWorkflowComponents, missingConfiguredProjectFields, nodeHasComponent, transitionActiveNode, visibleProjectFields } from './workflow-config.mjs'
+import { emptyWorkflowFieldValue, isWorkflowFieldEmpty, legacyWorkflowComponents, missingConfiguredProjectFields, nodeHasComponent, nodeWorkflowContentOrder, nodeWorkflowFields, transitionActiveNode, visibleProjectFields } from './workflow-config.mjs'
 
 test('workflow components follow published definitions and retain legacy project compatibility', () => {
   assert.equal(nodeHasComponent({ nodeKey: 'requirement', components: ['solution-design'] }, 'solution-design'), true)
@@ -88,6 +88,50 @@ test('optional field defaults are valid for backend field-type validation', () =
   assert.equal(isWorkflowFieldEmpty('  '), true)
   assert.equal(isWorkflowFieldEmpty([]), true)
   assert.equal(isWorkflowFieldEmpty(0), false)
+})
+
+test('normalizes v1 profiles into ordered bound fields while preserving custom fields', () => {
+  const node = {
+    nodeKey: 'kickoff',
+    components: ['project-basic-info', 'requirement-scope'],
+    projectBasicInfo: true,
+    projectBasicInfoFields: [{ key: 'description', label: '项目描述', visible: true, required: true }],
+    fields: [{ key: 'risk', label: '风险', type: 'TEXT', required: true, options: [] }],
+  }
+
+  assert.deepEqual(nodeWorkflowContentOrder(node), ['fields', 'component:requirement-scope'])
+  assert.deepEqual(nodeWorkflowFields(node).map(({ key, binding, visible }) => ({ key, binding, visible })), [
+    { key: 'project-description', binding: 'project.description', visible: true },
+    { key: 'risk', binding: null, visible: true },
+  ])
+})
+
+test('uses v2 content order and excludes hidden required bindings from completion checks', () => {
+  const fields = [
+    { key: 'hidden-description', label: '项目描述', type: 'TEXTAREA', required: true, options: [], visible: false, binding: 'project.description' },
+    { key: 'manager', label: '经理', type: 'PERSON', required: true, options: [], visible: true, binding: 'project.projectManager' },
+  ]
+  const node = { contentOrder: ['component:requirement-scope', 'fields'], fields }
+
+  assert.deepEqual(nodeWorkflowContentOrder(node), ['component:requirement-scope', 'fields'])
+  assert.deepEqual(missingConfiguredProjectFields(fields, { description: '', projectManagerId: undefined }), ['projectManager'])
+})
+
+test('supplies empty values for each selectable and ranged control', () => {
+  assert.equal(emptyWorkflowFieldValue('RADIO'), null)
+  assert.deepEqual(emptyWorkflowFieldValue('PERSON_MULTI'), [])
+  assert.deepEqual(emptyWorkflowFieldValue('DATE_RANGE'), [])
+})
+
+test('unified custom field grid renders bound slots and the new controls without persisting bindings', () => {
+  const source = readFileSync(new URL('./components/WorkflowCustomFields.vue', import.meta.url), 'utf8')
+  assert.match(source, /<slot v-if="field\.binding" name="bound-field" :field="field" \/>/)
+  assert.match(source, /field\.type === 'RADIO'/)
+  assert.match(source, /field\.type === 'PERSON_MULTI'/)
+  assert.match(source, /field\.type === 'DATE_RANGE'/)
+  assert.match(source, /filter\(\(field\) => !field\.binding\)/)
+  const loadBlock = source.slice(source.indexOf('async function loadValues()'), source.indexOf('function markDirty()'))
+  assert.match(loadBlock, /if \(!editableFields\.value\.length\) \{[\s\S]*?return/)
 })
 
 test('optional required fields can be saved as a draft and checked when completing', () => {

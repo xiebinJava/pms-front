@@ -64,7 +64,7 @@ import ReleaseDecisionHandoverWorkbench from './components/ReleaseDecisionHandov
 import ValueReviewWorkbench from './components/ValueReviewWorkbench.vue'
 import KnowledgeStandardWorkbench from './components/KnowledgeStandardWorkbench.vue'
 import WorkflowCustomFields from './components/WorkflowCustomFields.vue'
-import { missingConfiguredProjectFields, nodeHasComponent, transitionActiveNode, visibleProjectFields } from './workflow-config.mjs'
+import { missingConfiguredProjectFields, nodeHasComponent, nodeWorkflowContentOrder, nodeWorkflowFields, transitionActiveNode } from './workflow-config.mjs'
 import type { PersonOption } from './workflow'
 import type { NodeIterationPlan, NodeRequirement, OrgUnit, Project, ProjectMember, ProjectNode, Task, User } from '/@/types/domain'
 
@@ -180,10 +180,7 @@ const currentNodeProgress = computed(() => getNodeProgress(
   activeNodeTaskSummary.value.done,
   activeNodeTaskSummary.value.total,
 ))
-const showKickoffProfile = computed(() => Boolean(activeNode.value && (
-  activeNode.value.projectBasicInfo || nodeHasComponent(activeNode.value, 'project-basic-info')
-)))
-const projectProfileFields = computed(() => visibleProjectFields(activeNode.value?.projectBasicInfoFields))
+const activeNodeWorkflowFields = computed(() => nodeWorkflowFields(activeNode.value))
 const nodeOwnerOptions = computed(() => members.value.map((member) => ({
   value: member.userId,
   label: formatPersonLabel({ id: member.userId, nickname: member.nickname, username: member.username, email: member.email }),
@@ -281,23 +278,16 @@ function joinLocalizedFields(keys: string[]): string {
   return keys.map((key) => t(key)).join(locale.value.startsWith('zh') ? '、' : ', ')
 }
 
-function projectProfileFieldLabel(key: string): string {
-  const labels: Record<string, string> = {
-    description: 'detail.profileDescription', priority: 'detail.profilePriority', projectLevel: 'detail.profileProjectLevel',
-    schedule: 'detail.profileSchedule', businessLine: 'detail.businessLine', projectManager: 'detail.manager',
-    projectMembers: 'detail.members', followers: 'detail.followers',
-  }
-  return t(labels[key] || key)
-}
-
 function componentSlotStyle(componentKey: string): Record<string, number> {
-  const components = activeNode.value?.components || []
-  const index = components.indexOf(componentKey)
-  return { order: index < 0 ? components.length + 1 : index }
+  const contentOrder = nodeWorkflowContentOrder(activeNode.value)
+  const index = contentOrder.indexOf(`component:${componentKey}`)
+  return { order: index < 0 ? contentOrder.length + 1 : index }
 }
 
 function customFieldsSlotStyle(): Record<string, number> {
-  return { order: (activeNode.value?.components || []).length + 1 }
+  const contentOrder = nodeWorkflowContentOrder(activeNode.value)
+  const index = contentOrder.indexOf('fields')
+  return { order: index < 0 ? contentOrder.length + 1 : index }
 }
 
 async function loadData() {
@@ -855,13 +845,13 @@ async function onComplete() {
     message.warning(t('detail.valueReview.completionRequired'))
     return
   }
-  if (nodeHasComponent(nodeToComplete, 'project-basic-info') || nodeToComplete.projectBasicInfo) {
+  if (activeNodeWorkflowFields.value.some((field) => field.binding)) {
     const requiredProfileFields: Record<string, string> = {
       description: 'detail.profileDescription', priority: 'detail.profilePriority', projectLevel: 'detail.profileProjectLevel',
       schedule: 'detail.profileSchedule', businessLine: 'detail.businessLine', projectManager: 'detail.manager',
       projectMembers: 'detail.members', followers: 'detail.followers',
     }
-    const missingFields = missingConfiguredProjectFields(nodeToComplete.projectBasicInfoFields, profileForm)
+    const missingFields = missingConfiguredProjectFields(activeNodeWorkflowFields.value.filter((field) => field.binding), profileForm)
       .map((field) => requiredProfileFields[field] || field)
     if (missingFields.length) {
       message.warning(t('detail.completeMissing', { fields: joinLocalizedFields(missingFields) }))
@@ -1194,101 +1184,29 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="workflow-details-stack">
-      <div v-if="showKickoffProfile" ref="profileContainer" class="node-tab-profile" :style="componentSlotStyle('project-basic-info')">
-        <div class="project-profile-section">
-          <div class="profile-section-title-row">
-            <div class="profile-section-title">{{ $t('detail.profileBasics') }}</div>
-            <span v-if="profileSaving" class="profile-save-state">{{ $t('detail.profileSaving') }}</span>
-          </div>
-          <div class="project-profile-grid">
-            <template v-for="field in projectProfileFields" :key="field.key">
-              <div
-                class="project-profile-field"
-                :class="{
-                  'project-profile-field--wide': field.key === 'description' || field.key === 'projectMembers' || field.key === 'followers',
-                  'project-profile-field--multiline': field.key === 'description',
-                }"
-              >
-                <span class="project-profile-field__label" :class="{ 'project-profile-field__label--required': field.required }">{{ projectProfileFieldLabel(field.key) }}</span>
-                <div v-if="field.key === 'description'" class="project-description-editor">
-                  <a-textarea
-                    v-model:value="profileForm.description"
-                    :rows="4"
-                    :disabled="!canManageProject || activeNodeReadOnly"
-                    class="project-profile-control project-description-control"
-                    @input="markProfileDirty"
-                  />
-                </div>
-                <a-select
-                  v-else-if="field.key === 'priority'"
-                  v-model:value="profileForm.priority"
-                  class="project-profile-control"
-                  :options="priorityOptions"
-                  :disabled="!canManageProject || activeNodeReadOnly"
-                  @change="markProfileDirty"
-                />
-                <a-select
-                  v-else-if="field.key === 'projectLevel'"
-                  v-model:value="profileForm.projectLevel"
-                  class="project-profile-control"
-                  :options="projectLevelOptions"
-                  :disabled="!canManageProject || activeNodeReadOnly"
-                  @change="markProfileDirty"
-                />
-                <BusinessLineSelect
-                  v-else-if="field.key === 'businessLine'"
-                  v-model="businessLinePath"
-                  class="project-profile-control"
-                  :options="businessLineOptions"
-                  :placeholder="$t('detail.selectBusinessLine')"
-                  :disabled="!canManageProject || activeNodeReadOnly"
-                />
-                <a-range-picker
-                  v-else-if="field.key === 'schedule'"
-                  v-model:value="profileForm.schedule"
-                  value-format="YYYY-MM-DD"
-                  class="project-profile-control"
-                  :placeholder="[$t('project.startDate'), $t('project.endDate')]"
-                  :disabled="!canManageProject || activeNodeReadOnly"
-                  @change="markProfileDirty"
-                />
-                <PersonSelect
-                  v-else-if="field.key === 'projectManager'"
-                  v-model="profileForm.projectManagerId"
-                  class="project-profile-control project-people-control"
-                  :options="nodeOwnerOptions"
-                  :disabled="!canSetProjectManager || activeNodeReadOnly"
-                  @change="onProjectManagerChange"
-                />
-                <PersonSelect
-                  v-else-if="field.key === 'projectMembers'"
-                  v-model="profileForm.memberIds"
-                  class="project-profile-control project-people-control project-members-control"
-                  multiple
-                  allow-clear
-                  :max-tag-count="2"
-                  :options="profileUserOptions"
-                  :placeholder="$t('detail.selectMembers')"
-                  :disabled="!canManageMembers || activeNodeReadOnly"
-                  @change="markMembersDirty"
-                />
-                <PersonSelect
-                  v-else-if="field.key === 'followers'"
-                  v-model="profileForm.followerIds"
-                  class="project-profile-control project-people-control project-members-control"
-                  multiple
-                  allow-clear
-                  :max-tag-count="2"
-                  :options="profileUserOptions"
-                  :placeholder="$t('detail.selectFollowers')"
-                  :disabled="!canManageMembers || activeNodeReadOnly"
-                  @change="markFollowersDirty"
-                />
-              </div>
-            </template>
-          </div>
-        </div>
-      </div>
+       <div v-if="activeNodeWorkflowFields.length" ref="profileContainer" class="node-tab-profile" :style="customFieldsSlotStyle()">
+         <WorkflowCustomFields
+           ref="workflowCustomFieldsRef"
+           :key="`custom-fields-${activeNode.id}`"
+           :project-id="projectId"
+           :node-id="activeNode.id"
+           :fields="activeNodeWorkflowFields"
+           :person-options="nodeOwnerOptions"
+           :can-edit="canEditActiveNode"
+           :read-only="activeNodeReadOnly"
+         >
+           <template #bound-field="{ field }">
+             <a-textarea v-if="field.binding === 'project.description'" v-model:value="profileForm.description" :rows="4" :disabled="!canManageProject || activeNodeReadOnly" class="project-profile-control project-description-control" @input="markProfileDirty" />
+             <a-radio-group v-else-if="field.binding === 'project.priority'" v-model:value="profileForm.priority" class="project-profile-control" :options="priorityOptions" :disabled="!canManageProject || activeNodeReadOnly" @change="markProfileDirty" />
+             <a-select v-else-if="field.binding === 'project.projectLevel'" v-model:value="profileForm.projectLevel" class="project-profile-control" :options="projectLevelOptions" :disabled="!canManageProject || activeNodeReadOnly" @change="markProfileDirty" />
+             <BusinessLineSelect v-else-if="field.binding === 'project.businessLine'" v-model="businessLinePath" class="project-profile-control" :options="businessLineOptions" :placeholder="$t('detail.selectBusinessLine')" :disabled="!canManageProject || activeNodeReadOnly" />
+             <a-range-picker v-else-if="field.binding === 'project.schedule'" v-model:value="profileForm.schedule" value-format="YYYY-MM-DD" class="project-profile-control" :placeholder="[$t('project.startDate'), $t('project.endDate')]" :disabled="!canManageProject || activeNodeReadOnly" @change="markProfileDirty" />
+             <PersonSelect v-else-if="field.binding === 'project.projectManager'" v-model="profileForm.projectManagerId" class="project-profile-control project-people-control" :options="nodeOwnerOptions" :disabled="!canSetProjectManager || activeNodeReadOnly" @change="onProjectManagerChange" />
+             <PersonSelect v-else-if="field.binding === 'project.projectMembers'" v-model="profileForm.memberIds" class="project-profile-control project-people-control project-members-control" multiple allow-clear :max-tag-count="2" :options="profileUserOptions" :placeholder="$t('detail.selectMembers')" :disabled="!canManageMembers || activeNodeReadOnly" @change="markMembersDirty" />
+             <PersonSelect v-else-if="field.binding === 'project.followers'" v-model="profileForm.followerIds" class="project-profile-control project-people-control project-members-control" multiple allow-clear :max-tag-count="2" :options="profileUserOptions" :placeholder="$t('detail.selectFollowers')" :disabled="!canManageMembers || activeNodeReadOnly" @change="markFollowersDirty" />
+           </template>
+         </WorkflowCustomFields>
+       </div>
 
       <RequirementScopeWorkbench
         v-if="nodeHasComponent(activeNode, 'requirement-scope')"
@@ -1391,18 +1309,6 @@ onBeforeUnmount(() => {
         :owner-options="nodeOwnerOptions"
       />
 
-      <WorkflowCustomFields
-        v-if="activeNode.fields?.length"
-        ref="workflowCustomFieldsRef"
-        :key="`custom-fields-${activeNode.id}`"
-        :style="customFieldsSlotStyle()"
-        :project-id="projectId"
-        :node-id="activeNode.id"
-        :fields="activeNode.fields"
-        :person-options="nodeOwnerOptions"
-        :can-edit="canEditActiveNode"
-        :read-only="activeNodeReadOnly"
-      />
       </div>
 
       <a-divider />
