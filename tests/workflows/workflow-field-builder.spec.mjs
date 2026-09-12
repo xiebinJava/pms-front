@@ -38,7 +38,11 @@ function projectFixture(definition) {
   return {
     id: 7, name: '浏览器回归项目', description: '', priority: 1, projectLevel: 1,
     startDate: '2026-09-01', endDate: '2026-09-30', version: 3, status: 1,
-    workflowTemplateVersionId: 88, workflowDefinition: definition, permissions: { canManage: true, canComplete: true },
+    workflowTemplateVersionId: 88, workflowDefinition: definition,
+    permissions: {
+      canManageProject: true, canManageMembers: true, canSetProjectManager: true, canAssignNodeOwner: true,
+      canTerminateProject: false, canRestoreProject: false, canDeleteProject: false, canWriteComment: true,
+    },
   }
 }
 
@@ -51,13 +55,19 @@ function nodeFixture(definition) {
   }]
 }
 
-async function installApi(page, { definition = v2Definition(), onProjectUpdate, onNodeFields, onComplete, legacy = false } = {}) {
+async function installApi(page, { definition = v2Definition(), onProjectUpdate, onNodeFields, onComplete, onUnmatched, legacy = false } = {}) {
   const project = projectFixture(definition)
   const nodes = nodeFixture(definition)
-  await page.route('**/api/**', async (route) => {
+  const allPeople = [
+    { id: 1, nameZh: 'Alex Zhang', username: 'alex.zhang', email: 'alex.zhang@example.com', status: 'ACTIVE' },
+    { id: 2, nameZh: 'Bea Li', username: 'bea.li', email: 'bea.li@example.com', status: 'ACTIVE' },
+  ]
+  let members = [{ id: 71, projectId: 7, userId: 1, username: 'alex.zhang', nickname: 'Alex Zhang', email: 'alex.zhang@example.com', role: 1 }]
+  await page.route('**/*', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
-    const path = url.pathname.replace(/^\/api/, '')
+    if (!url.pathname.startsWith('/api/')) return route.continue()
+    const path = url.pathname.slice('/api'.length)
     const method = request.method()
     const json = (data) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(api(data)) })
     if (path === '/auth/refresh') return json({ accessToken: 'fixture-token', user: admin })
@@ -72,12 +82,19 @@ async function installApi(page, { definition = v2Definition(), onProjectUpdate, 
       const payload = JSON.parse(request.postData() || '{}')
       onProjectUpdate?.(payload)
       Object.assign(project, payload, { version: project.version + 1 })
+      if (Array.isArray(payload.memberIds)) {
+        members = payload.memberIds.map((userId) => {
+          const user = allPeople.find((item) => item.id === userId)
+          return { id: 70 + userId, projectId: 7, userId, username: user?.username, nickname: user?.nameZh, email: user?.email, role: 1 }
+        })
+      }
       return json(project)
     }
     if (path === '/projects/7/nodes' && method === 'GET') return json(nodes)
-    if (path === '/projects/7/members') return json([{ id: 1, nameZh: 'Alex Zhang', email: 'alex.zhang@example.com' }, { id: 2, nameZh: 'Bea Li', email: 'bea.li@example.com' }])
+    if (path === '/projects/7/members') return json(members)
     if (path === '/projects/7/followers') return json([])
     if (path === '/org/tree') return json([])
+    if (path === '/users/search' && method === 'GET') return json(allPeople)
     if (path === '/projects/7/nodes/11/fields' && method === 'GET') return json({ values: {}, attachments: {}, version: 1 })
     if (path === '/projects/7/nodes/11/fields' && method === 'PUT') {
       onNodeFields?.(JSON.parse(request.postData() || '{}'))
@@ -88,7 +105,12 @@ async function installApi(page, { definition = v2Definition(), onProjectUpdate, 
       nodes[0].status = 2
       return json(nodes)
     }
-    return json()
+    onUnmatched?.({ method, path: url.pathname })
+    return route.fulfill({
+      status: 501,
+      contentType: 'application/json',
+      body: JSON.stringify({ code: 501, msg: `Unmatched test API fixture: ${method} ${url.pathname}`, data: null }),
+    })
   })
 }
 
@@ -102,7 +124,8 @@ test.describe('workflow field builder browser regression', () => {
   test.use({ baseURL })
 
   test('admin adapts a v1 nine-stage template, reorders it, and persists v2 editor changes', async ({ page }) => {
-    await installApi(page, { legacy: true })
+    const unmatchedRequests = []
+    await installApi(page, { legacy: true, onUnmatched: (request) => unmatchedRequests.push(request) })
     const errors = await expectNoConsoleErrors(page)
     let draftPayload
     await page.route('**/api/admin/workflow-config/templates/31/draft', async (route) => {
@@ -110,68 +133,106 @@ test.describe('workflow field builder browser regression', () => {
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify(api({ id: 31, projectTypeId: 1, name: '旧版九阶段', definition: draftPayload.definition })) })
     })
     await page.goto('/admin/workflows')
-    await expect(page.locator('.node-card')).toHaveCount(9)
+    await expect(page.locator('.workflow-node-card')).toHaveCount(9)
     await expect(page.locator('.fixed-blocks .ant-tag')).toHaveCount(3)
     await expect(page.locator('.field-card')).toHaveCount(3)
-    await page.locator('.node-card').nth(1).locator('.node-card-tools button').first().click()
+    const nodes = page.locator('.workflow-node-card')
+    await nodes.nth(0).dragTo(nodes.nth(1))
+    await expect(page.locator('.workflow-node-card').first()).toContainText('阶段 2')
+    const fields = page.locator('.field-card')
+    await fields.nth(2).dragTo(fields.nth(0))
+    await expect(page.locator('.field-card .custom-field-label input').first()).toHaveValue('旧版备注')
+    const contentItems = page.locator('.content-order-item')
+    await expect(contentItems).toHaveCount(2)
+    await contentItems.nth(1).dragTo(contentItems.nth(0))
+    await expect(page.locator('.content-order-item').first()).toContainText('需求范围与基线')
     await page.locator('.field-palette button').nth(3).click()
     await page.locator('.field-palette button').nth(7).click()
     const added = page.locator('.field-card')
     await expect(added).toHaveCount(5)
     await added.nth(3).locator('.custom-field-label input').fill('浏览器单选')
     await added.nth(3).locator('.custom-field-options input').fill('通过, 待补充')
-    await added.nth(3).locator('input[type="checkbox"]').nth(1).check()
+    await added.nth(3).locator('.custom-field-required .ant-checkbox-wrapper').click()
     await added.nth(4).locator('.custom-field-label input').fill('浏览器多人')
-    await added.nth(4).locator('button[aria-label]').first().click()
+    await page.getByRole('button', { name: '预览' }).click()
+    const preview = page.locator('.ant-modal:visible')
+    await expect(preview).toBeVisible()
+    await expect(preview).toContainText('旧版备注')
+    await expect(preview).toContainText('固定区域')
+    await expect(preview).toContainText('需求范围与基线')
+    await page.locator('.ant-modal-close').click()
     await page.getByRole('button', { name: '保存草稿' }).click()
     await expect.poll(() => draftPayload).toBeTruthy()
     expect(draftPayload.definition.schemaVersion).toBe(2)
     expect(draftPayload.definition.nodes).toHaveLength(9)
-    expect(draftPayload.definition.nodes[0].contentOrder).toContain('fields')
-    expect(draftPayload.definition.nodes[0].fields.map((field) => field.type)).toEqual(expect.arrayContaining(['RADIO', 'PERSON_MULTI']))
-    expect(draftPayload.definition.nodes[0].fields.some((field) => field.binding === 'project.description')).toBeTruthy()
+    expect(draftPayload.definition.nodes.map((node) => node.key)).toEqual(['stage-2', 'stage-1', ...Array.from({ length: 7 }, (_, index) => `stage-${index + 3}`)])
+    const preservedV1Node = draftPayload.definition.nodes.find((node) => node.key === 'stage-1')
+    expect(preservedV1Node.contentOrder).toEqual(['component:requirement-scope', 'fields'])
+    expect(preservedV1Node.fields.map((field) => field.key)).toEqual(['legacy-notes', 'project-description', 'project-project-members', expect.any(String), expect.any(String)])
+    expect(preservedV1Node.fields[0]).toMatchObject({ key: 'legacy-notes', label: '旧版备注', type: 'TEXT', required: false })
+    expect(preservedV1Node.fields.map((field) => field.type)).toEqual(expect.arrayContaining(['RADIO', 'PERSON_MULTI']))
+    expect(preservedV1Node.fields.some((field) => field.binding === 'project.description')).toBeTruthy()
+    expect(preservedV1Node.fields.find((field) => field.label === '浏览器单选')).toMatchObject({ type: 'RADIO', options: ['通过', '待补充'], required: true })
     await page.getByRole('button', { name: '发布' }).click()
     await expect(page.locator('.ant-message-notice')).toContainText('已发布')
     expect(errors).toEqual([])
+    expect(unmatchedRequests).toEqual([])
   })
 
   test('v2 bound and free values use their separate canonical APIs and a filled node completes', async ({ page }) => {
     const updates = []
     const fieldWrites = []
+    const unmatchedRequests = []
     let completed = 0
-    await installApi(page, { onProjectUpdate: (body) => updates.push(body), onNodeFields: (body) => fieldWrites.push(body), onComplete: () => { completed += 1 } })
+    await installApi(page, { onProjectUpdate: (body) => updates.push(body), onNodeFields: (body) => fieldWrites.push(body), onComplete: () => { completed += 1 }, onUnmatched: (request) => unmatchedRequests.push(request) })
     const errors = await expectNoConsoleErrors(page)
     await page.goto('/projects/7')
     await expect(page.locator('.workflow-custom-fields')).toBeVisible()
+    await expect(page.locator('.workflow-custom-fields textarea')).toBeEnabled()
     await page.locator('.workflow-custom-fields textarea').fill('项目描述由 canonical API 保存')
+    const memberPicker = page.locator('.project-members-control .ant-select-selector').first()
+    await expect(memberPicker).toBeEnabled()
+    await memberPicker.click()
+    const candidate = page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({ hasText: 'Bea Li' })
+    await expect(candidate).toBeVisible()
+    await candidate.click()
+    await page.locator('.node-detail-title__heading h2').click()
+    await expect.poll(() => updates.length).toBe(1)
+    expect(updates[0].description).toBe('项目描述由 canonical API 保存')
+    expect(updates[0].memberIds).toEqual([1, 2])
     await page.locator('.workflow-custom-fields').getByText('通过', { exact: true }).click()
     await page.locator('.workflow-custom-fields').getByRole('button', { name: '保存' }).click()
-    await expect.poll(() => updates.length).toBe(1)
     await expect.poll(() => fieldWrites.length).toBe(1)
-    expect(updates[0].description).toBe('项目描述由 canonical API 保存')
     expect(fieldWrites[0].values).toEqual({ 'custom-radio': '通过' })
-    expect(JSON.stringify(fieldWrites[0])).not.toContain('project-description')
+    expect(fieldWrites[0].values).not.toHaveProperty('project-description')
+    expect(fieldWrites[0].values).not.toHaveProperty('project-project-members')
+    expect(JSON.stringify(fieldWrites[0].values)).not.toContain('memberIds')
     await page.getByRole('button', { name: '完成节点' }).click()
-    await page.getByRole('button', { name: '确认' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: /完\s*成/ }).click()
     await expect.poll(() => completed).toBe(1)
     expect(errors).toEqual([])
+    expect(unmatchedRequests).toEqual([])
   })
 
   test('hidden required bindings do not block completion, but visible missing required bindings do before the API', async ({ page }) => {
     let hiddenCompletion = 0
-    await installApi(page, { definition: v2Definition({ hiddenRequired: true }), onComplete: () => { hiddenCompletion += 1 } })
+    const hiddenUnmatched = []
+    await installApi(page, { definition: v2Definition({ hiddenRequired: true }), onComplete: () => { hiddenCompletion += 1 }, onUnmatched: (request) => hiddenUnmatched.push(request) })
     await page.goto('/projects/7')
     await page.locator('.workflow-custom-fields').getByText('通过', { exact: true }).click()
     await page.getByRole('button', { name: '完成节点' }).click()
-    await page.getByRole('button', { name: '确认' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: /完\s*成/ }).click()
     await expect.poll(() => hiddenCompletion).toBe(1)
+    expect(hiddenUnmatched).toEqual([])
 
     let blockedCompletion = 0
-    await installApi(page, { definition: v2Definition({ requiredDescription: true }), onComplete: () => { blockedCompletion += 1 } })
+    const blockedUnmatched = []
+    await installApi(page, { definition: v2Definition({ requiredDescription: true }), onComplete: () => { blockedCompletion += 1 }, onUnmatched: (request) => blockedUnmatched.push(request) })
     await page.goto('/projects/7')
     await page.locator('.workflow-custom-fields').getByText('通过', { exact: true }).click()
     await page.getByRole('button', { name: '完成节点' }).click()
-    await expect(page.locator('.ant-message-notice')).toContainText('请完善')
+    await expect(page.locator('.ant-message-notice')).toContainText('请先完善')
     expect(blockedCompletion).toBe(0)
+    expect(blockedUnmatched).toEqual([])
   })
 })
