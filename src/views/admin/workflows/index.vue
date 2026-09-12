@@ -374,7 +374,10 @@ onMounted(async () => {
             </header>
 
             <section class="workflow-canvas-panel" :aria-label="$t('admin.workflow.canvasAria')">
-              <div class="canvas-caption"><div><strong>{{ selectedType?.name }}</strong><span>{{ $t('admin.workflow.sequentialOnly') }}</span></div><a-button v-if="canWrite" size="small" @click="addNode"><PlusOutlined /> {{ $t('admin.workflow.addStage') }}</a-button></div>
+              <div class="canvas-caption">
+                <div class="canvas-caption__meta"><strong>{{ selectedType?.name }}</strong><span>{{ $t('admin.workflow.sequentialOnly') }}</span></div>
+                <div class="canvas-caption__controls"><span class="canvas-scroll-hint">{{ $t('admin.workflow.canvasScrollHint') }}</span><a-button v-if="canWrite" size="small" @click="addNode"><PlusOutlined /> {{ $t('admin.workflow.addStage') }}</a-button></div>
+              </div>
               <div class="workflow-canvas-scroll">
                 <div class="workflow-canvas">
                   <template v-for="(node, index) in definition.nodes" :key="node.key">
@@ -452,13 +455,12 @@ onMounted(async () => {
                     <div class="section-title"><div><h3>{{ $t('admin.workflow.customFields') }}</h3><p>{{ $t('admin.workflow.customFieldsHint') }}</p></div><a-button v-if="canWrite" size="small" @click="addField"><PlusOutlined /> {{ $t('admin.workflow.addField') }}</a-button></div>
                     <div v-if="currentNode.fields.length" class="custom-field-list">
                       <article v-for="(field, index) in currentNode.fields" :key="field.key" class="custom-field-row">
-                        <a-input v-model:value="field.label" :disabled="!canWrite" :placeholder="$t('admin.workflow.fieldLabel')" @input="markDirty" />
-                        <a-input v-model:value="field.key" :disabled="!canWrite" :placeholder="$t('admin.workflow.fieldKey')" @input="markDirty" />
-                        <a-select :value="field.type" :disabled="!canWrite" @change="updateFieldType(field, $event)"><a-select-option v-for="type in fieldTypes" :key="type" :value="type">{{ fieldTypeLabel(type) }}</a-select-option></a-select>
-                        <a-checkbox v-model:checked="field.required" :disabled="!canWrite" @change="markDirty">{{ $t('admin.workflow.required') }}</a-checkbox>
-                        <a-input v-if="field.type === 'SINGLE_SELECT' || field.type === 'MULTI_SELECT'" :value="field.options.join(', ')" :disabled="!canWrite" :placeholder="$t('admin.workflow.optionsComma')" @change="setFieldOptionsFromEvent(field, $event)" />
-                        <div class="field-order-tools"><a-button size="small" :disabled="!canWrite || index === 0" :aria-label="$t('admin.workflow.moveUp')" @click="moveCustomField(index, -1)"><ArrowUpOutlined /></a-button><a-button size="small" :disabled="!canWrite || index === currentNode.fields.length - 1" :aria-label="$t('admin.workflow.moveDown')" @click="moveCustomField(index, 1)"><ArrowDownOutlined /></a-button></div>
-                        <a-button v-if="canWrite" danger type="text" :aria-label="$t('admin.workflow.removeField')" @click="removeField(index)"><DeleteOutlined /></a-button>
+                        <label class="custom-field-cell custom-field-label"><span>{{ $t('admin.workflow.fieldLabel') }}</span><a-input v-model:value="field.label" :disabled="!canWrite" :placeholder="$t('admin.workflow.fieldLabel')" :aria-label="$t('admin.workflow.fieldLabel')" @input="markDirty" /></label>
+                        <label class="custom-field-cell custom-field-key"><span>{{ $t('admin.workflow.fieldKey') }}</span><a-input v-model:value="field.key" :disabled="!canWrite" :placeholder="$t('admin.workflow.fieldKey')" :aria-label="$t('admin.workflow.fieldKey')" @input="markDirty" /></label>
+                        <label class="custom-field-cell custom-field-type"><span>{{ $t('admin.workflow.fieldType') }}</span><a-select :value="field.type" :disabled="!canWrite" :aria-label="$t('admin.workflow.fieldType')" @change="updateFieldType(field, $event)"><a-select-option v-for="type in fieldTypes" :key="type" :value="type">{{ fieldTypeLabel(type) }}</a-select-option></a-select></label>
+                        <div class="custom-field-cell custom-field-required"><a-checkbox v-model:checked="field.required" :disabled="!canWrite" @change="markDirty">{{ $t('admin.workflow.required') }}</a-checkbox></div>
+                        <label class="custom-field-cell custom-field-options"><span>{{ $t('admin.workflow.fieldOptions') }}</span><a-input v-if="field.type === 'SINGLE_SELECT' || field.type === 'MULTI_SELECT'" :value="field.options.join(', ')" :disabled="!canWrite" :placeholder="$t('admin.workflow.optionsComma')" :aria-label="$t('admin.workflow.fieldOptions')" @change="setFieldOptionsFromEvent(field, $event)" /><span v-else class="custom-field-no-options">—</span></label>
+                        <div class="custom-field-actions"><div class="field-order-tools"><a-button size="small" :disabled="!canWrite || index === 0" :aria-label="$t('admin.workflow.moveUp')" @click="moveCustomField(index, -1)"><ArrowUpOutlined /></a-button><a-button size="small" :disabled="!canWrite || index === currentNode.fields.length - 1" :aria-label="$t('admin.workflow.moveDown')" @click="moveCustomField(index, 1)"><ArrowDownOutlined /></a-button></div><a-button v-if="canWrite" danger type="text" :aria-label="$t('admin.workflow.removeField')" @click="removeField(index)"><DeleteOutlined /></a-button></div>
                       </article>
                     </div>
                     <a-empty v-else :description="$t('admin.workflow.noCustomFields')" />
@@ -492,99 +494,133 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.workflow-admin-page { display: grid; gap: 16px; min-width: 0; }
-.workflow-admin-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 730px; gap: 16px; }
+.workflow-admin-page { display: grid; gap: var(--pms-space-4); min-width: 0; }
+.workflow-admin-layout { display: grid; grid-template-columns: minmax(240px, 260px) minmax(0, 1fr); align-items: start; gap: var(--pms-space-4); }
 .workflow-library, .workflow-editor, .workflow-canvas-panel, .node-inspector { background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); box-shadow: var(--pms-shadow-sm); }
-.workflow-library { padding: 16px 12px; overflow-y: auto; }
-.library-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 4px 6px 10px; }
+.workflow-library { position: sticky; top: calc(var(--pms-topbar-height) + var(--pms-space-4)); max-height: calc(100vh - var(--pms-topbar-height) - var(--pms-space-8)); padding: var(--pms-space-4); overflow-y: auto; }
+.library-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--pms-space-2); padding: 0 0 var(--pms-space-3); }
 .library-heading strong, .library-heading small { display: block; }
-.library-heading strong { color: var(--pms-text); font-size: 13px; }
-.library-heading small { margin-top: 4px; color: var(--pms-text-faint); font-size: 11px; }
-.template-heading { margin-top: 16px; border-top: 1px solid var(--pms-border); padding-top: 16px; }
-.type-choice, .template-choice { display: grid; width: 100%; gap: 5px; padding: 10px; color: var(--pms-text); text-align: left; background: transparent; border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
+.library-heading strong { color: var(--pms-text); font-size: var(--pms-font-size-body); font-weight: 680; }
+.library-heading small { margin-top: var(--pms-space-2); color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-normal); }
+.template-heading { margin-top: var(--pms-space-4); padding-top: var(--pms-space-4); border-top: 1px solid var(--pms-border); }
+.type-choice, .template-choice { display: grid; width: 100%; gap: var(--pms-space-2); padding: var(--pms-space-3); color: var(--pms-text); text-align: left; background: transparent; border: 1px solid transparent; border-radius: var(--pms-radius); cursor: pointer; }
 .type-choice:hover, .template-choice:hover { background: var(--pms-surface-muted); }
 .type-choice.active, .template-choice.active { background: var(--pms-primary-soft); border-color: var(--pms-primary); }
-.type-choice small, .template-choice small { color: var(--pms-text-faint); font-size: 11px; }
-.template-choice__title { display: flex; align-items: center; justify-content: space-between; gap: 4px; font-weight: 650; }
-.workflow-editor { min-width: 0; padding: 16px; }
-.editor-topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
-.editor-meta { display: grid; flex: 1; gap: 8px; max-width: 580px; }
-.editor-status { display: flex; align-items: center; gap: 8px; }
-.workflow-canvas-panel { padding: 14px; overflow: hidden; background: var(--pms-surface-muted); }
-.canvas-caption { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.canvas-caption div { display: flex; align-items: center; gap: 10px; }
-.canvas-caption strong { color: var(--pms-text); }
-.canvas-caption span { color: var(--pms-text-faint); font-size: 12px; }
-.workflow-canvas-scroll { overflow-x: auto; padding: 8px 4px 14px; }
+.type-choice small, .template-choice small { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-normal); }
+.template-choice__title { display: flex; align-items: center; justify-content: space-between; gap: var(--pms-space-2); font-size: var(--pms-font-size-body); font-weight: 650; }
+.workflow-editor { min-width: 0; padding: var(--pms-space-5); }
+.editor-topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--pms-space-4); margin-bottom: var(--pms-space-4); }
+.editor-meta { display: grid; flex: 1; gap: var(--pms-space-2); max-width: 580px; }
+.editor-status { display: flex; align-items: center; gap: var(--pms-space-2); }
+.workflow-canvas-panel { padding: var(--pms-space-4); overflow: hidden; background: var(--pms-surface-muted); }
+.canvas-caption { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: var(--pms-space-3); margin-bottom: var(--pms-space-3); }
+.canvas-caption__meta, .canvas-caption__controls { display: flex; align-items: center; flex-wrap: wrap; gap: var(--pms-space-2); }
+.canvas-caption strong { color: var(--pms-text); font-size: var(--pms-font-size-body); }
+.canvas-caption__meta > span { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
+.canvas-scroll-hint { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); }
+.workflow-canvas-scroll { overflow-x: auto; padding: var(--pms-space-2) var(--pms-space-2) var(--pms-space-4); }
 .workflow-canvas { display: flex; align-items: center; min-width: max-content; }
-.workflow-node-card { position: relative; display: flex; flex: 0 0 225px; flex-direction: column; min-height: 182px; padding: 13px; background: var(--pms-surface); border: 1px solid var(--pms-border-strong); border-radius: 10px; box-shadow: var(--pms-shadow-sm); cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; }
-.workflow-node-card:hover { transform: translateY(-2px); }
+.workflow-node-card { position: relative; display: flex; flex: 0 0 236px; flex-direction: column; min-height: 190px; padding: var(--pms-space-4); background: var(--pms-surface); border: 1px solid var(--pms-border-strong); border-radius: var(--pms-radius); box-shadow: var(--pms-shadow-sm); cursor: pointer; transition: border-color var(--pms-motion-fast) ease, box-shadow var(--pms-motion-fast) ease, transform var(--pms-motion-fast) ease; }
+.workflow-node-card:hover { transform: translateY(-1px); }
+.workflow-node-card:focus-visible { outline: 0; box-shadow: var(--pms-focus-ring), var(--pms-shadow-sm); }
 .workflow-node-card.selected { border-color: var(--pms-primary); box-shadow: 0 0 0 3px var(--pms-primary-soft); }
 .workflow-node-card.dragging { opacity: .5; }
-.workflow-node-card__top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.stage-index { display: grid; width: 27px; height: 27px; place-items: center; color: var(--pms-primary); background: var(--pms-primary-soft); border-radius: 50%; font-size: 11px; font-weight: 750; }
-.stage-status { color: var(--pms-text-faint); font-size: 10px; }
-.workflow-node-card strong { color: var(--pms-text); font-size: 13px; }
-.workflow-node-card p { min-height: 34px; margin: 6px 0 10px; color: var(--pms-text-muted); font-size: 11px; line-height: 1.45; }
-.node-component-chips { display: flex; flex-wrap: wrap; gap: 3px; min-height: 20px; }
-.node-component-chips :deep(.ant-tag) { margin: 0; font-size: 10px; }
-.node-card-tools { display: flex; gap: 4px; margin-top: auto; padding-top: 8px; }
-.node-card-tools :deep(.ant-btn) { width: 26px; height: 24px; padding: 0; }
-.workflow-connector { position: relative; flex: 0 0 30px; height: 2px; background: var(--pms-border-strong); }
-.workflow-connector span { position: absolute; top: -4px; right: 0; width: 8px; height: 8px; border-top: 2px solid var(--pms-border-strong); border-right: 2px solid var(--pms-border-strong); transform: rotate(45deg); }
-.fixed-blocks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 12px; border-top: 1px solid var(--pms-border); }
-.fixed-blocks>span { margin-right: 3px; color: var(--pms-text-muted); font-size: 11px; }
+.workflow-node-card__top { display: flex; align-items: center; justify-content: space-between; gap: var(--pms-space-2); margin-bottom: var(--pms-space-3); }
+.stage-index { display: grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center; color: var(--pms-primary); background: var(--pms-primary-soft); border-radius: 50%; font-size: var(--pms-font-size-caption); font-weight: 750; }
+.stage-status { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
+.workflow-node-card strong { color: var(--pms-text); font-size: var(--pms-font-size-body); line-height: var(--pms-line-height-tight); }
+.workflow-node-card p { min-height: 38px; margin: var(--pms-space-2) 0 var(--pms-space-3); color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
+.node-component-chips { display: flex; flex-wrap: wrap; gap: var(--pms-space-2); min-height: 22px; }
+.node-component-chips :deep(.ant-tag) { margin: 0; font-size: var(--pms-font-size-caption); }
+.node-card-tools { display: flex; gap: var(--pms-space-2); margin-top: auto; padding-top: var(--pms-space-3); }
+.node-card-tools :deep(.ant-btn) { width: 32px; min-width: 32px; height: var(--pms-control-height-compact); min-height: var(--pms-control-height-compact); padding: 0; border-radius: var(--pms-radius-sm); }
+.workflow-connector { position: relative; flex: 0 0 var(--pms-space-8); height: 1px; background: var(--pms-border-strong); }
+.workflow-connector span { position: absolute; top: -4px; right: 0; width: 8px; height: 8px; border-top: 1px solid var(--pms-border-strong); border-right: 1px solid var(--pms-border-strong); transform: rotate(45deg); }
+.fixed-blocks { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pms-space-2); padding-top: var(--pms-space-3); border-top: 1px solid var(--pms-border); }
+.fixed-blocks > span { margin-right: var(--pms-space-2); color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); }
 .workflow-canvas-panel :deep(.ant-tag) { margin-inline-end: 0; }
-.node-inspector { margin-top: 16px; padding: 18px; }
-.inspector-header { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid var(--pms-border); }
-.inspector-header span { color: var(--pms-text-faint); font-size: 11px; }
-.inspector-header h2 { margin: 4px 0 0; color: var(--pms-text); font-size: 18px; }
-.inspector-grid { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 18px; padding-top: 14px; }
-.inspector-main { min-width: 0; }
-.node-basic-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.node-basic-grid small { display: block; margin-top: 4px; color: var(--pms-text-faint); font-size: 10px; }
-.inspector-section { padding: 14px 0; border-top: 1px solid var(--pms-border); }
-.section-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-.section-title h3 { margin: 0; color: var(--pms-text); font-size: 14px; }
-.section-title p { margin: 4px 0 0; color: var(--pms-text-faint); font-size: 11px; }
-.component-option { display: grid; grid-template-columns: minmax(180px, .75fr) minmax(180px, 1fr); align-items: center; gap: 8px; padding: 7px 9px; border-radius: 6px; }
+.node-inspector { margin-top: var(--pms-space-4); padding: var(--pms-space-6); }
+.inspector-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--pms-space-3); padding-bottom: var(--pms-space-4); border-bottom: 1px solid var(--pms-border); }
+.inspector-header span { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
+.inspector-header h2 { margin: var(--pms-space-2) 0 0; color: var(--pms-text); font-size: var(--pms-font-size-title); font-weight: 700; line-height: var(--pms-line-height-tight); }
+.inspector-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 300px); gap: var(--pms-space-6); padding-top: var(--pms-space-5); }
+.inspector-main { min-width: 0; container-type: inline-size; }
+.node-basic-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--pms-space-4); }
+.node-basic-grid small { display: block; margin-top: var(--pms-space-2); color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-normal); }
+.inspector-section { padding: var(--pms-space-4) 0; border-top: 1px solid var(--pms-border); }
+.section-title { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--pms-space-3); margin-bottom: var(--pms-space-3); }
+.section-title h3 { margin: 0; color: var(--pms-text); font-size: var(--pms-font-size-section); font-weight: 700; line-height: var(--pms-line-height-tight); }
+.section-title p { margin: var(--pms-space-2) 0 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
+.component-option { display: grid; grid-template-columns: minmax(180px, .75fr) minmax(180px, 1fr); align-items: center; gap: var(--pms-space-3); padding: var(--pms-space-2) var(--pms-space-3); border-radius: var(--pms-radius-sm); }
 .component-option:hover { background: var(--pms-surface-muted); }
-.component-option small { color: var(--pms-text-faint); font-size: 11px; }
-.component-order-list { display: grid; gap: 6px; margin-top: 12px; padding: 10px; background: var(--pms-surface-muted); border-radius: 8px; }
-.component-order-list>span { color: var(--pms-text-muted); font-size: 11px; }
-.component-order-item { display: grid; grid-template-columns: 1fr 28px 28px; align-items: center; gap: 4px; }
-.component-order-item strong { color: var(--pms-text); font-size: 11px; font-weight: 550; }
-.field-order-tools { display: flex; align-items: center; gap: 3px; }
-.field-order-tools :deep(.ant-btn) { width: 27px; height: 25px; padding: 0; }
-.project-field-option { display: grid; grid-template-columns: minmax(130px, 1fr) 82px 82px 62px; align-items: center; gap: 8px; padding: 7px 9px; color: var(--pms-text); border-bottom: 1px solid var(--pms-border); font-size: 12px; }
-.custom-field-list { display: grid; gap: 8px; }
-.custom-field-row { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(90px, .8fr) minmax(100px, 1fr) 82px minmax(130px, 1fr) 60px 28px; align-items: center; gap: 7px; padding: 8px; background: var(--pms-surface-muted); border-radius: 7px; }
-.inspector-preview { align-self: stretch; min-width: 0; padding: 12px; background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: 8px; }
-.preview-sticky-title { display: flex; align-items: center; gap: 7px; color: var(--pms-primary); font-size: 12px; }
-.preview-title { display: flex; gap: 9px; padding: 13px 0; border-bottom: 1px solid var(--pms-border); }
-.preview-title>span { display: grid; flex: 0 0 25px; height: 25px; place-items: center; color: var(--pms-primary); background: var(--pms-primary-soft); border-radius: 50%; font-size: 11px; }
+.component-option small { color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-normal); }
+.component-order-list { display: grid; gap: var(--pms-space-2); margin-top: var(--pms-space-4); padding: var(--pms-space-4); background: var(--pms-surface-muted); border-radius: var(--pms-radius); }
+.component-order-list > span { color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); }
+.component-order-item { display: grid; grid-template-columns: minmax(0, 1fr) 32px 32px; align-items: center; gap: var(--pms-space-2); }
+.component-order-item strong { color: var(--pms-text); font-size: var(--pms-font-size-compact); font-weight: 600; }
+.field-order-tools { display: flex; align-items: center; gap: var(--pms-space-2); }
+.field-order-tools :deep(.ant-btn) { width: 32px; min-width: 32px; height: var(--pms-control-height-compact); min-height: var(--pms-control-height-compact); padding: 0; border-radius: var(--pms-radius-sm); }
+.project-field-option { display: grid; grid-template-columns: minmax(130px, 1fr) 82px 82px 72px; align-items: center; gap: var(--pms-space-2); padding: var(--pms-space-2) var(--pms-space-3); color: var(--pms-text); border-bottom: 1px solid var(--pms-border); font-size: var(--pms-font-size-compact); }
+.custom-field-list { display: grid; gap: var(--pms-space-3); }
+.custom-field-row { display: grid; grid-template-columns: minmax(120px, 1.1fr) minmax(110px, .9fr) minmax(110px, .9fr) minmax(90px, .7fr) minmax(140px, 1.2fr) auto; align-items: end; gap: var(--pms-space-3); padding: var(--pms-space-4); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); }
+.custom-field-cell { display: grid; min-width: 0; gap: var(--pms-space-2); color: var(--pms-text); font-size: var(--pms-font-size-compact); }
+.custom-field-cell > span:first-child { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); font-weight: 650; line-height: var(--pms-line-height-normal); }
+.custom-field-cell :deep(.ant-input), .custom-field-cell :deep(.ant-select) { width: 100%; min-width: 0; }
+.custom-field-required { align-content: start; }
+.custom-field-required :deep(.ant-checkbox-wrapper) { min-height: var(--pms-control-height-compact); align-items: center; color: var(--pms-text); font-size: var(--pms-font-size-compact); }
+.custom-field-no-options { min-height: var(--pms-control-height-compact); align-content: center; color: var(--pms-text-faint); }
+.custom-field-actions { display: flex; align-items: center; gap: var(--pms-space-2); }
+@container (max-width: 760px) {
+  .custom-field-row { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "label key" "type options" "required actions"; align-items: start; }
+  .custom-field-label { grid-area: label; }
+  .custom-field-key { grid-area: key; }
+  .custom-field-type { grid-area: type; }
+  .custom-field-required { grid-area: required; align-self: end; }
+  .custom-field-options { grid-area: options; }
+  .custom-field-actions { grid-area: actions; align-self: end; justify-content: flex-end; }
+}
+.inspector-preview { align-self: start; min-width: 0; padding: var(--pms-space-4); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); }
+.preview-sticky-title { display: flex; align-items: center; gap: var(--pms-space-2); color: var(--pms-primary); font-size: var(--pms-font-size-body); font-weight: 650; }
+.preview-title { display: flex; gap: var(--pms-space-3); padding: var(--pms-space-4) 0; border-bottom: 1px solid var(--pms-border); }
+.preview-title > span { display: grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center; color: var(--pms-primary); background: var(--pms-primary-soft); border-radius: 50%; font-size: var(--pms-font-size-caption); }
 .preview-title strong, .preview-title small { display: block; }
-.preview-title strong { color: var(--pms-text); font-size: 12px; }
-.preview-title small { margin-top: 4px; color: var(--pms-text-faint); font-size: 10px; }
-.preview-fixed, .preview-section { display: grid; gap: 6px; padding: 11px 0; color: var(--pms-text-muted); border-bottom: 1px solid var(--pms-border); font-size: 11px; }
-.preview-fixed b, .preview-section b { color: var(--pms-text); font-size: 11px; }
-.preview-fixed span, .preview-section small { color: var(--pms-text-faint); font-size: 10px; }
+.preview-title strong { color: var(--pms-text); font-size: var(--pms-font-size-body); }
+.preview-title small { margin-top: var(--pms-space-2); color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
+.preview-fixed, .preview-section { display: grid; gap: var(--pms-space-2); padding: var(--pms-space-3) 0; color: var(--pms-text-muted); border-bottom: 1px solid var(--pms-border); font-size: var(--pms-font-size-compact); }
+.preview-fixed b, .preview-section b { color: var(--pms-text); font-size: var(--pms-font-size-body); }
+.preview-fixed span, .preview-section small { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); }
 .preview-section em, .preview-field-line b { color: var(--pms-danger); font-style: normal; }
-.preview-owner-schedule { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.preview-owner-schedule>span, .preview-task-board, .preview-section label { display: grid; gap: 4px; padding: 7px; background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: 6px; }
-.preview-task-board { gap: 7px; }
-.preview-task-board i { color: var(--pms-text-faint); font-size: 10px; font-style: normal; }
-.preview-section label { grid-template-columns: 1fr auto; align-items: center; color: var(--pms-text-muted); }
-.preview-section label input, .preview-section label textarea, .preview-module-placeholder { grid-column: 1 / -1; width: 100%; padding: 6px 7px; color: var(--pms-text-faint); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: 5px; font: inherit; }
-.preview-section label textarea { min-height: 36px; resize: none; }
-.preview-component-card p { margin: 0; color: var(--pms-text-faint); font-size: 10px; }
-.template-preview-flow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-height: 65vh; overflow: auto; }
-.template-preview-node { display: grid; gap: 6px; padding: 12px; background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: 8px; }
-.template-preview-node>span { color: var(--pms-primary); font-size: 11px; }
-.template-preview-node strong { color: var(--pms-text); font-size: 13px; }
-.template-preview-node small, .template-preview-node div { color: var(--pms-text-muted); font-size: 10px; }
-.workflow-admin-page :deep(.ant-form-item) { margin-bottom: 12px; }
-@media (max-width: 1200px) { .inspector-grid { grid-template-columns: minmax(0, 1fr); } .inspector-preview { display: none; } }
-@media (max-width: 900px) { .workflow-admin-layout { grid-template-columns: 1fr; } .workflow-library { max-height: 300px; } .template-preview-flow { grid-template-columns: 1fr; } }
-@media (max-width: 700px) { .workflow-editor { padding: 10px; } .editor-topbar { flex-direction: column; } .editor-status { flex-wrap: wrap; } .node-basic-grid { grid-template-columns: 1fr; gap: 0; } .custom-field-row { grid-template-columns: 1fr 1fr; } .component-option { grid-template-columns: 1fr; gap: 2px; } .project-field-option { grid-template-columns: 1fr auto auto; } .project-field-option .field-order-tools { grid-column: 1 / -1; justify-content: flex-end; } .workflow-node-card { flex-basis: 205px; } }
+.preview-owner-schedule { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--pms-space-2); }
+.preview-owner-schedule > span, .preview-task-board, .preview-section label { display: grid; gap: var(--pms-space-2); padding: var(--pms-space-3); background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); }
+.preview-task-board { gap: var(--pms-space-2); }
+.preview-task-board i { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); font-style: normal; }
+.preview-section label { grid-template-columns: minmax(0, 1fr) auto; align-items: center; color: var(--pms-text-muted); }
+.preview-section label input, .preview-section label textarea, .preview-module-placeholder { grid-column: 1 / -1; width: 100%; padding: var(--pms-space-2); color: var(--pms-text-faint); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); font: inherit; }
+.preview-section label textarea { min-height: var(--pms-control-height); resize: none; }
+.preview-component-card p { margin: 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
+.template-preview-flow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--pms-space-3); max-height: 65vh; overflow: auto; }
+.template-preview-node { display: grid; gap: var(--pms-space-2); min-width: 0; padding: var(--pms-space-4); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); }
+.template-preview-node > span { color: var(--pms-primary); font-size: var(--pms-font-size-caption); }
+.template-preview-node strong { color: var(--pms-text); font-size: var(--pms-font-size-body); }
+.template-preview-node small, .template-preview-node div { color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); overflow-wrap: anywhere; }
+.workflow-admin-page :deep(.ant-form-item) { margin-bottom: var(--pms-space-3); }
+@media (max-width: 1200px) {
+  .inspector-grid { grid-template-columns: minmax(0, 1fr); }
+  .inspector-preview { display: grid; }
+}
+@media (max-width: 900px) {
+  .workflow-admin-layout { grid-template-columns: minmax(0, 1fr); }
+  .workflow-library { position: static; max-height: 300px; }
+  .template-preview-flow { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 700px) {
+  .workflow-editor { padding: var(--pms-space-3); }
+  .editor-topbar { flex-direction: column; }
+  .editor-status { flex-wrap: wrap; }
+  .node-basic-grid { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .component-option { grid-template-columns: minmax(0, 1fr); gap: var(--pms-space-2); }
+  .project-field-option { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .project-field-option .field-order-tools { grid-column: 1 / -1; justify-content: flex-end; }
+  .workflow-node-card { flex-basis: 220px; }
+}
 </style>

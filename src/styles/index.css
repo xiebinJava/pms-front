@@ -29,6 +29,12 @@
   --pms-line-height-tight: 1.25;
   --pms-line-height-normal: 1.45;
   --pms-line-height-relaxed: 1.6;
+  --pms-space-2: 8px;
+  --pms-space-3: 12px;
+  --pms-space-4: 16px;
+  --pms-space-5: 20px;
+  --pms-space-6: 24px;
+  --pms-space-8: 32px;
   --pms-control-height: 36px;
   --pms-radius: 8px;
   --pms-radius-sm: 4px;
