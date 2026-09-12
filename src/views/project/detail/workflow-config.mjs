@@ -27,6 +27,25 @@ export function nodeHasComponent(node, componentKey) {
   return (legacyWorkflowComponents[node.nodeKey] || []).includes(componentKey)
 }
 
+export function shouldRefreshRequirements(node) {
+  return nodeHasComponent(node, 'requirement-scope')
+}
+
+export function removeWorkflowAttachmentState(values, attachments, fieldKey, attachmentId) {
+  const fieldValue = values[fieldKey]
+  const fieldAttachments = attachments[fieldKey] || []
+  return {
+    values: {
+      ...values,
+      [fieldKey]: (Array.isArray(fieldValue) ? fieldValue : []).filter((id) => id !== attachmentId),
+    },
+    attachments: {
+      ...attachments,
+      [fieldKey]: fieldAttachments.filter((attachment) => attachment.id !== attachmentId),
+    },
+  }
+}
+
 export async function transitionActiveNode(currentNodeId, nextNodeId, savePendingChanges, selectNode) {
   if (currentNodeId === nextNodeId) return true
   if (typeof savePendingChanges === 'function' && await savePendingChanges() === false) return false

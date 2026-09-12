@@ -3,6 +3,16 @@ import type { WorkflowProjectFieldDefinition } from '../../../types/workflow'
 export const legacyWorkflowComponents: Readonly<Record<string, readonly string[]>>
 export const defaultProjectFields: readonly WorkflowProjectFieldDefinition[]
 export function nodeHasComponent(node: { nodeKey?: string; components?: string[] } | null | undefined, componentKey: string): boolean
+export function shouldRefreshRequirements(node: { nodeKey?: string; components?: string[] } | null | undefined): boolean
+export function removeWorkflowAttachmentState(
+  values: Record<string, unknown>,
+  attachments: Record<string, import('../../../types/workflow').WorkflowFieldAttachment[]>,
+  fieldKey: string,
+  attachmentId: number,
+): {
+  values: Record<string, unknown>
+  attachments: Record<string, import('../../../types/workflow').WorkflowFieldAttachment[]>
+}
 export function transitionActiveNode<T>(
   currentNodeId: T | null | undefined,
   nextNodeId: T,

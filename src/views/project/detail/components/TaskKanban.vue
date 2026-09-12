@@ -19,7 +19,7 @@ import {
   shouldReloadNodeTasks,
   sortTasksByPriority,
 } from '../workflow'
-import { nodeHasComponent } from '../workflow-config.mjs'
+import { nodeHasComponent, shouldRefreshRequirements } from '../workflow-config.mjs'
 import PersonSelect from './PersonSelect.vue'
 import TaskWorkPanel from './TaskWorkPanel.vue'
 
@@ -260,7 +260,7 @@ async function onSave() {
 }
 
 async function refreshRequirements() {
-  if (props.node.nodeKey !== 'requirement') return
+  if (!shouldRefreshRequirements(props.node)) return
   const scope = await getNodeRequirementScope(props.projectId, props.nodeId).catch(() => null)
   if (scope) requirements.value = scope.requirements || []
 }

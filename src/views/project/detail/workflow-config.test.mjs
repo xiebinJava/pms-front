@@ -98,3 +98,36 @@ test('optional required fields can be saved as a draft and checked when completi
   assert.match(completionBlock, /if \(dirty\.value && !\(await save\(\)\)\) return false/)
   assert.ok(completionBlock.indexOf('return validateRequired()') > completionBlock.indexOf('save()'))
 })
+
+test('requirement refresh eligibility follows component identity on custom-key nodes', async () => {
+  const { shouldRefreshRequirements } = await import('./workflow-config.mjs')
+  assert.equal(typeof shouldRefreshRequirements, 'function')
+  assert.equal(shouldRefreshRequirements({ nodeKey: 'custom-intake', components: ['requirement-scope'] }), true)
+  assert.equal(shouldRefreshRequirements({ nodeKey: 'requirement', components: ['solution-design'] }), false)
+  assert.equal(shouldRefreshRequirements({ nodeKey: 'requirement' }), true)
+
+  const taskKanban = readFileSync(new URL('./components/TaskKanban.vue', import.meta.url), 'utf8')
+  const refresh = taskKanban.slice(taskKanban.indexOf('async function refreshRequirements()'), taskKanban.indexOf('async function onWorkPanelChanged()'))
+  assert.match(refresh, /shouldRefreshRequirements\(props\.node\)/)
+})
+
+test('removing an attachment preserves other unsaved node field values', async () => {
+  const { removeWorkflowAttachmentState } = await import('./workflow-config.mjs')
+  assert.equal(typeof removeWorkflowAttachmentState, 'function')
+  const next = removeWorkflowAttachmentState(
+    { brief: 'unsaved text', files: [11, 12], otherFiles: [21] },
+    { files: [{ id: 12 }], otherFiles: [{ id: 21 }] },
+    'files',
+    11,
+  )
+
+  assert.deepEqual(next.values, { brief: 'unsaved text', files: [12], otherFiles: [21] })
+  assert.deepEqual(next.attachments, { files: [{ id: 12 }], otherFiles: [{ id: 21 }] })
+
+  const component = readFileSync(new URL('./components/WorkflowCustomFields.vue', import.meta.url), 'utf8')
+  const deletion = component.slice(component.indexOf('function onDeleteAttachment'), component.indexOf('async function onDownload'))
+  assert.match(deletion, /removeWorkflowAttachmentState/)
+  assert.match(deletion, /const unsavedValues = \{ \.\.\.values\.value \}/)
+  assert.ok(deletion.indexOf('await loadValues()') < deletion.indexOf('removeWorkflowAttachmentState'))
+  assert.match(deletion, /dirty\.value = true/)
+})

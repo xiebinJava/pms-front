@@ -11,7 +11,7 @@ import {
   uploadWorkflowFieldAttachment,
 } from '/@/api/admin-workflow'
 import type { WorkflowFieldAttachment, WorkflowFieldDefinition, WorkflowNodeFieldValuesSavePayload } from '/@/types/workflow'
-import { emptyWorkflowFieldValue, isWorkflowFieldEmpty } from '../workflow-config.mjs'
+import { emptyWorkflowFieldValue, isWorkflowFieldEmpty, removeWorkflowAttachmentState } from '../workflow-config.mjs'
 
 const props = defineProps<{
   projectId: number | string
@@ -136,8 +136,13 @@ function onDeleteAttachment(field: WorkflowFieldDefinition, attachment: Workflow
     okType: 'danger',
     cancelText: t('common.cancel'),
     onOk: async () => {
+      const unsavedValues = { ...values.value }
       await deleteWorkflowFieldAttachment(props.projectId, props.nodeId, field.key, attachment.id)
       await loadValues()
+      const next = removeWorkflowAttachmentState(unsavedValues, attachments.value, field.key, attachment.id)
+      values.value = next.values
+      attachments.value = next.attachments
+      dirty.value = true
     },
   })
 }
