@@ -47,11 +47,11 @@
 - Modify: `pms-front/src/views/admin/workflows/workflow-template-model.test.mjs`
 
 - [ ] 写 v1 适配测试：八个旧项目资料字段转换成带稳定 binding 的字段；自定义字段 key、值类型、required、options 保留；`project-basic-info` 转为 `fields` 内容项；所有其他工作台保留原顺序；重复适配 v2 结果不变。
-- [ ] 运行 `node --test src/views/admin/workflows/workflow-template-schema.test.mjs`，确认新测试先失败。
+- [ ] 直接运行 `node src/views/admin/workflows/workflow-template-schema.test.mjs`，确认新测试先失败（此沙箱下 `node --test` 会因 worker 子进程 `EPERM` 无法启动）。
 - [ ] 定义 v2 的字段类型 `RADIO`、`PERSON_MULTI`、`DATE_RANGE`、可见性、binding 和 `contentOrder`；为旧工作台组件生成 `component:<key>` 内容项。
 - [ ] 新建 `normalizeWorkflowDefinition(definition)` 纯函数，只转换 v1；v2 输入返回不变语义的深克隆，且不修改传入对象。
 - [ ] 添加字段/内容项唯一 key 生成和移动纯函数；新增字段时自动创建一个 `fields` 内容项，删除最后一个字段时移除该项。
-- [ ] 更新 `.d.mts` 声明和旧模型测试，运行 `node --test src/views/admin/workflows/workflow-template-schema.test.mjs src/views/admin/workflows/workflow-template-model.test.mjs`，确认通过。
+- [ ] 更新 `.d.mts` 声明和旧模型测试，分别直接运行两个测试文件，确认通过。
 
 **Interfaces:**
 - `normalizeWorkflowDefinition(definition) -> WorkflowTemplateDefinitionV2`
