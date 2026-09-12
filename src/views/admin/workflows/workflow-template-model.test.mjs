@@ -81,6 +81,25 @@ test('moves fields and content items immutably and removes fields content after 
   assert.deepEqual(node.fields.map((field) => field.key), ['first', 'second'])
 })
 
+test('removing the last legacy custom field clears only its compatibility slot', () => {
+  const node = {
+    ...nodes[0],
+    fields: [
+      { key: 'project-description', label: '项目描述', type: 'TEXTAREA', required: false, options: [], binding: 'project.description' },
+      { key: 'legacy-note', label: '旧备注', type: 'TEXT', required: false, options: [], binding: null },
+    ],
+    contentOrder: ['fields', 'component:solution-design', 'legacy-custom-fields'],
+  }
+
+  const withoutLegacyField = removeWorkflowField(node, 'legacy-note')
+  const withoutAnyFields = removeWorkflowField(withoutLegacyField, 'project-description')
+
+  assert.deepEqual(withoutLegacyField.contentOrder, ['fields', 'component:solution-design'])
+  assert.deepEqual(withoutLegacyField.fields.map((field) => field.key), ['project-description'])
+  assert.deepEqual(withoutAnyFields.contentOrder, ['component:solution-design'])
+  assert.deepEqual(withoutAnyFields.fields, [])
+})
+
 test('confirms before a type switch can clear an unsaved workflow draft', () => {
   const source = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
   const handler = source.match(/async function changeProjectType\([\s\S]*?\n\}/)?.[0]

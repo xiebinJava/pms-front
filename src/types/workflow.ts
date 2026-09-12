@@ -35,7 +35,7 @@ export interface WorkflowTemplateDefinitionV1 {
   nodes: WorkflowNodeDefinition[]
 }
 
-export type WorkflowContentOrderItem = 'fields' | `component:${string}`
+export type WorkflowContentOrderItem = 'fields' | 'legacy-custom-fields' | `component:${string}`
 
 export interface WorkflowNodeDefinitionV2 {
   key: string

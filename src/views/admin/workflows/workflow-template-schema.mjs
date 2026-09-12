@@ -17,13 +17,22 @@ function projectFieldKey(key) {
   return `project-${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`
 }
 
-function normalizeProjectFields(fields) {
+function uniqueProjectFieldKey(key, usedKeys) {
+  const base = projectFieldKey(key)
+  let candidate = base
+  let suffix = 2
+  while (usedKeys.has(candidate)) candidate = `${base}-${suffix++}`
+  usedKeys.add(candidate)
+  return candidate
+}
+
+function normalizeProjectFields(fields, usedKeys) {
   return (Array.isArray(fields) ? fields : [])
     .filter((field) => PROJECT_FIELD_BINDINGS[field.key])
     .map((field) => {
       const definition = PROJECT_FIELD_BINDINGS[field.key]
       return {
-        key: projectFieldKey(field.key),
+        key: uniqueProjectFieldKey(field.key, usedKeys),
         label: field.label,
         type: definition.type,
         required: Boolean(field.required),
@@ -49,12 +58,17 @@ function normalizeNode(node) {
   const hasProjectFields = hasExplicitProjectBasicInfo
     ? node.projectBasicInfo === true
     : components.includes('project-basic-info')
-  const hasFields = hasProjectFields || Array.isArray(node.fields) && node.fields.length > 0
+  const customFields = normalizeCustomFields(node.fields)
+  const usedKeys = new Set(customFields.map((field) => field.key))
+  const projectFields = hasProjectFields
+    ? normalizeProjectFields(node.projectBasicInfoFields, usedKeys)
+    : []
   const contentOrder = components.flatMap((component) => component === 'project-basic-info'
-    ? (hasFields ? ['fields'] : [])
+    ? (projectFields.length ? ['fields'] : [])
     : [`component:${component}`])
 
-  if (hasFields && !contentOrder.includes('fields')) contentOrder.push('fields')
+  if (projectFields.length && !contentOrder.includes('fields')) contentOrder.push('fields')
+  if (customFields.length) contentOrder.push('legacy-custom-fields')
 
   return {
     key: node.key,
@@ -62,7 +76,7 @@ function normalizeNode(node) {
     description: node.description ?? '',
     deliverable: node.deliverable ?? '',
     roles: node.roles ?? '',
-    fields: [...(hasProjectFields ? normalizeProjectFields(node.projectBasicInfoFields) : []), ...normalizeCustomFields(node.fields)],
+    fields: [...projectFields, ...customFields],
     contentOrder,
   }
 }

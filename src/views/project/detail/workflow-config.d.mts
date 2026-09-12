@@ -26,7 +26,7 @@ export function nodeWorkflowFields(node: {
   fields?: WorkflowFieldDefinition[]
   projectBasicInfo?: boolean
   projectBasicInfoFields?: WorkflowProjectFieldDefinition[]
-} | null | undefined): WorkflowFieldDefinition[]
+} | null | undefined, contentItem?: 'fields' | 'legacy-custom-fields'): WorkflowFieldDefinition[]
 export function nodeWorkflowContentOrder(node: {
   nodeKey?: string
   components?: string[]

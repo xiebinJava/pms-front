@@ -26,14 +26,14 @@ const legacyDefinition = {
   }],
 }
 
-test('adapts v1 project fields into stable bindings without changing legacy custom field semantics', () => {
+test('preserves both v1 field positions while adapting bindings without changing custom field semantics', () => {
   const original = structuredClone(legacyDefinition)
 
   const definition = normalizeWorkflowDefinition(legacyDefinition)
   const node = definition.nodes[0]
 
   assert.equal(definition.schemaVersion, 2)
-  assert.deepEqual(node.contentOrder, ['component:requirement-scope', 'fields', 'component:solution-design'])
+  assert.deepEqual(node.contentOrder, ['component:requirement-scope', 'fields', 'component:solution-design', 'legacy-custom-fields'])
   assert.deepEqual(node.fields.map(({ key, binding, type, visible, required }) => ({ key, binding, type, visible, required })), [
     { key: 'project-description', binding: 'project.description', type: 'TEXTAREA', visible: true, required: true },
     { key: 'project-priority', binding: 'project.priority', type: 'RADIO', visible: true, required: true },
@@ -48,6 +48,28 @@ test('adapts v1 project fields into stable bindings without changing legacy cust
   assert.deepEqual(node.fields.at(-1).options, ['保留'])
   assert.deepEqual(legacyDefinition, original)
   assert.deepEqual(normalizeWorkflowDefinition(definition), definition)
+})
+
+test('generates binding keys around colliding legacy custom keys without renaming their data', () => {
+  const definition = normalizeWorkflowDefinition({
+    schemaVersion: 1,
+    nodes: [{
+      key: 'collision',
+      name: '兼容字段冲突',
+      components: ['project-basic-info'],
+      projectBasicInfo: true,
+      projectBasicInfoFields: [{ key: 'description', label: '项目描述', visible: true, required: false }],
+      fields: [{ key: 'project-description', label: '旧自定义字段', type: 'TEXT', required: false, options: ['保留值'] }],
+    }],
+  })
+  const fields = definition.nodes[0].fields
+
+  assert.deepEqual(fields.map(({ key, binding }) => ({ key, binding })), [
+    { key: 'project-description-2', binding: 'project.description' },
+    { key: 'project-description', binding: null },
+  ])
+  assert.deepEqual(fields[1].options, ['保留值'])
+  assert.deepEqual(definition.nodes[0].contentOrder, ['fields', 'legacy-custom-fields'])
 })
 
 test('does not revive project fields retained by a disabled v1 project-basic-info switch', () => {

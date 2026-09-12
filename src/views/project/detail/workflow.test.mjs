@@ -338,11 +338,14 @@ test('node workbenches keep per-node keys while the shared detail chrome stays s
   assert.match(detail, /class="node-detail-card/)
 })
 
-test('project detail places bound and free fields in one content-order slot while fixed modules remain outside it', () => {
+test('project detail renders compatibility field slots in order while fixed modules remain outside them', () => {
   const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
   assert.match(detail, /nodeWorkflowContentOrder\(activeNode\.value\)/)
-  assert.match(detail, /<WorkflowCustomFields[\s\S]*?#bound-field/)
-  assert.match(detail, /:fields="activeNodeWorkflowFields"/)
+  assert.match(detail, /nodeWorkflowFields\(activeNode\.value, 'fields'\)/)
+  assert.match(detail, /nodeWorkflowFields\(activeNode\.value, 'legacy-custom-fields'\)/)
+  assert.match(detail, /ref="profileContainer" class="node-tab-profile" :style="customFieldsSlotStyle\('fields'\)"/)
+  assert.match(detail, /<WorkflowCustomFields[\s\S]*?:fields="activeNodeFieldsSlot"[\s\S]*?#bound-field/)
+  assert.match(detail, /workflow-legacy-custom-fields" :style="customFieldsSlotStyle\('legacy-custom-fields'\)"[\s\S]*?:fields="activeNodeLegacyCustomFields"/)
   assert.match(detail, /class="node-assignment-row pms-assignment-grid"/)
   assert.match(detail, /class="node-task-section"/)
 })

@@ -37,37 +37,57 @@ function legacyProfileEnabled(node) {
     || (node?.projectBasicInfo == null && Array.isArray(node?.components) && node.components.includes('project-basic-info'))
 }
 
-export function nodeWorkflowFields(node) {
+export function nodeWorkflowFields(node, contentItem) {
   if (!node) return []
+  let fields
   if (Array.isArray(node.contentOrder)) {
-    return (node.fields || []).map((field) => ({ ...field, visible: field.visible !== false, binding: field.binding ?? null }))
+    fields = (node.fields || []).map((field) => ({ ...field, visible: field.visible !== false, binding: field.binding ?? null }))
+  } else {
+    const usedKeys = new Set((Array.isArray(node.fields) ? node.fields : []).map((field) => field.key))
+    const profileFields = legacyProfileEnabled(node)
+      ? (Array.isArray(node.projectBasicInfoFields) ? node.projectBasicInfoFields : defaultProjectFields).map((field) => {
+        const definition = projectFieldBindings[field.key]
+        if (!definition) return null
+        const baseKey = `project-${field.key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`
+        let key = baseKey
+        let suffix = 2
+        while (usedKeys.has(key)) key = `${baseKey}-${suffix++}`
+        usedKeys.add(key)
+        return definition && {
+          key,
+          label: field.label,
+          type: definition.type,
+          required: Boolean(field.required),
+          options: [],
+          visible: field.visible !== false,
+          binding: definition.binding,
+        }
+      }).filter(Boolean)
+      : []
+    fields = [...profileFields, ...(node.fields || []).map((field) => ({ ...field, visible: field.visible !== false, binding: null }))]
   }
-  const profileFields = legacyProfileEnabled(node)
-    ? (Array.isArray(node.projectBasicInfoFields) ? node.projectBasicInfoFields : defaultProjectFields).map((field) => {
-      const definition = projectFieldBindings[field.key]
-      return definition && {
-        key: `project-${field.key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`,
-        label: field.label,
-        type: definition.type,
-        required: Boolean(field.required),
-        options: [],
-        visible: field.visible !== false,
-        binding: definition.binding,
-      }
-    }).filter(Boolean)
-    : []
-  return [...profileFields, ...(node.fields || []).map((field) => ({ ...field, visible: field.visible !== false, binding: null }))]
+
+  if (contentItem === undefined) return fields
+  const legacySplit = Array.isArray(node.contentOrder)
+    ? node.contentOrder.includes('legacy-custom-fields')
+    : Array.isArray(node.fields) && node.fields.length > 0
+  if (contentItem === 'legacy-custom-fields') return legacySplit ? fields.filter((field) => !field.binding) : []
+  if (contentItem === 'fields') return legacySplit ? fields.filter((field) => field.binding) : fields
+  return []
 }
 
 export function nodeWorkflowContentOrder(node) {
   if (!node) return []
   if (Array.isArray(node.contentOrder)) return [...node.contentOrder]
-  const hasFields = nodeWorkflowFields(node).length > 0
+  const fields = nodeWorkflowFields(node)
+  const hasBoundFields = fields.some((field) => field.binding)
+  const hasCustomFields = fields.some((field) => !field.binding)
   const components = Array.isArray(node.components) ? node.components : (legacyWorkflowComponents[node.nodeKey] || [])
   const contentOrder = components.flatMap((component) => component === 'project-basic-info'
-    ? (hasFields ? ['fields'] : [])
+    ? (hasBoundFields ? ['fields'] : [])
     : [`component:${component}`])
-  if (hasFields && !contentOrder.includes('fields')) contentOrder.push('fields')
+  if (hasBoundFields && !contentOrder.includes('fields')) contentOrder.push('fields')
+  if (hasCustomFields) contentOrder.push('legacy-custom-fields')
   return contentOrder
 }
 

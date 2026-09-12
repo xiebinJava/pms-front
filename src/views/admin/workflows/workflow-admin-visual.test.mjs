@@ -66,7 +66,7 @@ test('field cards support keyboard and pointer reordering while keeping fixed bl
   assert.match(template, /class="field-card custom-field-row"[\s\S]*?:draggable="canWrite"/)
   assert.match(template, /:aria-label="\$t\('admin\.workflow\.moveUp'\)"[\s\S]*?moveContentItem/)
   assert.match(template, /:aria-label="\$t\('admin\.workflow\.moveDown'\)"[\s\S]*?moveField/)
-  assert.match(template, /v-if="contentItem !== 'fields'"[\s\S]*?removeContentItem/)
+  assert.match(template, /v-if="contentItem\.startsWith\('component:'\)"[\s\S]*?removeContentItem/)
   assert.match(template, /FIXED_NODE_BLOCKS/)
 })
 
@@ -98,4 +98,25 @@ test('preview uses dedicated controls for numeric, people, and date field types'
 test('node preview sizes to its content instead of stretching beside the full editor', () => {
   const preview = style.match(/\.inspector-preview\s*\{([^}]+)\}/)?.[1] || ''
   assert.match(preview, /align-self:\s*start/)
+})
+
+test('legacy custom fields keep a translated, ordered slot in editor and template previews', () => {
+  const templatePreview = template.split('<a-modal v-model:open="previewOpen"')[1]?.split('</a-modal>')[0] || ''
+  const zhLocale = fs.readFileSync(new URL('../../../locales/zh-CN.ts', import.meta.url), 'utf8')
+  const enLocale = fs.readFileSync(new URL('../../../locales/en-US.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /if \(contentItem === 'legacy-custom-fields'\) return t\('admin\.workflow\.legacyCustomFieldsSection'\)/)
+  assert.match(template, /v-if="contentItem\.startsWith\('component:'\)"[^>]*@click="removeContentItem\(contentItem\)"/)
+  assert.match(templatePreview, /node\.contentOrder\.map\(\(item\) => contentItemLabel\(item\)\)/)
+  assert.match(templatePreview, /v-for="contentItem in node\.contentOrder"[\s\S]*?fieldsForContentItem\(node, contentItem\)/)
+  assert.doesNotMatch(templatePreview, /componentLabel\(item\.slice\('component:'\.length\)\)/)
+  assert.match(zhLocale, /legacyCustomFieldsSection:\s*'旧版自定义字段'/)
+  assert.match(enLocale, /legacyCustomFieldsSection:\s*'Legacy custom fields'/)
+})
+
+test('legacy custom field slot does not move the project profile click-away anchor', () => {
+  const detailPage = fs.readFileSync(new URL('../../project/detail/index.vue', import.meta.url), 'utf8')
+  assert.match(detailPage, /<div v-if="activeNodeFieldsSlot\.length" ref="profileContainer" class="node-tab-profile"/)
+  assert.match(detailPage, /<div v-if="activeNodeLegacyCustomFields\.length" class="node-tab-profile workflow-legacy-custom-fields"/)
+  assert.doesNotMatch(detailPage, /activeNodeLegacyCustomFields\.length" ref="profileContainer"/)
 })

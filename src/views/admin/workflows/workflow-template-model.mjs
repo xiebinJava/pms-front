@@ -45,15 +45,21 @@ export function addWorkflowField(node, { key, label = '新字段', type = 'TEXT'
     binding,
   }
   const contentOrder = Array.isArray(node.contentOrder) ? [...node.contentOrder] : []
-  if (!contentOrder.includes('fields')) contentOrder.push('fields')
+  if (!contentOrder.includes('legacy-custom-fields') && !contentOrder.includes('fields')) contentOrder.push('fields')
+  if (field.binding && !contentOrder.includes('fields')) contentOrder.push('fields')
   return { ...node, fields: [...fields, field], contentOrder }
 }
 
 export function removeWorkflowField(node, fieldKey) {
   const fields = (node.fields || []).filter((field) => field.key !== fieldKey)
-  const contentOrder = fields.length === 0
-    ? (node.contentOrder || []).filter((item) => item !== 'fields')
-    : [...(node.contentOrder || [])]
+  const hasCompatibilitySlot = (node.contentOrder || []).includes('legacy-custom-fields')
+  const hasBoundFields = fields.some((field) => Boolean(field.binding))
+  const hasUnboundFields = fields.some((field) => !field.binding)
+  const contentOrder = (node.contentOrder || []).filter((item) => {
+    if (item === 'fields') return fields.length > 0 && (!hasCompatibilitySlot || hasBoundFields)
+    if (item === 'legacy-custom-fields') return hasCompatibilitySlot && hasUnboundFields
+    return true
+  })
   return { ...node, fields, contentOrder }
 }
 

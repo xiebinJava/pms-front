@@ -922,7 +922,7 @@ const zhCN = {
         'release-handover': '复用发布与交接工作台', 'value-review': '复用价值复盘工作台', 'knowledge-standard': '复用知识沉淀工作台',
       },
       projectFieldLabels: { description: '项目描述', priority: '优先级', projectLevel: '项目等级', schedule: '项目排期', businessLine: '业务线', projectManager: '项目经理', projectMembers: '项目成员', followers: '关注人' },
-      componentOrder: '节点内容顺序', contentOrderHint: '拖动字段区和业务工作台卡片调整节点详情中的显示顺序。', fieldsSection: '字段区', noContentItems: '尚未添加可配置内容', removeComponent: '移除工作台',
+      componentOrder: '节点内容顺序', contentOrderHint: '拖动字段区和业务工作台卡片调整节点详情中的显示顺序。', fieldsSection: '字段区', legacyCustomFieldsSection: '旧版自定义字段', noContentItems: '尚未添加可配置内容', removeComponent: '移除工作台',
       componentLibrary: '组件库', componentLibraryHint: '添加自由字段、项目绑定字段或已有业务工作台；负责人、排期和任务看板始终固定。', fieldPaletteAria: '字段控件组件库', bindingPaletteAria: '项目绑定字段组件库', binding: '项目绑定',
       projectBasics: '项目基本信息', projectBasicsConfig: '项目信息字段配置', projectBasicsHint: '标准字段映射到项目数据，可按需显示并设置必填。',
       visible: '显示', required: '必填', customFields: '自定义字段', customFieldsHint: '配置节点专属字段；负责人、排期和任务看板始终固定显示。',

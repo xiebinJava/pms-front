@@ -138,6 +138,10 @@ const workflowCustomFieldsRef = ref<{
   flushAutoSave: () => Promise<boolean>
   saveIfDirty: () => Promise<boolean>
 } | null>(null)
+const legacyWorkflowCustomFieldsRef = ref<{
+  flushAutoSave: () => Promise<boolean>
+  saveIfDirty: () => Promise<boolean>
+} | null>(null)
 const taskKanbanRef = ref<{
   openCreateForRequirement: (requirementId: number) => void
   refreshRequirements: () => Promise<void> | void
@@ -181,6 +185,8 @@ const currentNodeProgress = computed(() => getNodeProgress(
   activeNodeTaskSummary.value.total,
 ))
 const activeNodeWorkflowFields = computed(() => nodeWorkflowFields(activeNode.value))
+const activeNodeFieldsSlot = computed(() => nodeWorkflowFields(activeNode.value, 'fields'))
+const activeNodeLegacyCustomFields = computed(() => nodeWorkflowFields(activeNode.value, 'legacy-custom-fields'))
 const nodeOwnerOptions = computed(() => members.value.map((member) => ({
   value: member.userId,
   label: formatPersonLabel({ id: member.userId, nickname: member.nickname, username: member.username, email: member.email }),
@@ -284,10 +290,24 @@ function componentSlotStyle(componentKey: string): Record<string, number> {
   return { order: index < 0 ? contentOrder.length + 1 : index }
 }
 
-function customFieldsSlotStyle(): Record<string, number> {
+function customFieldsSlotStyle(contentItem: 'fields' | 'legacy-custom-fields' = 'fields'): Record<string, number> {
   const contentOrder = nodeWorkflowContentOrder(activeNode.value)
-  const index = contentOrder.indexOf('fields')
+  const index = contentOrder.indexOf(contentItem)
   return { order: index < 0 ? contentOrder.length + 1 : index }
+}
+
+async function savePendingWorkflowCustomFields(): Promise<boolean> {
+  for (const fieldsRef of [workflowCustomFieldsRef, legacyWorkflowCustomFieldsRef]) {
+    if (await fieldsRef.value?.saveIfDirty() === false) return false
+  }
+  return true
+}
+
+async function flushWorkflowCustomFields(): Promise<boolean> {
+  for (const fieldsRef of [workflowCustomFieldsRef, legacyWorkflowCustomFieldsRef]) {
+    if (await fieldsRef.value?.flushAutoSave() === false) return false
+  }
+  return true
 }
 
 async function loadData() {
@@ -359,7 +379,7 @@ async function activateNode(nodeId: number): Promise<boolean> {
     return await transitionActiveNode(
       activeNodeId.value,
       nodeId,
-      () => workflowCustomFieldsRef.value?.saveIfDirty(),
+      savePendingWorkflowCustomFields,
       (nextNodeId) => { activeNodeId.value = nextNodeId },
     )
   } finally {
@@ -870,7 +890,7 @@ async function onComplete() {
     const saved = await knowledgeStandardRef.value?.flushAutoSave()
     if (!saved) return
   }
-  const customFieldsReady = await workflowCustomFieldsRef.value?.flushAutoSave()
+  const customFieldsReady = await flushWorkflowCustomFields()
   if (customFieldsReady === false) return
   Modal.confirm({
     title: t('detail.completeTitle'),
@@ -940,7 +960,7 @@ async function onReasonModalOk() {
   else lifecycleSaving.value = true
 
   try {
-    const fieldsSaved = await workflowCustomFieldsRef.value?.saveIfDirty()
+    const fieldsSaved = await savePendingWorkflowCustomFields()
     if (fieldsSaved === false) return
     if (action === 'terminate') {
       await terminateProject(projectId.value, reason)
@@ -1000,13 +1020,13 @@ onMounted(() => {
 })
 
 onBeforeRouteLeave(async () => {
-  const saved = await workflowCustomFieldsRef.value?.saveIfDirty()
+  const saved = await savePendingWorkflowCustomFields()
   return saved !== false
 })
 
 onBeforeRouteUpdate(async (to, from) => {
   if (to.params.id !== from.params.id) {
-    const saved = await workflowCustomFieldsRef.value?.saveIfDirty()
+    const saved = await savePendingWorkflowCustomFields()
     return saved !== false
   }
   return true
@@ -1184,13 +1204,13 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="workflow-details-stack">
-       <div v-if="activeNodeWorkflowFields.length" ref="profileContainer" class="node-tab-profile" :style="customFieldsSlotStyle()">
+       <div v-if="activeNodeFieldsSlot.length" ref="profileContainer" class="node-tab-profile" :style="customFieldsSlotStyle('fields')">
          <WorkflowCustomFields
            ref="workflowCustomFieldsRef"
            :key="`custom-fields-${activeNode.id}`"
            :project-id="projectId"
            :node-id="activeNode.id"
-           :fields="activeNodeWorkflowFields"
+           :fields="activeNodeFieldsSlot"
            :person-options="nodeOwnerOptions"
            :can-edit="canEditActiveNode"
            :read-only="activeNodeReadOnly"
@@ -1206,6 +1226,18 @@ onBeforeUnmount(() => {
              <PersonSelect v-else-if="field.binding === 'project.followers'" v-model="profileForm.followerIds" class="project-profile-control project-people-control project-members-control" multiple allow-clear :max-tag-count="2" :options="profileUserOptions" :placeholder="$t('detail.selectFollowers')" :disabled="!canManageMembers || activeNodeReadOnly" @change="markFollowersDirty" />
            </template>
          </WorkflowCustomFields>
+       </div>
+       <div v-if="activeNodeLegacyCustomFields.length" class="node-tab-profile workflow-legacy-custom-fields" :style="customFieldsSlotStyle('legacy-custom-fields')">
+         <WorkflowCustomFields
+           ref="legacyWorkflowCustomFieldsRef"
+           :key="`legacy-custom-fields-${activeNode.id}`"
+           :project-id="projectId"
+           :node-id="activeNode.id"
+           :fields="activeNodeLegacyCustomFields"
+           :person-options="nodeOwnerOptions"
+           :can-edit="canEditActiveNode"
+           :read-only="activeNodeReadOnly"
+         />
        </div>
 
       <RequirementScopeWorkbench

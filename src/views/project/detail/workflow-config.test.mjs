@@ -42,12 +42,15 @@ test('node navigation waits for custom field persistence before replacing the ed
   const detailPage = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
   const customFields = readFileSync(new URL('./components/WorkflowCustomFields.vue', import.meta.url), 'utf8')
   const activateNode = detailPage.match(/async function activateNode\([\s\S]*?\n\}/)?.[0]
+  const savePending = detailPage.match(/async function savePendingWorkflowCustomFields\([\s\S]*?\n\}/)?.[0]
 
   assert.ok(activateNode)
+  assert.ok(savePending)
   assert.match(activateNode, /transitionActiveNode/)
-  assert.match(activateNode, /saveIfDirty/)
+  assert.match(activateNode, /savePendingWorkflowCustomFields/)
+  assert.match(savePending, /workflowCustomFieldsRef, legacyWorkflowCustomFieldsRef/)
   assert.match(customFields, /defineExpose\(\{ flushAutoSave, saveIfDirty: save \}\)/)
-  assert.match(detailPage, /onBeforeRouteLeave\(async \(\) => \{[\s\S]*?saveIfDirty\(\)/)
+  assert.match(detailPage, /onBeforeRouteLeave\(async \(\) => \{[\s\S]*?savePendingWorkflowCustomFields\(\)/)
   assert.match(customFields, /:disabled="!canEdit \|\| readOnly \|\| saving"/)
   assert.match(customFields, /watch\(\(\) => \[props\.projectId, props\.nodeId\], loadValues/)
   assert.match(customFields, /if \(activeSave\) return activeSave/)
@@ -55,7 +58,7 @@ test('node navigation waits for custom field persistence before replacing the ed
 
 test('project parameter changes save custom fields even when the route component is reused', () => {
   const detailPage = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
-  assert.match(detailPage, /onBeforeRouteUpdate\(async \(to, from\) => \{[\s\S]*?to\.params\.id !== from\.params\.id[\s\S]*?saveIfDirty\(\)/)
+  assert.match(detailPage, /onBeforeRouteUpdate\(async \(to, from\) => \{[\s\S]*?to\.params\.id !== from\.params\.id[\s\S]*?savePendingWorkflowCustomFields\(\)/)
 })
 
 test('project basics use configured visibility and requiredness, with the canonical fallback', () => {
@@ -90,20 +93,43 @@ test('optional field defaults are valid for backend field-type validation', () =
   assert.equal(isWorkflowFieldEmpty(0), false)
 })
 
-test('normalizes v1 profiles into ordered bound fields while preserving custom fields', () => {
+test('keeps v1 bound fields at the profile position and unbound fields after workbenches', () => {
   const node = {
     nodeKey: 'kickoff',
-    components: ['project-basic-info', 'requirement-scope'],
+    components: ['requirement-scope', 'project-basic-info', 'solution-design'],
     projectBasicInfo: true,
     projectBasicInfoFields: [{ key: 'description', label: '项目描述', visible: true, required: true }],
     fields: [{ key: 'risk', label: '风险', type: 'TEXT', required: true, options: [] }],
   }
 
-  assert.deepEqual(nodeWorkflowContentOrder(node), ['fields', 'component:requirement-scope'])
+  assert.deepEqual(nodeWorkflowContentOrder(node), [
+    'component:requirement-scope', 'fields', 'component:solution-design', 'legacy-custom-fields',
+  ])
   assert.deepEqual(nodeWorkflowFields(node).map(({ key, binding, visible }) => ({ key, binding, visible })), [
     { key: 'project-description', binding: 'project.description', visible: true },
     { key: 'risk', binding: null, visible: true },
   ])
+  assert.deepEqual(nodeWorkflowFields(node, 'fields').map((field) => field.key), ['project-description'])
+  assert.deepEqual(nodeWorkflowFields(node, 'legacy-custom-fields').map((field) => field.key), ['risk'])
+})
+
+test('keeps legacy custom keys intact when a v1 runtime binding key collides', () => {
+  const node = {
+    nodeKey: 'kickoff',
+    components: ['project-basic-info'],
+    projectBasicInfo: true,
+    projectBasicInfoFields: [{ key: 'description', label: '项目描述', visible: true, required: false }],
+    fields: [{ key: 'project-description', label: '旧字段', type: 'TEXT', required: false, options: [] }],
+  }
+  const fields = nodeWorkflowFields(node)
+
+  assert.deepEqual(fields.map(({ key, binding }) => ({ key, binding })), [
+    { key: 'project-description-2', binding: 'project.description' },
+    { key: 'project-description', binding: null },
+  ])
+  assert.deepEqual(fields[1].options, [])
+  assert.deepEqual(nodeWorkflowFields(node, 'fields').map((field) => field.key), ['project-description-2'])
+  assert.deepEqual(nodeWorkflowFields(node, 'legacy-custom-fields').map((field) => field.key), ['project-description'])
 })
 
 test('uses v2 content order and excludes hidden required bindings from completion checks', () => {
@@ -117,10 +143,23 @@ test('uses v2 content order and excludes hidden required bindings from completio
   assert.deepEqual(missingConfiguredProjectFields(fields, { description: '', projectManagerId: undefined }), ['projectManager'])
 })
 
+test('ordinary v2 definitions keep bound and unbound fields together in the fields slot', () => {
+  const node = {
+    contentOrder: ['fields'],
+    fields: [
+      { key: 'project-description', label: '项目描述', type: 'TEXTAREA', required: false, options: [], binding: 'project.description' },
+      { key: 'risk', label: '风险', type: 'TEXT', required: false, options: [], binding: null },
+    ],
+  }
+
+  assert.deepEqual(nodeWorkflowFields(node, 'fields').map((field) => field.key), ['project-description', 'risk'])
+})
+
 test('supplies empty values for each selectable and ranged control', () => {
   assert.equal(emptyWorkflowFieldValue('RADIO'), null)
   assert.deepEqual(emptyWorkflowFieldValue('PERSON_MULTI'), [])
   assert.deepEqual(emptyWorkflowFieldValue('DATE_RANGE'), [])
+  assert.equal(isWorkflowFieldEmpty(emptyWorkflowFieldValue('DATE_RANGE')), true)
 })
 
 test('unified custom field grid renders bound slots and the new controls without persisting bindings', () => {

@@ -924,7 +924,7 @@ const enUS: MessageSchema = {
         'release-handover': 'Reuse the release and handover workbench', 'value-review': 'Reuse the value review workbench', 'knowledge-standard': 'Reuse the knowledge workbench',
       },
       projectFieldLabels: { description: 'Description', priority: 'Priority', projectLevel: 'Project level', schedule: 'Project schedule', businessLine: 'Business line', projectManager: 'Project manager', projectMembers: 'Project members', followers: 'Followers' },
-      componentOrder: 'Node content order', contentOrderHint: 'Drag field and workbench cards to set their order in the node details.', fieldsSection: 'Fields', noContentItems: 'No configurable content yet', removeComponent: 'Remove workbench',
+      componentOrder: 'Node content order', contentOrderHint: 'Drag field and workbench cards to set their order in the node details.', fieldsSection: 'Fields', legacyCustomFieldsSection: 'Legacy custom fields', noContentItems: 'No configurable content yet', removeComponent: 'Remove workbench',
       componentLibrary: 'Component library', componentLibraryHint: 'Add custom fields, project-bound fields, or existing workbenches. Owner, schedule, and task board remain fixed.', fieldPaletteAria: 'Field control component library', bindingPaletteAria: 'Project-bound field component library', binding: 'Project binding',
       projectBasics: 'Project basics', projectBasicsConfig: 'Project information fields', projectBasicsHint: 'Canonical fields map to the project model; configure their visibility and requiredness.',
       visible: 'Visible', required: 'Required', customFields: 'Custom fields', customFieldsHint: 'Configure fields specific to this node. Owner, schedule, and task board always remain visible.',
