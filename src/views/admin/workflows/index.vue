@@ -39,6 +39,7 @@ const templates = ref<WorkflowTemplateSummary[]>([])
 const selectedTypeId = ref<number>()
 const selectedTemplateId = ref<number | null>(null)
 const selectedNodeKey = ref('')
+const selectedFieldKey = ref('')
 const templateName = ref('')
 const templateDescription = ref('')
 const definition = ref<WorkflowTemplateDefinitionV2>({ schemaVersion: 2, nodes: [] })
@@ -59,6 +60,7 @@ const fieldTypes: WorkflowFieldType[] = ['TEXT', 'TEXTAREA', 'NUMBER', 'RADIO', 
 const selectedType = computed(() => types.value.find((type) => type.id === selectedTypeId.value))
 const selectedTemplateSummary = computed(() => templates.value.find((template) => template.id === selectedTemplateId.value))
 const currentNode = computed(() => definition.value.nodes.find((node) => node.key === selectedNodeKey.value))
+const selectedField = computed(() => currentNode.value?.fields.find((field) => field.key === selectedFieldKey.value))
 const configuredComponents = computed(() => (currentNode.value?.contentOrder || [])
   .filter((item) => item.startsWith('component:'))
   .map((item) => item.slice('component:'.length)))
@@ -73,8 +75,8 @@ function contentItemLabel(contentItem: WorkflowContentOrderItem): string {
   return componentLabel(contentItem.slice('component:'.length))
 }
 
-function fieldsForContentItem(node: WorkflowNodeDefinitionV2, contentItem: WorkflowContentOrderItem): WorkflowFieldDefinition[] {
-  const fields = node.fields.filter((field) => field.visible !== false)
+function fieldsForContentItem(node: WorkflowNodeDefinitionV2, contentItem: WorkflowContentOrderItem, includeHidden = false): WorkflowFieldDefinition[] {
+  const fields = includeHidden ? node.fields : node.fields.filter((field) => field.visible !== false)
   const splitLegacyFields = node.contentOrder.includes('legacy-custom-fields')
   if (!splitLegacyFields) return contentItem === 'fields' ? fields : []
   if (contentItem === 'fields') return fields.filter((field) => Boolean(field.binding))
@@ -109,6 +111,7 @@ function clearEditor() {
   templateDescription.value = ''
   definition.value = { schemaVersion: 2, nodes: [] }
   selectedNodeKey.value = ''
+  selectedFieldKey.value = ''
   dirty.value = false
 }
 
@@ -123,10 +126,22 @@ async function selectTemplate(id: number) {
     templateDescription.value = template.description || ''
     definition.value = normalizeWorkflowDefinition(template.definition)
     selectedNodeKey.value = definition.value.nodes[0]?.key || ''
+    selectedFieldKey.value = firstFieldKey(definition.value.nodes[0])
     dirty.value = false
   } catch (error) {
     message.error((error as Error).message || t('admin.workflow.loadFailed'))
   } finally { loading.value = false }
+}
+
+function firstFieldKey(node?: WorkflowNodeDefinitionV2): string {
+  return node?.fields.find((field) => field.visible !== false)?.key || node?.fields[0]?.key || ''
+}
+
+function selectNode(nodeKey: string) {
+  const node = definition.value.nodes.find((item) => item.key === nodeKey)
+  if (!node) return
+  selectedNodeKey.value = nodeKey
+  selectedFieldKey.value = firstFieldKey(node)
 }
 
 async function confirmDiscard(): Promise<boolean> {
@@ -172,6 +187,7 @@ async function newTemplate() {
     ? { schemaVersion: 2, nodes }
     : { schemaVersion: 2, nodes: [createWorkflowNode([], { name: t('admin.workflow.newNodeName'), key: 'stage-1' })] }
   selectedNodeKey.value = definition.value.nodes[0]?.key || ''
+  selectedFieldKey.value = firstFieldKey(definition.value.nodes[0])
   dirty.value = true
 }
 
@@ -179,6 +195,7 @@ function addNode() {
   const next = createWorkflowNode(definition.value.nodes, { name: t('admin.workflow.newNodeName') })
   definition.value.nodes = [...definition.value.nodes, next]
   selectedNodeKey.value = next.key
+  selectedFieldKey.value = ''
   markDirty()
 }
 
@@ -189,7 +206,9 @@ function removeNode(node: WorkflowNodeDefinitionV2) {
     onOk: () => {
       try {
         definition.value.nodes = removeWorkflowNode(definition.value.nodes, node.key)
-        selectedNodeKey.value = definition.value.nodes[0]?.key || ''
+        const nextNode = definition.value.nodes[0]
+        selectedNodeKey.value = nextNode?.key || ''
+        selectedFieldKey.value = firstFieldKey(nextNode)
         markDirty()
       } catch (error) { message.warning((error as Error).message) }
     },
@@ -221,19 +240,23 @@ function toggleComponent(componentKey: string, checked: boolean) {
 function addField(type: WorkflowFieldType = 'TEXT') {
   const node = currentNode.value
   if (!node) return
-  replaceCurrentNode(addWorkflowField(node, { label: t('admin.workflow.newFieldName'), type }))
+  const next = addWorkflowField(node, { label: t('admin.workflow.newFieldName'), type })
+  selectedFieldKey.value = next.fields.at(-1)?.key || ''
+  replaceCurrentNode(next)
 }
 
 function addBoundField(projectFieldKey: string) {
   const node = currentNode.value
   const binding = PROJECT_FIELD_BINDINGS[projectFieldKey]
   if (!node || !binding) return
-  replaceCurrentNode(addWorkflowField(node, {
+  const next = addWorkflowField(node, {
     key: `project-${projectFieldKey.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`,
     label: t(`admin.workflow.projectFieldLabels.${projectFieldKey}`),
     type: binding.type,
     binding: binding.binding,
-  }))
+  })
+  selectedFieldKey.value = next.fields.at(-1)?.key || ''
+  replaceCurrentNode(next)
 }
 
 function replaceCurrentNode(next: WorkflowNodeDefinitionV2) {
@@ -261,12 +284,15 @@ function onContentDrop(targetIndex: number) {
   }
 }
 
-function moveField(fieldKey: string, delta: number) {
+function moveField(fieldKey: string, delta: number, contentItem: WorkflowContentOrderItem) {
   const node = currentNode.value
-  const index = node?.fields.findIndex((field) => field.key === fieldKey) ?? -1
-  const target = index + delta
-  if (!node || index < 0 || target < 0 || target >= node.fields.length) return
-  replaceCurrentNode(moveWorkflowField(node, fieldKey, target))
+  if (!node) return
+  const groupFields = fieldsForContentItem(node, contentItem, true)
+  const index = groupFields.findIndex((field) => field.key === fieldKey)
+  const targetField = groupFields[index + delta]
+  if (index < 0 || !targetField) return
+  const targetIndex = node.fields.findIndex((field) => field.key === targetField.key)
+  replaceCurrentNode(moveWorkflowField(node, fieldKey, targetIndex))
 }
 
 function onFieldDrop(targetIndex: number) {
@@ -281,7 +307,22 @@ function onFieldDrop(targetIndex: number) {
 
 function removeField(fieldKey: string) {
   const node = currentNode.value
-  if (node) replaceCurrentNode(removeWorkflowField(node, fieldKey))
+  if (!node) return
+  const next = removeWorkflowField(node, fieldKey)
+  replaceCurrentNode(next)
+  if (selectedFieldKey.value === fieldKey) selectedFieldKey.value = firstFieldKey(next)
+}
+
+function selectField(fieldKey: string) {
+  selectedFieldKey.value = fieldKey
+}
+
+function fieldIndex(fieldKey: string): number {
+  return currentNode.value?.fields.findIndex((field) => field.key === fieldKey) ?? -1
+}
+
+function fieldIndexInContentItem(fieldKey: string, contentItem: WorkflowContentOrderItem): number {
+  return currentNode.value ? fieldsForContentItem(currentNode.value, contentItem, true).findIndex((field) => field.key === fieldKey) : -1
 }
 
 function removeContentItem(contentItem: WorkflowContentOrderItem) {
@@ -374,6 +415,9 @@ async function saveType() {
 function componentLabel(key: string) { return t(`admin.workflow.componentLabels.${key}`) }
 function fieldTypeLabel(type: WorkflowFieldType) { return t(`admin.workflow.fieldTypes.${type}`) }
 function bindingLabel(binding: WorkflowFieldBinding) { return t(`admin.workflow.bindingLabels.${binding}`) }
+function fieldTypeSymbol(type: WorkflowFieldType): string {
+  return ({ TEXT: 'T', TEXTAREA: '¶', NUMBER: '#', RADIO: '◉', SINGLE_SELECT: '⌄', MULTI_SELECT: '☷', PERSON: '人', PERSON_MULTI: '人+', DATE: '日', DATE_RANGE: '↔', ATTACHMENT: '↑' } as Record<WorkflowFieldType, string>)[type]
+}
 function setFieldOptionsFromEvent(field: WorkflowFieldDefinition, event: unknown) {
   setFieldOptions(field, String((event as { target?: { value?: string } })?.target?.value || ''))
 }
@@ -395,7 +439,7 @@ onMounted(async () => {
 
 <template>
   <section class="workflow-admin-page">
-    <PmsPageHeader :title="$t('route.adminWorkflows')" :description="$t('admin.workflow.description')">
+    <PmsPageHeader :title="$t('admin.workflow.configTitle')" :description="$t('admin.workflow.description')">
       <template #actions>
         <a-button @click="previewOpen = true" :disabled="!definition.nodes.length"><EyeOutlined /> {{ $t('admin.workflow.preview') }}</a-button>
         <a-button v-if="canWrite" @click="newTemplate">{{ $t('admin.workflow.newTemplate') }}</a-button>
@@ -404,37 +448,21 @@ onMounted(async () => {
       </template>
     </PmsPageHeader>
 
-    <div class="workflow-admin-layout">
-      <aside class="workflow-library">
-        <div class="library-heading">
-          <div><strong>{{ $t('admin.workflow.projectTypes') }}</strong><small>{{ $t('admin.workflow.typeHint') }}</small></div>
-          <a-button v-if="canWrite" size="small" @click="typeModalOpen = true"><PlusOutlined /></a-button>
-        </div>
-        <button v-for="type in types" :key="type.id" class="type-choice" :class="{ active: type.id === selectedTypeId }" @click="changeProjectType(type.id)">
-          <span>{{ type.name }}</span><small>{{ type.defaultTemplateName || $t('admin.workflow.noDefault') }}</small>
-        </button>
-        <div class="library-heading template-heading"><div><strong>{{ $t('admin.workflow.templates') }}</strong><small>{{ $t('admin.workflow.templatesHint') }}</small></div></div>
-        <button v-for="template in templates" :key="template.id" class="template-choice" :class="{ active: template.id === selectedTemplateId }" @click="selectTemplate(template.id)">
-          <span class="template-choice__title">{{ template.name }} <a-tag v-if="template.defaultTemplate" color="blue">{{ $t('admin.workflow.default') }}</a-tag></span>
-          <small>{{ template.publishedVersionNo ? `v${template.publishedVersionNo}` : $t('admin.workflow.notPublished') }}<span v-if="template.draftVersionNo"> · {{ $t('admin.workflow.draftVersion', { version: template.draftVersionNo }) }}</span></small>
-        </button>
-        <a-empty v-if="!loading && !templates.length" :description="$t('admin.workflow.noTemplates')" />
-      </aside>
-
-      <div class="workflow-editor" :aria-busy="loading">
+    <div class="workflow-editor" :aria-busy="loading">
         <a-spin :spinning="loading">
           <template v-if="selectedTypeId">
-            <header class="editor-topbar">
-              <div class="editor-meta">
-                <a-input v-model:value="templateName" :placeholder="$t('admin.workflow.templateName')" :disabled="!canWrite" @input="markDirty" />
-                <a-input v-model:value="templateDescription" :placeholder="$t('admin.workflow.templateDescription')" :disabled="!canWrite" @input="markDirty" />
+            <section class="workflow-template-bar" data-testid="workflow-template-bar">
+              <div class="template-current">
+                <span class="template-current__eyebrow">{{ $t('admin.workflow.currentTemplate') }}</span>
+                <div class="template-current__name"><a-input v-model:value="templateName" :placeholder="$t('admin.workflow.templateName')" :disabled="!canWrite" :aria-label="$t('admin.workflow.templateName')" @input="markDirty" /><a-tag v-if="selectedTemplateSummary?.defaultTemplate" color="blue">{{ $t('admin.workflow.default') }}</a-tag><a-tag v-if="dirty" color="orange">{{ $t('admin.workflow.unsaved') }}</a-tag><a-tag v-else-if="publishedVersion" color="green">{{ $t('admin.workflow.publishedVersion', { version: publishedVersion }) }}</a-tag></div>
+                <a-input v-model:value="templateDescription" class="template-current__description" :placeholder="$t('admin.workflow.templateDescription')" :disabled="!canWrite" :aria-label="$t('admin.workflow.templateDescription')" @input="markDirty" />
               </div>
-              <div class="editor-status">
-                <a-tag v-if="dirty" color="orange">{{ $t('admin.workflow.unsaved') }}</a-tag>
-                <a-tag v-else-if="publishedVersion" color="green">{{ $t('admin.workflow.publishedVersion', { version: publishedVersion }) }}</a-tag>
+              <div class="template-selectors">
+                <label class="template-selector"><span>{{ $t('admin.workflow.projectTypes') }}</span><div class="template-selector__control"><a-select :value="selectedTypeId" @change="changeProjectType(Number($event))"><a-select-option v-for="type in types" :key="type.id" :value="type.id">{{ type.name }}</a-select-option></a-select><a-button v-if="canWrite" size="small" :aria-label="$t('admin.workflow.addType')" @click="typeModalOpen = true"><PlusOutlined /></a-button></div></label>
+                <label class="template-selector"><span>{{ $t('admin.workflow.templates') }}</span><div class="template-selector__control"><a-select :value="selectedTemplateId ?? undefined" :disabled="!templates.length" :placeholder="$t('admin.workflow.noTemplates')" @change="selectTemplate(Number($event))"><a-select-option v-for="template in templates" :key="template.id" :value="template.id">{{ template.name }}{{ template.defaultTemplate ? ` · ${$t('admin.workflow.default')}` : '' }}</a-select-option></a-select><a-button v-if="canWrite" size="small" :aria-label="$t('admin.workflow.newTemplate')" @click="newTemplate"><PlusOutlined /></a-button></div></label>
                 <a-button v-if="canWrite && selectedTemplateSummary?.publishedVersionId && !selectedTemplateSummary.defaultTemplate" size="small" :disabled="dirty" @click="setAsDefault">{{ $t('admin.workflow.setDefault') }}</a-button>
               </div>
-            </header>
+            </section>
 
             <section class="workflow-canvas-panel" :aria-label="$t('admin.workflow.canvasAria')">
               <div class="canvas-caption">
@@ -449,18 +477,13 @@ onMounted(async () => {
                       class="workflow-node-card"
                       :class="{ selected: selectedNodeKey === node.key, dragging: dragKey === node.key }"
                       :draggable="canWrite"
-                      tabindex="0"
-                      @click="selectedNodeKey = node.key"
-                      @keydown.enter="selectedNodeKey = node.key"
                       @dragstart="dragKey = node.key"
                       @dragover.prevent
                       @drop.prevent="onDrop(index)"
                       @dragend="dragKey = undefined"
                     >
-                      <div class="workflow-node-card__top"><span class="stage-index">{{ String(index + 1).padStart(2, '0') }}</span><span class="stage-status">{{ node.contentOrder.some((item) => item.startsWith('component:')) ? $t('admin.workflow.reuses') : $t('admin.workflow.custom') }}</span></div>
-                      <strong>{{ node.name || $t('admin.workflow.unnamedNode') }}</strong>
-                      <p>{{ node.description || $t('admin.workflow.noNodeDescription') }}</p>
-                      <div class="node-component-chips"><a-tag v-for="contentItem in node.contentOrder.filter((item) => item.startsWith('component:'))" :key="contentItem">{{ componentLabel(contentItem.slice('component:'.length)) }}</a-tag><a-tag v-for="field in node.fields" :key="field.key" color="purple">{{ field.label }}</a-tag></div>
+                      <span class="stage-index">{{ String(index + 1).padStart(2, '0') }}</span>
+                      <button type="button" class="workflow-node-card__copy workflow-node-select" :aria-pressed="selectedNodeKey === node.key" :aria-label="node.name || $t('admin.workflow.unnamedNode')" @click="selectNode(node.key)"><strong>{{ node.name || $t('admin.workflow.unnamedNode') }}</strong><small>{{ $t('admin.workflow.fieldCount', { count: node.fields.filter((field) => field.visible !== false).length }) }}</small></button>
                       <div class="node-card-tools" @click.stop>
                         <a-button size="small" :disabled="!canWrite || index === 0" :aria-label="$t('admin.workflow.moveUp')" @click="moveByKeyboard(node, -1)"><ArrowUpOutlined /></a-button>
                         <a-button size="small" :disabled="!canWrite || index === definition.nodes.length - 1" :aria-label="$t('admin.workflow.moveDown')" @click="moveByKeyboard(node, 1)"><ArrowDownOutlined /></a-button>
@@ -470,76 +493,102 @@ onMounted(async () => {
                   </template>
                 </div>
               </div>
-              <div class="fixed-blocks"><span>{{ $t('admin.workflow.alwaysShown') }}</span><a-tag v-for="block in FIXED_NODE_BLOCKS" :key="block" color="blue">{{ $t(`admin.workflow.fixedBlocks.${block}`) }}</a-tag></div>
             </section>
 
-            <section v-if="currentNode" class="node-inspector">
-              <div class="inspector-header"><div><span>{{ $t('admin.workflow.editingStage', { index: selectedNodeIndex + 1 }) }}</span><h2>{{ currentNode.name || $t('admin.workflow.unnamedNode') }}</h2></div><a-tag color="blue">{{ $t('admin.workflow.sequential') }}</a-tag></div>
-              <div class="inspector-grid">
-                <div class="inspector-main">
-                  <a-form layout="vertical">
-                    <div class="node-basic-grid">
-                      <a-form-item :label="$t('admin.workflow.nodeName')"><a-input v-model:value="currentNode.name" :disabled="!canWrite" :maxlength="80" @input="markDirty" /></a-form-item>
-                      <a-form-item :label="$t('admin.workflow.nodeKey')"><a-input :value="currentNode.key" disabled /><small>{{ $t('admin.workflow.nodeKeyHint') }}</small></a-form-item>
-                    </div>
-                    <a-form-item :label="$t('admin.workflow.nodeDescription')"><a-textarea v-model:value="currentNode.description" :disabled="!canWrite" :rows="2" @input="markDirty" /></a-form-item>
-                    <div class="node-basic-grid">
-                      <a-form-item :label="$t('admin.workflow.deliverables')"><a-textarea v-model:value="currentNode.deliverable" :disabled="!canWrite" :rows="2" @input="markDirty" /></a-form-item>
-                      <a-form-item :label="$t('admin.workflow.roles')"><a-textarea v-model:value="currentNode.roles" :disabled="!canWrite" :rows="2" @input="markDirty" /></a-form-item>
-                    </div>
+            <section v-if="currentNode" class="workflow-node-designer" data-testid="node-designer">
+              <header class="designer-node-heading">
+                <div class="designer-node-heading__copy"><span>{{ $t('admin.workflow.editingStage', { index: selectedNodeIndex + 1 }) }}</span><h2>{{ currentNode.name || $t('admin.workflow.unnamedNode') }}</h2><p>{{ currentNode.description || $t('admin.workflow.noNodeDescription') }}</p></div>
+              </header>
+
+              <div class="designer-grid">
+                <aside class="designer-panel designer-palette" data-testid="designer-palette" :aria-label="$t('admin.workflow.fieldPaletteAria')">
+                  <div class="designer-panel-heading"><h3>{{ $t('admin.workflow.fieldComponents') }}</h3><p>{{ $t('admin.workflow.addFieldHint') }}</p></div>
+                  <div class="designer-palette-list">
+                    <button v-for="type in fieldTypes" :key="type" type="button" class="designer-palette-item" :data-testid="`add-workflow-field-${type}`" :aria-label="`${$t('admin.workflow.addField')}：${fieldTypeLabel(type)}`" :disabled="!canWrite" @click="addField(type)">
+                      <span class="field-type-symbol">{{ fieldTypeSymbol(type) }}</span><span class="designer-palette-item__copy"><strong>{{ fieldTypeLabel(type) }}</strong><small>{{ $t(`admin.workflow.fieldTypeHints.${type}`) }}</small></span><PlusOutlined />
+                    </button>
+                  </div>
+                  <div class="designer-palette-section">
+                    <div class="designer-subheading"><strong>{{ $t('admin.workflow.projectFields') }}</strong><small>{{ $t('admin.workflow.projectFieldsHint') }}</small></div>
+                    <button v-for="[key, binding] in availableBindings" :key="binding.binding" type="button" class="designer-palette-item designer-palette-item--compact" :disabled="!canWrite" @click="addBoundField(key)"><span class="field-type-symbol">{{ fieldTypeSymbol(binding.type) }}</span><span class="designer-palette-item__copy"><strong>{{ $t(`admin.workflow.projectFieldLabels.${key}`) }}</strong><small>{{ fieldTypeLabel(binding.type) }}</small></span><PlusOutlined /></button>
+                    <a-empty v-if="!availableBindings.length" :description="$t('admin.workflow.noAvailableProjectFields')" />
+                  </div>
+                  <div class="designer-palette-section">
+                    <div class="designer-subheading"><strong>{{ $t('admin.workflow.workbenchComponents') }}</strong><small>{{ $t('admin.workflow.workbenchComponentsHint') }}</small></div>
+                    <button v-for="component in COMPONENTS" :key="component.key" type="button" class="designer-palette-item designer-palette-item--compact" :data-testid="`add-workflow-component-${component.key}`" :class="{ 'is-added': configuredComponents.includes(component.key) }" :aria-pressed="configuredComponents.includes(component.key)" :disabled="!canWrite" @click="toggleComponent(component.key, !configuredComponents.includes(component.key))"><span class="field-type-symbol">{{ configuredComponents.includes(component.key) ? '✓' : '+' }}</span><span class="designer-palette-item__copy"><strong>{{ componentLabel(component.key) }}</strong><small>{{ $t(`admin.workflow.componentHints.${component.key}`) }}</small></span><span class="palette-state">{{ configuredComponents.includes(component.key) ? $t('admin.workflow.added') : $t('admin.workflow.add') }}</span></button>
+                  </div>
+                </aside>
+
+                <section class="designer-panel designer-canvas" data-testid="designer-canvas" :aria-label="$t('admin.workflow.nodeCanvasAria')">
+                  <div class="designer-canvas-heading"><div><span>{{ $t('admin.workflow.nodeDetailCanvas') }}</span><h3>{{ currentNode.name || $t('admin.workflow.unnamedNode') }}</h3><p>{{ currentNode.description || $t('admin.workflow.noNodeDescription') }}</p></div><span class="designer-canvas-heading__hint">{{ $t('admin.workflow.dragFieldsHint') }}</span></div>
+                  <div class="designer-fixed-grid">
+                    <section class="designer-fixed-module" data-testid="designer-fixed-owner"><div class="designer-fixed-module__heading"><strong>{{ $t('admin.workflow.fixedBlocks.owner') }}</strong><a-tag color="blue">{{ $t('admin.workflow.fixed') }}</a-tag></div><a-select disabled :placeholder="$t('admin.workflow.previewPerson')" /></section>
+                    <section class="designer-fixed-module" data-testid="designer-fixed-schedule"><div class="designer-fixed-module__heading"><strong>{{ $t('admin.workflow.fixedBlocks.schedule') }}</strong><a-tag color="blue">{{ $t('admin.workflow.fixed') }}</a-tag></div><a-range-picker disabled /></section>
+                  </div>
+
+                  <div class="designer-content-stack">
+                    <template v-for="(contentItem, contentIndex) in currentNode.contentOrder" :key="contentItem">
+                      <section v-if="contentItem === 'fields' || contentItem === 'legacy-custom-fields'" class="designer-content-item designer-fields-section" :data-content-item="contentItem" :draggable="canWrite" @dragstart="contentDragItem = contentItem" @dragover.prevent @drop.prevent="onContentDrop(contentIndex)" @dragend="contentDragItem = undefined">
+                        <div class="designer-content-heading"><div><strong>{{ contentItemLabel(contentItem) }}</strong><small>{{ $t('admin.workflow.individualFieldHint') }}</small></div><div class="designer-fields-section__tools"><span>{{ fieldsForContentItem(currentNode, contentItem, true).filter((field) => field.visible !== false).length }} / {{ fieldsForContentItem(currentNode, contentItem, true).length }}</span><a-button size="small" type="text" :disabled="!canWrite || contentIndex === 0" :data-testid="`move-workflow-section-up-${contentItem}`" :aria-label="`${$t('admin.workflow.moveUp')}：${contentItemLabel(contentItem)}`" @click="moveContentItem(contentItem, -1)"><ArrowUpOutlined /></a-button><a-button size="small" type="text" :disabled="!canWrite || contentIndex === currentNode.contentOrder.length - 1" :data-testid="`move-workflow-section-down-${contentItem}`" :aria-label="`${$t('admin.workflow.moveDown')}：${contentItemLabel(contentItem)}`" @click="moveContentItem(contentItem, 1)"><ArrowDownOutlined /></a-button></div></div>
+                        <div class="designer-field-grid">
+                          <article v-for="field in fieldsForContentItem(currentNode, contentItem, true)" :key="field.key" class="designer-field-card" :class="{ selected: selectedFieldKey === field.key, 'is-hidden': field.visible === false }" data-testid="designer-field-card" :data-field-key="field.key" :aria-label="`${field.label}，${fieldTypeLabel(field.type)}`" role="group" :draggable="canWrite" @dragstart.stop="fieldDragKey = field.key" @dragover.prevent @drop.prevent.stop="onFieldDrop(fieldIndex(field.key))" @dragend.stop="fieldDragKey = undefined">
+                            <div class="designer-field-card__top"><span>{{ fieldTypeLabel(field.type) }}</span><a-tag v-if="field.visible === false" color="default">{{ $t('admin.workflow.hidden') }}</a-tag><span v-else-if="field.binding" class="designer-field-binding">{{ $t('admin.workflow.projectBinding') }}</span><a-tag v-else-if="field.required" color="red">{{ $t('admin.workflow.required') }}</a-tag></div>
+                            <div class="designer-field-card__name"><button type="button" class="designer-field-select" :aria-pressed="selectedFieldKey === field.key" :aria-label="`${field.label}，${fieldTypeLabel(field.type)}`" @click="selectField(field.key)"><strong>{{ field.label || $t('admin.workflow.unnamedField') }}</strong><em v-if="field.required">*</em></button><div class="designer-field-card__actions"><a-button size="small" type="text" :disabled="!canWrite || fieldIndexInContentItem(field.key, contentItem) === 0" :data-testid="`move-workflow-field-${field.key}-up`" :aria-label="`${$t('admin.workflow.moveUp')}：${field.label}`" @click.stop="moveField(field.key, -1, contentItem)"><ArrowUpOutlined /></a-button><a-button size="small" type="text" :disabled="!canWrite || fieldIndexInContentItem(field.key, contentItem) === fieldsForContentItem(currentNode, contentItem, true).length - 1" :data-testid="`move-workflow-field-${field.key}-down`" :aria-label="`${$t('admin.workflow.moveDown')}：${field.label}`" @click.stop="moveField(field.key, 1, contentItem)"><ArrowDownOutlined /></a-button></div></div>
+                            <small class="designer-field-card__key">{{ field.binding ? bindingLabel(field.binding) : `${$t('admin.workflow.nodeField')} · ${field.key}` }}</small>
+                            <div class="designer-field-control">
+                              <a-input v-if="field.type === 'TEXT'" disabled :placeholder="$t('admin.workflow.previewValue')" />
+                              <a-textarea v-else-if="field.type === 'TEXTAREA'" disabled :placeholder="$t('admin.workflow.previewValue')" :rows="2" />
+                              <a-input v-else-if="field.type === 'NUMBER'" disabled type="number" :placeholder="$t('admin.workflow.previewValue')" />
+                              <a-radio-group v-else-if="field.type === 'RADIO'" disabled><a-radio v-for="option in field.options" :key="option" :value="option">{{ option }}</a-radio><a-radio v-if="!field.options.length" disabled>{{ $t('admin.workflow.optionPlaceholder') }}</a-radio></a-radio-group>
+                              <a-select v-else-if="field.type === 'SINGLE_SELECT'" disabled :placeholder="$t('admin.workflow.previewValue')"><a-select-option v-for="option in field.options" :key="option" :value="option">{{ option }}</a-select-option></a-select>
+                              <a-select v-else-if="field.type === 'MULTI_SELECT'" mode="multiple" disabled :placeholder="$t('admin.workflow.previewValue')"><a-select-option v-for="option in field.options" :key="option" :value="option">{{ option }}</a-select-option></a-select>
+                              <a-select v-else-if="field.type === 'PERSON'" disabled :placeholder="$t('admin.workflow.previewPerson')" />
+                              <a-select v-else-if="field.type === 'PERSON_MULTI'" mode="multiple" disabled :placeholder="$t('admin.workflow.previewPeople')" />
+                              <a-date-picker v-else-if="field.type === 'DATE'" disabled />
+                              <a-range-picker v-else-if="field.type === 'DATE_RANGE'" disabled />
+                              <div v-else class="designer-attachment-placeholder">{{ $t('admin.workflow.previewAttachment') }}</div>
+                            </div>
+                          </article>
+                          <a-empty v-if="!fieldsForContentItem(currentNode, contentItem, true).length" :description="$t('admin.workflow.noCustomFields')" />
+                        </div>
+                      </section>
+                      <section v-else class="designer-content-item designer-workbench-card" :data-content-item="contentItem" :draggable="canWrite" @dragstart="contentDragItem = contentItem" @dragover.prevent @drop.prevent="onContentDrop(contentIndex)" @dragend="contentDragItem = undefined">
+                        <div><strong>{{ contentItemLabel(contentItem) }}</strong><p>{{ $t(`admin.workflow.componentHints.${contentItem.slice('component:'.length)}`) }}</p><div class="designer-workbench-placeholder">{{ $t('admin.workflow.reusedComponent') }}</div></div>
+                        <div class="designer-workbench-actions"><a-button size="small" :disabled="!canWrite || contentIndex === 0" :aria-label="$t('admin.workflow.moveUp')" @click="moveContentItem(contentItem, -1)"><ArrowUpOutlined /></a-button><a-button size="small" :disabled="!canWrite || contentIndex === currentNode.contentOrder.length - 1" :aria-label="$t('admin.workflow.moveDown')" @click="moveContentItem(contentItem, 1)"><ArrowDownOutlined /></a-button><a-button size="small" danger :disabled="!canWrite" :aria-label="$t('admin.workflow.removeComponent')" @click="removeContentItem(contentItem)"><DeleteOutlined /></a-button></div>
+                      </section>
+                    </template>
+                    <a-empty v-if="!currentNode.contentOrder.length" :description="$t('admin.workflow.noContentItems')" />
+                  </div>
+
+                  <section class="designer-fixed-module designer-task-board" data-testid="designer-fixed-task-board"><div class="designer-fixed-module__heading"><strong>{{ $t('admin.workflow.fixedBlocks.task-board') }}</strong><a-tag color="blue">{{ $t('admin.workflow.fixed') }}</a-tag></div><div class="designer-task-columns"><div v-for="column in ['todo', 'inProgress', 'done']" :key="column"><span>{{ $t(`admin.workflow.taskColumns.${column}`) }}</span><small>+ {{ $t('admin.workflow.addTask') }}</small></div></div></section>
+                </section>
+
+                <aside class="designer-panel designer-inspector" data-testid="designer-inspector" :aria-label="$t('admin.workflow.fieldProperties')">
+                  <div class="designer-panel-heading"><div><h3>{{ selectedField ? $t('admin.workflow.fieldProperties') : $t('admin.workflow.nodeProperties') }}</h3><p>{{ selectedField?.label || currentNode.name }}</p></div><a-button v-if="selectedField" type="text" size="small" :aria-label="$t('admin.workflow.nodeSettings')" @click="selectedFieldKey = ''">{{ $t('admin.workflow.nodeSettings') }}</a-button><a-button v-else type="text" size="small" :aria-label="$t('admin.workflow.fieldProperties')" :disabled="!currentNode.fields.length" @click="selectedFieldKey = firstFieldKey(currentNode)">{{ $t('admin.workflow.fieldProperties') }}</a-button></div>
+                  <a-form v-if="selectedField" layout="vertical" class="designer-property-form">
+                    <a-form-item :label="$t('admin.workflow.fieldLabel')"><a-input id="workflow-field-label" v-model:value="selectedField.label" :disabled="!canWrite" :maxlength="60" @input="markDirty" /></a-form-item>
+                    <a-form-item :label="$t('admin.workflow.fieldKey')"><a-input :value="selectedField.key" disabled /></a-form-item>
+                    <a-form-item :label="selectedField.binding ? $t('admin.workflow.binding') : $t('admin.workflow.fieldType')"><a-input v-if="selectedField.binding" :value="`${bindingLabel(selectedField.binding)} · ${fieldTypeLabel(selectedField.type)}`" disabled /><a-select v-else :value="selectedField.type" :disabled="!canWrite" @change="updateFieldType(selectedField, $event)"><a-select-option v-for="type in fieldTypes" :key="type" :value="type">{{ fieldTypeLabel(type) }}</a-select-option></a-select></a-form-item>
+                    <a-form-item v-if="['RADIO', 'SINGLE_SELECT', 'MULTI_SELECT'].includes(selectedField.type)" :label="$t('admin.workflow.fieldOptions')"><a-textarea id="workflow-field-options" :value="selectedField.options.join(', ')" :disabled="!canWrite" :placeholder="$t('admin.workflow.optionsComma')" :rows="3" @change="setFieldOptionsFromEvent(selectedField, $event)" /></a-form-item>
+                    <div class="designer-property-switches"><a-checkbox :checked="selectedField.visible !== false" :disabled="!canWrite" @change="updateFieldVisibility(selectedField, checkboxChecked($event))">{{ $t('admin.workflow.visible') }}</a-checkbox><a-checkbox id="workflow-field-required" v-model:checked="selectedField.required" :disabled="!canWrite || selectedField.visible === false" @change="markDirty">{{ $t('admin.workflow.required') }}</a-checkbox></div>
+                    <a-button v-if="canWrite" block danger class="designer-remove-field" @click="removeField(selectedField.key)"><DeleteOutlined /> {{ $t('admin.workflow.removeField') }}</a-button>
                   </a-form>
-                  <section class="inspector-section component-library">
-                    <div class="section-title"><div><h3>{{ $t('admin.workflow.componentLibrary') }}</h3><p>{{ $t('admin.workflow.componentLibraryHint') }}</p></div></div>
-                    <div class="field-palette" :aria-label="$t('admin.workflow.fieldPaletteAria')"><a-button v-for="type in fieldTypes" :key="type" size="small" :disabled="!canWrite" @click="addField(type)"><PlusOutlined /> {{ fieldTypeLabel(type) }}</a-button></div>
-                    <div class="binding-palette" :aria-label="$t('admin.workflow.bindingPaletteAria')"><a-button v-for="[key, binding] in availableBindings" :key="binding.binding" size="small" :disabled="!canWrite" @click="addBoundField(key)"><PlusOutlined /> {{ $t(`admin.workflow.projectFieldLabels.${key}`) }}</a-button></div>
-                    <label v-for="component in COMPONENTS" :key="component.key" class="component-option"><a-checkbox :checked="configuredComponents.includes(component.key)" :disabled="!canWrite" @change="toggleComponent(component.key, checkboxChecked($event))">{{ componentLabel(component.key) }}</a-checkbox><small>{{ $t(`admin.workflow.componentHints.${component.key}`) }}</small></label>
-                  </section>
-
-                  <section class="inspector-section">
-                    <div class="section-title"><div><h3>{{ $t('admin.workflow.componentOrder') }}</h3><p>{{ $t('admin.workflow.contentOrderHint') }}</p></div></div>
-                    <div v-if="currentNode.contentOrder.length" class="component-order-list">
-                      <article v-for="(contentItem, index) in currentNode.contentOrder" :key="contentItem" class="content-order-item" :draggable="canWrite" tabindex="0" @dragstart="contentDragItem = contentItem" @dragover.prevent @drop.prevent="onContentDrop(index)" @dragend="contentDragItem = undefined">
-                        <strong>{{ contentItemLabel(contentItem) }}</strong>
-                        <div class="field-order-tools"><a-button size="small" :disabled="!canWrite || index === 0" :aria-label="$t('admin.workflow.moveUp')" @click="moveContentItem(contentItem, -1)"><ArrowUpOutlined /></a-button><a-button size="small" :disabled="!canWrite || index === currentNode.contentOrder.length - 1" :aria-label="$t('admin.workflow.moveDown')" @click="moveContentItem(contentItem, 1)"><ArrowDownOutlined /></a-button><a-button v-if="contentItem.startsWith('component:')" size="small" danger type="text" :disabled="!canWrite" :aria-label="$t('admin.workflow.removeComponent')" @click="removeContentItem(contentItem)"><DeleteOutlined /></a-button></div>
-                      </article>
-                    </div>
-                    <a-empty v-else :description="$t('admin.workflow.noContentItems')" />
-                  </section>
-
-                  <section class="inspector-section">
-                    <div class="section-title"><div><h3>{{ $t('admin.workflow.customFields') }}</h3><p>{{ $t('admin.workflow.customFieldsHint') }}</p></div><a-button v-if="canWrite" size="small" @click="addField"><PlusOutlined /> {{ $t('admin.workflow.addField') }}</a-button></div>
-                    <div v-if="currentNode.fields.length" class="custom-field-list">
-                      <article v-for="(field, index) in currentNode.fields" :key="field.key" class="field-card custom-field-row" :draggable="canWrite" tabindex="0" @dragstart="fieldDragKey = field.key" @dragover.prevent @drop.prevent="onFieldDrop(index)" @dragend="fieldDragKey = undefined">
-                        <label class="custom-field-cell custom-field-label"><span>{{ $t('admin.workflow.fieldLabel') }}</span><a-input v-model:value="field.label" :disabled="!canWrite" :placeholder="$t('admin.workflow.fieldLabel')" :aria-label="$t('admin.workflow.fieldLabel')" @input="markDirty" /></label>
-                        <label class="custom-field-cell custom-field-key"><span>{{ $t('admin.workflow.fieldKey') }}</span><a-input :value="field.key" readonly :aria-label="$t('admin.workflow.fieldKey')" /></label>
-                        <label v-if="!field.binding" class="custom-field-cell custom-field-type"><span>{{ $t('admin.workflow.fieldType') }}</span><a-select :value="field.type" :disabled="!canWrite" :aria-label="$t('admin.workflow.fieldType')" @change="updateFieldType(field, $event)"><a-select-option v-for="type in fieldTypes" :key="type" :value="type">{{ fieldTypeLabel(type) }}</a-select-option></a-select></label>
-                        <div v-else class="custom-field-cell custom-field-type"><span>{{ $t('admin.workflow.binding') }}</span><strong>{{ bindingLabel(field.binding) }} · {{ fieldTypeLabel(field.type) }}</strong></div>
-                        <div class="custom-field-cell custom-field-visible"><a-checkbox :checked="field.visible !== false" :disabled="!canWrite" @change="updateFieldVisibility(field, checkboxChecked($event))">{{ $t('admin.workflow.visible') }}</a-checkbox></div>
-                        <div class="custom-field-cell custom-field-required"><a-checkbox v-model:checked="field.required" :disabled="!canWrite || field.visible === false" @change="markDirty">{{ $t('admin.workflow.required') }}</a-checkbox></div>
-                        <label class="custom-field-cell custom-field-options"><span>{{ $t('admin.workflow.fieldOptions') }}</span><a-input v-if="['RADIO', 'SINGLE_SELECT', 'MULTI_SELECT'].includes(field.type)" :value="field.options.join(', ')" :disabled="!canWrite" :placeholder="$t('admin.workflow.optionsComma')" :aria-label="$t('admin.workflow.fieldOptions')" @change="setFieldOptionsFromEvent(field, $event)" /><span v-else class="custom-field-no-options">—</span></label>
-                        <div class="custom-field-actions"><div class="field-order-tools"><a-button size="small" :disabled="!canWrite || index === 0" :aria-label="$t('admin.workflow.moveUp')" @click="moveField(field.key, -1)"><ArrowUpOutlined /></a-button><a-button size="small" :disabled="!canWrite || index === currentNode.fields.length - 1" :aria-label="$t('admin.workflow.moveDown')" @click="moveField(field.key, 1)"><ArrowDownOutlined /></a-button></div><a-button v-if="canWrite" danger type="text" :aria-label="$t('admin.workflow.removeField')" @click="removeField(field.key)"><DeleteOutlined /></a-button></div>
-                      </article>
-                    </div>
-                    <a-empty v-else :description="$t('admin.workflow.noCustomFields')" />
-                  </section>
-                </div>
-                <aside class="inspector-preview">
-                  <div class="preview-sticky-title"><EyeOutlined /><strong>{{ $t('admin.workflow.nodePreview') }}</strong></div>
-                  <div class="preview-title"><span>{{ selectedNodeIndex + 1 }}</span><div><strong>{{ currentNode.name }}</strong><small>{{ currentNode.description || $t('admin.workflow.noNodeDescription') }}</small></div></div>
-                  <div class="preview-fixed"><b>{{ $t('admin.workflow.fixedBlocksTitle') }}</b><div class="preview-owner-schedule"><span>{{ $t('admin.workflow.fixedBlocks.owner') }}<small>{{ $t('admin.workflow.previewPerson') }}</small></span><span>{{ $t('admin.workflow.fixedBlocks.schedule') }}<small>{{ $t('admin.workflow.previewDateRange') }}</small></span></div><div class="preview-task-board"><span>{{ $t('admin.workflow.fixedBlocks.task-board') }}</span><i>{{ $t('admin.workflow.previewTaskColumns') }}</i></div></div>
-                  <template v-for="contentItem in currentNode.contentOrder" :key="contentItem">
-                    <div v-if="contentItem === 'fields' || contentItem === 'legacy-custom-fields'" class="preview-section"><b>{{ contentItemLabel(contentItem) }}</b><label v-for="field in fieldsForContentItem(currentNode, contentItem)" :key="field.key">{{ field.label }} <em v-if="field.required">*</em><small>{{ fieldTypeLabel(field.type) }}</small><input v-if="field.type === 'TEXT'" disabled :placeholder="$t('admin.workflow.previewValue')" /><textarea v-else-if="field.type === 'TEXTAREA'" disabled :placeholder="$t('admin.workflow.previewValue')" /><input v-else-if="field.type === 'NUMBER'" type="number" disabled :placeholder="$t('admin.workflow.previewValue')" /><a-radio-group v-else-if="field.type === 'RADIO'" disabled><a-radio v-for="option in field.options" :key="option" :value="option">{{ option }}</a-radio></a-radio-group><a-select v-else-if="field.type === 'SINGLE_SELECT'" disabled :placeholder="$t('admin.workflow.previewValue')"><a-select-option v-for="option in field.options" :key="option" :value="option">{{ option }}</a-select-option></a-select><a-select v-else-if="field.type === 'MULTI_SELECT'" mode="multiple" disabled :placeholder="$t('admin.workflow.previewValue')"><a-select-option v-for="option in field.options" :key="option" :value="option">{{ option }}</a-select-option></a-select><a-select v-else-if="field.type === 'PERSON'" disabled :placeholder="$t('admin.workflow.previewPerson')" /><a-select v-else-if="field.type === 'PERSON_MULTI'" mode="multiple" disabled :placeholder="$t('admin.workflow.previewPeople')" /><a-date-picker v-else-if="field.type === 'DATE'" disabled /><a-range-picker v-else-if="field.type === 'DATE_RANGE'" disabled /><span v-else-if="field.type === 'ATTACHMENT'" class="preview-module-placeholder">{{ $t('admin.workflow.previewAttachment') }}</span></label></div>
-                    <div v-else class="preview-section preview-component-card"><b>{{ componentLabel(contentItem.slice('component:'.length)) }}</b><p>{{ $t(`admin.workflow.componentHints.${contentItem.slice('component:'.length)}`) }}</p><div class="preview-module-placeholder">{{ $t('admin.workflow.reusedComponent') }}</div></div>
-                  </template>
+                  <a-form v-else layout="vertical" class="designer-property-form">
+                    <a-form-item :label="$t('admin.workflow.nodeName')"><a-input v-model:value="currentNode.name" :disabled="!canWrite" :maxlength="80" @input="markDirty" /></a-form-item>
+                    <a-form-item :label="$t('admin.workflow.nodeKey')"><a-input :value="currentNode.key" disabled /><small>{{ $t('admin.workflow.nodeKeyHint') }}</small></a-form-item>
+                    <a-form-item :label="$t('admin.workflow.nodeDescription')"><a-textarea v-model:value="currentNode.description" :disabled="!canWrite" :rows="3" @input="markDirty" /></a-form-item>
+                    <a-form-item :label="$t('admin.workflow.deliverables')"><a-textarea v-model:value="currentNode.deliverable" :disabled="!canWrite" :rows="3" @input="markDirty" /></a-form-item>
+                    <a-form-item :label="$t('admin.workflow.roles')"><a-textarea v-model:value="currentNode.roles" :disabled="!canWrite" :rows="3" @input="markDirty" /></a-form-item>
+                  </a-form>
                 </aside>
               </div>
             </section>
-            <a-empty v-else :description="$t('admin.workflow.chooseOrCreate')" />
+
+            <a-empty v-if="!currentNode" :description="$t('admin.workflow.chooseOrCreate')" />
           </template>
           <a-empty v-else :description="$t('admin.workflow.noTypes')"><a-button v-if="canWrite" type="primary" @click="typeModalOpen = true">{{ $t('admin.workflow.addType') }}</a-button></a-empty>
         </a-spin>
       </div>
-    </div>
 
     <a-modal v-model:open="previewOpen" :title="$t('admin.workflow.previewTitle')" width="780px" :footer="null">
       <div class="template-preview-flow"><div v-for="(node, index) in definition.nodes" :key="node.key" class="template-preview-node"><span>{{ String(index + 1).padStart(2, '0') }}</span><strong>{{ node.name }}</strong><small>{{ node.contentOrder.map((item) => contentItemLabel(item)).join(' · ') || $t('admin.workflow.custom') }}</small><div>{{ $t('admin.workflow.fixedBlocksTitle') }}：{{ FIXED_NODE_BLOCKS.map((block) => t(`admin.workflow.fixedBlocks.${block}`)).join('、') }}</div><template v-for="contentItem in node.contentOrder" :key="contentItem"><div v-if="contentItem === 'fields' || contentItem === 'legacy-custom-fields'" class="template-preview-content-item"><b>{{ contentItemLabel(contentItem) }}</b><div v-for="field in fieldsForContentItem(node, contentItem)" :key="field.key" class="preview-field-line">{{ field.label }} · {{ fieldTypeLabel(field.type) }}<b v-if="field.required">*</b></div></div><div v-else class="template-preview-content-item"><b>{{ contentItemLabel(contentItem) }}</b><small>{{ $t(`admin.workflow.componentHints.${contentItem.slice('component:'.length)}`) }}</small></div></template></div></div>
@@ -686,5 +735,152 @@ onMounted(async () => {
   .project-field-option { grid-template-columns: minmax(0, 1fr) auto auto; }
   .project-field-option .field-order-tools { grid-column: 1 / -1; justify-content: flex-end; }
   .workflow-node-card { flex-basis: 220px; }
+}
+
+.workflow-editor { min-width: 0; padding: 0; background: transparent; border: 0; box-shadow: none; }
+.workflow-template-bar { display: grid; grid-template-columns: minmax(240px, .9fr) minmax(480px, 1.6fr); align-items: center; gap: var(--pms-space-5); margin-bottom: var(--pms-space-4); padding: var(--pms-space-4); background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); box-shadow: var(--pms-shadow-sm); }
+.template-current { display: grid; min-width: 0; gap: var(--pms-space-2); }
+.template-current__eyebrow, .template-selector > span { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); font-weight: 650; }
+.template-current__name { display: flex; align-items: center; gap: var(--pms-space-2); min-width: 0; }
+.template-current__name :deep(.ant-input) { min-width: 0; color: var(--pms-text); font-size: var(--pms-font-size-body); font-weight: 650; }
+.template-current__description { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
+.template-selectors { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(180px, 1.1fr) auto; align-items: end; gap: var(--pms-space-3); }
+.template-selector { display: grid; min-width: 0; gap: var(--pms-space-2); }
+.template-selector__control { display: flex; align-items: center; gap: var(--pms-space-2); min-width: 0; }
+.template-selector__control :deep(.ant-select) { flex: 1; min-width: 0; }
+.workflow-canvas-panel { padding: var(--pms-space-4); background: var(--pms-surface); }
+.canvas-caption { align-items: center; margin-bottom: var(--pms-space-2); }
+.workflow-canvas-scroll { padding-bottom: var(--pms-space-3); }
+.workflow-node-card { display: flex; flex: 0 0 184px; flex-direction: row; align-items: center; gap: var(--pms-space-3); min-height: 62px; padding: var(--pms-space-3); }
+.workflow-node-card strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--pms-font-size-compact); }
+.workflow-node-card__copy { display: grid; flex: 1; min-width: 0; gap: var(--pms-space-2); }
+.workflow-node-select { padding: 0; color: inherit; text-align: left; background: transparent; border: 0; cursor: pointer; font: inherit; }
+.workflow-node-select:focus-visible { outline: 0; border-radius: var(--pms-radius-sm); box-shadow: var(--pms-focus-ring); }
+.workflow-node-card__copy small { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
+.stage-index { width: 28px; height: 28px; flex-basis: 28px; }
+.node-card-tools { position: absolute; top: 50%; right: var(--pms-space-2); display: flex; flex: 0 0 auto; gap: 0; margin: 0; padding: 0; background: var(--pms-surface); opacity: 0; pointer-events: none; transform: translateY(-50%); transition: opacity var(--pms-motion-fast) ease; }
+.workflow-node-card:hover .node-card-tools, .workflow-node-card:focus-within .node-card-tools { opacity: 1; pointer-events: auto; }
+.node-card-tools :deep(.ant-btn) { width: 32px; min-width: 32px; height: 32px; min-height: 32px; }
+.workflow-connector { flex-basis: var(--pms-space-5); }
+.workflow-node-designer { margin-top: var(--pms-space-4); padding: var(--pms-space-4); background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); box-shadow: var(--pms-shadow-sm); }
+.designer-node-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--pms-space-4); margin-bottom: var(--pms-space-4); padding: 0 0 var(--pms-space-3); border-bottom: 1px solid var(--pms-border); }
+.designer-node-heading__copy > span { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
+.designer-node-heading h2 { margin: var(--pms-space-2) 0; color: var(--pms-text); font-size: var(--pms-font-size-title); line-height: var(--pms-line-height-tight); }
+.designer-node-heading p { margin: 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
+.designer-grid { display: grid; grid-template-columns: minmax(168px, .72fr) minmax(340px, 2.25fr) minmax(224px, .96fr); align-items: start; gap: var(--pms-space-3); }
+.designer-panel { min-width: 0; padding: var(--pms-space-3); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); }
+.designer-panel-heading { display: flex; flex-direction: column; gap: var(--pms-space-2); margin-bottom: var(--pms-space-3); }
+.designer-panel-heading h3 { margin: 0; color: var(--pms-text); font-size: var(--pms-font-size-section); font-weight: 700; line-height: var(--pms-line-height-tight); }
+.designer-panel-heading p { margin: 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-normal); }
+.designer-palette { position: sticky; top: calc(var(--pms-topbar-height) + var(--pms-space-3)); max-height: calc(100vh - var(--pms-topbar-height) - var(--pms-space-8)); overflow: auto; }
+.designer-palette-list, .designer-palette-section { display: grid; gap: var(--pms-space-2); }
+.designer-palette-section { margin-top: var(--pms-space-4); padding-top: var(--pms-space-3); border-top: 1px solid var(--pms-border); }
+.designer-subheading { display: grid; gap: var(--pms-space-2); padding: 0 var(--pms-space-2); }
+.designer-subheading strong { color: var(--pms-text); font-size: var(--pms-font-size-compact); }
+.designer-subheading small { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-normal); }
+.designer-palette-item { display: grid; grid-template-columns: 28px minmax(0, 1fr) 16px; align-items: center; gap: var(--pms-space-2); width: 100%; min-height: 42px; padding: var(--pms-space-2); color: var(--pms-text); text-align: left; background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); cursor: pointer; font: inherit; }
+.designer-palette-item:hover:not(:disabled), .designer-palette-item.is-added { background: var(--pms-primary-soft); border-color: var(--pms-border-strong); }
+.designer-palette-item:focus-visible { outline: 0; box-shadow: var(--pms-focus-ring); }
+.designer-palette-item:disabled { cursor: not-allowed; opacity: .6; }
+.designer-palette-item--compact { min-height: 38px; }
+.designer-palette-item__copy { display: grid; min-width: 0; gap: var(--pms-space-2); }
+.designer-palette-item__copy strong { overflow: hidden; color: var(--pms-text); text-overflow: ellipsis; white-space: nowrap; font-size: var(--pms-font-size-compact); font-weight: 600; }
+.designer-palette-item__copy small { overflow: hidden; color: var(--pms-text-faint); text-overflow: ellipsis; white-space: nowrap; font-size: var(--pms-font-size-caption); }
+.field-type-symbol { display: grid; width: 26px; height: 26px; place-items: center; color: var(--pms-primary); background: var(--pms-primary-soft); border-radius: var(--pms-radius-sm); font-size: var(--pms-font-size-compact); font-weight: 700; }
+.palette-state { color: var(--pms-primary); font-size: var(--pms-font-size-caption); white-space: nowrap; }
+.designer-canvas { display: grid; gap: var(--pms-space-3); background: var(--pms-surface); }
+.designer-canvas-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--pms-space-3); }
+.designer-canvas-heading > div > span { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
+.designer-canvas-heading h3 { margin: var(--pms-space-2) 0; color: var(--pms-text); font-size: var(--pms-font-size-body); }
+.designer-canvas-heading p { margin: 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-relaxed); }
+.designer-canvas-heading__hint { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); text-align: right; }
+.designer-fixed-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--pms-space-2); }
+.designer-fixed-module { min-width: 0; padding: var(--pms-space-3); background: var(--pms-surface-muted); border: 1px dashed var(--pms-border-strong); border-radius: var(--pms-radius-sm); }
+.designer-fixed-module__heading { display: flex; align-items: center; justify-content: space-between; gap: var(--pms-space-2); margin-bottom: var(--pms-space-2); }
+.designer-fixed-module__heading strong { color: var(--pms-text); font-size: var(--pms-font-size-compact); }
+.designer-fixed-module :deep(.ant-select), .designer-fixed-module :deep(.ant-picker) { width: 100%; }
+.designer-fixed-module :deep(.ant-tag) { margin: 0; font-size: var(--pms-font-size-caption); }
+.designer-content-stack { display: grid; gap: var(--pms-space-3); min-width: 0; }
+.designer-content-item { min-width: 0; padding: var(--pms-space-3); background: var(--pms-surface-muted); border: 1px dashed var(--pms-border-strong); border-radius: var(--pms-radius-sm); }
+.designer-content-item[draggable="true"] { cursor: grab; }
+.designer-content-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--pms-space-3); margin-bottom: var(--pms-space-3); }
+.designer-content-heading > div { display: grid; gap: var(--pms-space-2); }
+.designer-content-heading > .designer-fields-section__tools { display: flex; align-items: center; }
+.designer-content-heading strong, .designer-workbench-card strong { color: var(--pms-text); font-size: var(--pms-font-size-compact); }
+.designer-content-heading small { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
+.designer-fields-section__tools { display: flex; align-items: center; gap: var(--pms-space-2); }
+.designer-fields-section__tools > span { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
+.designer-fields-section__tools :deep(.ant-btn), .designer-field-card__actions :deep(.ant-btn) { width: 32px; min-width: 32px; height: 32px; padding: 0; }
+.designer-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--pms-space-2); }
+.designer-field-card { display: grid; align-content: start; gap: var(--pms-space-2); min-width: 0; padding: var(--pms-space-3); background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); cursor: grab; transition: border-color var(--pms-motion-fast) ease, box-shadow var(--pms-motion-fast) ease; }
+.designer-field-card:hover { border-color: var(--pms-border-strong); }
+.designer-field-card.selected { border-color: var(--pms-primary); box-shadow: 0 0 0 2px var(--pms-primary-soft); }
+.designer-field-card.is-hidden { opacity: .62; border-style: dashed; }
+.designer-field-card:focus-visible { outline: 0; box-shadow: var(--pms-focus-ring); }
+.designer-field-card__top { display: flex; align-items: center; justify-content: space-between; gap: var(--pms-space-2); color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
+.designer-field-card__top :deep(.ant-tag) { margin: 0; font-size: var(--pms-font-size-caption); }
+.designer-field-card__name { display: flex; align-items: center; justify-content: space-between; gap: var(--pms-space-2); min-width: 0; }
+.designer-field-select { display: flex; align-items: center; gap: var(--pms-space-2); min-width: 0; padding: 0; color: inherit; text-align: left; background: transparent; border: 0; cursor: pointer; font: inherit; }
+.designer-field-select:focus-visible { outline: 0; border-radius: var(--pms-radius-sm); box-shadow: var(--pms-focus-ring); }
+.designer-field-card__actions { display: flex; flex: 0 0 auto; }
+.designer-field-card__name strong { overflow: hidden; color: var(--pms-text); text-overflow: ellipsis; white-space: nowrap; font-size: var(--pms-font-size-compact); font-weight: 650; }
+.designer-field-card__name em { color: var(--pms-danger); font-style: normal; }
+.designer-field-card__key { overflow: hidden; color: var(--pms-text-faint); text-overflow: ellipsis; white-space: nowrap; font-size: var(--pms-font-size-caption); }
+.designer-field-binding { color: var(--pms-primary); font-size: var(--pms-font-size-caption); }
+.designer-field-control { min-width: 0; }
+.designer-field-control :deep(.ant-input), .designer-field-control :deep(.ant-input-number), .designer-field-control :deep(.ant-select), .designer-field-control :deep(.ant-picker) { width: 100%; min-width: 0; font-size: var(--pms-font-size-caption); }
+.designer-field-control :deep(.ant-radio-group) { display: flex; flex-wrap: wrap; gap: var(--pms-space-2); font-size: var(--pms-font-size-caption); }
+.designer-field-control :deep(.ant-radio-wrapper) { margin: 0; font-size: var(--pms-font-size-caption); }
+.designer-attachment-placeholder, .designer-workbench-placeholder { padding: var(--pms-space-2); color: var(--pms-text-faint); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); font-size: var(--pms-font-size-caption); }
+.designer-workbench-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--pms-space-3); }
+.designer-workbench-card p { margin: var(--pms-space-2) 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-normal); }
+.designer-workbench-actions { display: flex; gap: var(--pms-space-2); }
+.designer-inspector { position: sticky; top: calc(var(--pms-topbar-height) + var(--pms-space-3)); }
+.designer-inspector .designer-panel-heading { flex-direction: row; align-items: flex-start; justify-content: space-between; gap: var(--pms-space-2); padding-bottom: var(--pms-space-3); border-bottom: 1px solid var(--pms-border); }
+.designer-inspector .designer-panel-heading p { margin: var(--pms-space-2) 0 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); }
+.designer-property-form { display: grid; gap: var(--pms-space-2); }
+.designer-property-form :deep(.ant-form-item) { margin-bottom: var(--pms-space-2); }
+.designer-property-form :deep(.ant-form-item-label > label) { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); }
+.designer-property-form :deep(.ant-input), .designer-property-form :deep(.ant-select) { width: 100%; font-size: var(--pms-font-size-compact); }
+.designer-property-form :deep(.ant-form-item-extra), .designer-property-form small { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-normal); }
+.designer-property-switches { display: grid; gap: var(--pms-space-3); margin: var(--pms-space-2) 0 var(--pms-space-4); padding: var(--pms-space-3) 0; border-top: 1px solid var(--pms-border); border-bottom: 1px solid var(--pms-border); }
+.designer-property-switches :deep(.ant-checkbox-wrapper) { color: var(--pms-text); font-size: var(--pms-font-size-compact); }
+.designer-remove-field { font-size: var(--pms-font-size-compact); }
+.designer-task-board { display: grid; gap: var(--pms-space-2); margin-top: var(--pms-space-3); border-style: solid; }
+.designer-task-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--pms-space-2); }
+.designer-task-columns > div { display: flex; align-items: center; justify-content: space-between; gap: var(--pms-space-2); min-width: 0; padding: var(--pms-space-2); background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); }
+.designer-task-columns span { overflow: hidden; color: var(--pms-text); text-overflow: ellipsis; white-space: nowrap; font-size: var(--pms-font-size-caption); }
+.designer-task-columns small { color: var(--pms-primary); font-size: var(--pms-font-size-caption); white-space: nowrap; }
+.workflow-admin-page :deep(.ant-empty) { margin: var(--pms-space-3) 0; }
+@media (max-width: 1200px) {
+  .workflow-template-bar { grid-template-columns: minmax(200px, .8fr) minmax(0, 1.4fr); gap: var(--pms-space-3); }
+  .template-selectors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .template-selectors > .ant-btn { grid-column: 1 / -1; justify-self: end; }
+  .designer-grid { grid-template-columns: minmax(150px, .7fr) minmax(300px, 2fr) minmax(200px, .9fr); }
+}
+@media (max-width: 980px) {
+  .workflow-template-bar { grid-template-columns: minmax(0, 1fr); }
+  .template-selectors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .designer-grid { grid-template-columns: minmax(155px, 220px) minmax(0, 1fr); }
+  .designer-inspector { position: static; grid-column: 1 / -1; }
+}
+@media (max-width: 700px) {
+  .workflow-editor { padding: 0; }
+  .workflow-template-bar { padding: var(--pms-space-3); }
+  .template-current__name { flex-wrap: wrap; }
+  .template-selectors { grid-template-columns: minmax(0, 1fr); }
+  .template-selectors > .ant-btn { grid-column: auto; justify-self: start; }
+  .workflow-canvas-panel { padding: var(--pms-space-3); }
+  .workflow-node-card { flex-basis: 220px; min-height: 92px; padding-bottom: var(--pms-space-8); }
+  .node-card-tools { top: auto; right: var(--pms-space-2); bottom: var(--pms-space-2); opacity: 1; pointer-events: auto; transform: none; }
+  .workflow-node-designer { padding: var(--pms-space-3); }
+  .designer-grid { grid-template-columns: minmax(0, 1fr); }
+  .designer-palette { position: static; max-height: none; }
+  .designer-palette-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .designer-palette-item { grid-template-columns: 28px minmax(0, 1fr) 16px; }
+  .designer-canvas-heading { flex-direction: column; }
+  .designer-fixed-grid, .designer-field-grid { grid-template-columns: minmax(0, 1fr); }
+  .designer-task-columns { grid-template-columns: minmax(0, 1fr); }
+  .designer-inspector { grid-column: auto; }
 }
 </style>

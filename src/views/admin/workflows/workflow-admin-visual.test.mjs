@@ -23,26 +23,38 @@ test('workflow layout spacing comes from the documented PMS spacing scale', () =
 
 test('workflow node actions retain compact-size pointer targets', () => {
   const tools = style.match(/\.node-card-tools\s+:deep\(\.ant-btn\)\s*\{([^}]+)\}/)?.[1] || ''
+  const compactTools = [...style.matchAll(/\.node-card-tools\s*\{([^}]+)\}/g)]
+    .map((match) => match[1])
+    .find((block) => block.includes('pointer-events: none')) || ''
   assert.match(tools, /min-width:\s*32px/)
   assert.match(tools, /min-height:\s*(?:32px|var\(--pms-control-height-compact\))/)
+  assert.match(compactTools, /position:\s*absolute/)
+  assert.match(compactTools, /pointer-events:\s*none/)
 })
 
-test('node preview remains available at tablet widths', () => {
-  const medium = style.match(/@media\s*\(max-width:\s*1200px\)\s*\{([\s\S]*?)(?=@media|$)/)?.[1] || ''
-  assert.ok(medium, 'expected a tablet layout rule')
-  assert.doesNotMatch(medium, /\.inspector-preview[^}]*display:\s*none/)
+test('workflow editor presents the node field palette, visual canvas, and property inspector', () => {
+  assert.match(template, /class="workflow-template-bar"[\s\S]*?class="workflow-node-designer"/)
+  assert.match(template, /class="designer-panel designer-palette"[\s\S]*?class="designer-panel designer-canvas"[\s\S]*?class="designer-panel designer-inspector"/)
+  assert.match(template, /data-testid="designer-fixed-owner"[\s\S]*?data-testid="designer-fixed-schedule"[\s\S]*?data-testid="designer-fixed-task-board"/)
+  assert.match(template, /<a-select :value="selectedTypeId" @change="changeProjectType/)
+  assert.doesNotMatch(template, /<a-select :value="selectedTypeId" :disabled="!canWrite"/)
+  assert.match(style, /\.designer-grid\s*\{[^}]*grid-template-columns:\s*minmax\(168px,[^}]+minmax\(224px/)
 })
 
-test('custom field controls have persistent visible labels', () => {
-  assert.ok(/class="[^"]*custom-field-label[^"]*"[\s\S]*?\$t\('admin\.workflow\.fieldLabel'\)/.test(template), 'field label must remain visible')
-  assert.ok(/class="[^"]*custom-field-key[^"]*"[\s\S]*?\$t\('admin\.workflow\.fieldKey'\)/.test(template), 'field key must remain visible')
-  assert.ok(/class="[^"]*custom-field-type[^"]*"[\s\S]*?\$t\('admin\.workflow\.fieldType'\)/.test(template), 'field type must remain visible')
+test('node metadata and selected field properties remain editable in the inspector', () => {
+  assert.match(template, /\$t\('admin\.workflow\.fieldLabel'\)[^\n]*id="workflow-field-label"/)
+  assert.match(template, /:value="selectedField\.key" disabled/)
+  assert.match(template, /v-model:value="currentNode\.deliverable"/)
+  assert.match(template, /v-model:value="currentNode\.roles"/)
+  assert.match(template, /@click="selectedFieldKey = ''"/)
 })
 
-test('custom field rows adapt to the inspector column instead of overlapping the preview', () => {
-  assert.match(style, /\.inspector-main\s*\{[^}]*container-type:\s*inline-size/)
-  assert.match(style, /@container\s*\([^)]*max-width:\s*760px\)[\s\S]*?\.custom-field-row\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/)
-  assert.match(style, /@container\s*\([^)]*max-width:\s*760px\)[\s\S]*?grid-template-areas:\s*"label key"\s*"type options"\s*"visible required"\s*"actions actions"/)
+test('designer fields and inspector adapt to mobile widths', () => {
+  const mobileStart = style.lastIndexOf('@media (max-width: 700px)')
+  const mobile = style.slice(mobileStart).match(/@media\s*\(max-width:\s*700px\)\s*\{([\s\S]*?)(?=@media|$)/)?.[1] || ''
+  assert.match(mobile, /(?:\.designer-fixed-grid,\s*)?\.designer-field-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/)
+  assert.match(mobile, /\.designer-inspector\s*\{[^}]*grid-column:\s*auto/)
+  assert.match(mobile, /\.node-card-tools\s*\{[^}]*opacity:\s*1[^}]*pointer-events:\s*auto/)
 })
 
 test('workflow editor normalizes legacy definitions before editing and persists schema v2', () => {
@@ -61,21 +73,38 @@ test('content editor uses v2 contentOrder and model helpers rather than legacy c
   assert.doesNotMatch(source, /projectBasicInfoFields/)
 })
 
-test('field cards support keyboard and pointer reordering while keeping fixed blocks outside deletion', () => {
-  assert.match(template, /class="content-order-item"[\s\S]*?:draggable="canWrite"/)
-  assert.match(template, /class="field-card custom-field-row"[\s\S]*?:draggable="canWrite"/)
+test('node content and individual field cards support pointer sorting while keeping fixed blocks outside deletion', () => {
+  assert.match(template, /class="designer-content-item designer-fields-section"[\s\S]*?:draggable="canWrite"/)
+  assert.match(template, /class="designer-field-card"[\s\S]*?:draggable="canWrite"/)
+  assert.match(template, /class="designer-fields-section__tools"[\s\S]*?moveContentItem/)
+  assert.match(template, /class="designer-field-card__actions"[\s\S]*?moveField/)
+  assert.match(style, /\.designer-content-heading\s*>\s*\.designer-fields-section__tools\s*\{[^}]*display:\s*flex/)
+  assert.match(template, /class="designer-content-item designer-workbench-card"[^>]*:draggable="canWrite"/)
   assert.match(template, /:aria-label="\$t\('admin\.workflow\.moveUp'\)"[\s\S]*?moveContentItem/)
-  assert.match(template, /:aria-label="\$t\('admin\.workflow\.moveDown'\)"[\s\S]*?moveField/)
-  assert.match(template, /v-if="contentItem\.startsWith\('component:'\)"[\s\S]*?removeContentItem/)
+  assert.match(template, /:disabled="!canWrite"\s+:aria-label="\$t\('admin\.workflow\.removeComponent'\)"/)
+  assert.match(source, /function onFieldDrop\([\s\S]*?moveWorkflowField/)
+  assert.match(template, /class="designer-workbench-actions"[\s\S]*?removeContentItem/)
   assert.match(template, /FIXED_NODE_BLOCKS/)
 })
 
 test('bound fields expose only editable label visibility and requiredness', () => {
-  assert.match(template, /<a-input :value="field\.key" readonly/)
-  assert.match(template, /v-if="!field\.binding"[\s\S]*?custom-field-type/)
-  assert.match(template, /field\.binding[\s\S]*?bindingLabel/)
-  assert.match(template, /@change="updateFieldVisibility\(field, checkboxChecked\(\$event\)\)"/)
-  assert.match(template, /v-model:checked="field\.required"/)
+  assert.match(template, /<a-input :value="selectedField\.key" disabled/)
+  assert.match(template, /v-if="selectedField\.binding"[\s\S]*?bindingLabel\(selectedField\.binding\)/)
+  assert.match(template, /@change="updateFieldVisibility\(selectedField, checkboxChecked\(\$event\)\)"/)
+  assert.match(template, /v-model:checked="selectedField\.required"/)
+})
+
+test('node and field selection use accessible buttons with selected state', () => {
+  assert.match(template, /class="workflow-node-card__copy workflow-node-select"[\s\S]*?:aria-pressed="selectedNodeKey === node\.key"/)
+  assert.match(template, /class="designer-field-select"[\s\S]*?:aria-pressed="selectedFieldKey === field\.key"/)
+  assert.match(template, /class="designer-field-card"[^>]*role="group"/)
+  const nodeHeading = template.split('<header class="designer-node-heading"')[1]?.split('</header>')[0] || ''
+  assert.doesNotMatch(nodeHeading, /admin\.workflow\.nodeSettings/)
+})
+
+test('inspector heading styles do not override the palette heading layout', () => {
+  assert.match(style, /\.designer-inspector\s+\.designer-panel-heading\s*\{[^}]*flex-direction:\s*row/)
+  assert.doesNotMatch(style, /(?:^|\})\s*\.designer-panel-heading\s*\{[^}]*flex-direction:\s*row/)
 })
 
 test('field palette and preview include every schema v2 control type', () => {
@@ -96,8 +125,8 @@ test('preview uses dedicated controls for numeric, people, and date field types'
 })
 
 test('node preview sizes to its content instead of stretching beside the full editor', () => {
-  const preview = style.match(/\.inspector-preview\s*\{([^}]+)\}/)?.[1] || ''
-  assert.match(preview, /align-self:\s*start/)
+  const inspector = style.match(/\.designer-inspector\s*\{([^}]+)\}/)?.[1] || ''
+  assert.match(inspector, /position:\s*sticky/)
 })
 
 test('legacy custom fields keep a translated, ordered slot in editor and template previews', () => {
@@ -106,7 +135,7 @@ test('legacy custom fields keep a translated, ordered slot in editor and templat
   const enLocale = fs.readFileSync(new URL('../../../locales/en-US.ts', import.meta.url), 'utf8')
 
   assert.match(source, /if \(contentItem === 'legacy-custom-fields'\) return t\('admin\.workflow\.legacyCustomFieldsSection'\)/)
-  assert.match(template, /v-if="contentItem\.startsWith\('component:'\)"[^>]*@click="removeContentItem\(contentItem\)"/)
+  assert.match(template, /class="designer-content-item designer-workbench-card"[\s\S]*?@click="removeContentItem\(contentItem\)"/)
   assert.match(templatePreview, /node\.contentOrder\.map\(\(item\) => contentItemLabel\(item\)\)/)
   assert.match(templatePreview, /v-for="contentItem in node\.contentOrder"[\s\S]*?fieldsForContentItem\(node, contentItem\)/)
   assert.doesNotMatch(templatePreview, /componentLabel\(item\.slice\('component:'\.length\)\)/)

@@ -55,7 +55,7 @@ function nodeFixture(definition) {
   }]
 }
 
-async function installApi(page, { definition = v2Definition(), onProjectUpdate, onNodeFields, onComplete, onUnmatched, legacy = false } = {}) {
+async function installApi(page, { definition = v2Definition(), onProjectUpdate, onNodeFields, onComplete, onUnmatched, legacy = false, user = admin, projectTypes = [{ id: 1, code: 'PRODUCT', name: '产品项目', sort: 0, defaultTemplateName: '旧版九阶段' }] } = {}) {
   const project = projectFixture(definition)
   const nodes = nodeFixture(definition)
   const allPeople = [
@@ -70,11 +70,17 @@ async function installApi(page, { definition = v2Definition(), onProjectUpdate, 
     const path = url.pathname.slice('/api'.length)
     const method = request.method()
     const json = (data) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(api(data)) })
-    if (path === '/auth/refresh') return json({ accessToken: 'fixture-token', user: admin })
-    if (path === '/auth/me') return json(admin)
-    if (path === '/admin/workflow-config/project-types') return json([{ id: 1, code: 'PRODUCT', name: '产品项目', sort: 0, defaultTemplateName: '旧版九阶段' }])
-    if (path === '/admin/workflow-config/templates') return json([{ id: 31, projectTypeId: 1, name: '旧版九阶段', defaultTemplate: true, draftRevision: 2, publishedVersionNo: 1, publishedVersionId: 88 }])
+    if (path === '/auth/refresh') return json({ accessToken: 'fixture-token', user })
+    if (path === '/auth/me') return json(user)
+    if (path === '/admin/workflow-config/project-types') return json(projectTypes)
+    if (path === '/admin/workflow-config/templates') {
+      const projectTypeId = Number(url.searchParams.get('projectTypeId'))
+      return json(projectTypeId === 2
+        ? [{ id: 32, projectTypeId: 2, name: '研发流程', defaultTemplate: true, draftRevision: 1, publishedVersionNo: 1, publishedVersionId: 99 }]
+        : [{ id: 31, projectTypeId: 1, name: '旧版九阶段', defaultTemplate: true, draftRevision: 2, publishedVersionNo: 1, publishedVersionId: 88 }])
+    }
     if (path === '/admin/workflow-config/templates/31') return json({ id: 31, projectTypeId: 1, name: '旧版九阶段', description: '', definition: legacy ? legacyDefinition : definition })
+    if (path === '/admin/workflow-config/templates/32') return json({ id: 32, projectTypeId: 2, name: '研发流程', description: '研发项目流程', definition: v2Definition() })
     if (path === '/admin/workflow-config/templates/31/draft' && method === 'PUT') return json({ id: 31, projectTypeId: 1, name: '旧版九阶段', definition: JSON.parse(request.postData() || '{}').definition })
     if (path === '/admin/workflow-config/templates/31/publish' && method === 'POST') return json({ id: 31 })
     if (path === '/projects/7' && method === 'GET') return json(project)
@@ -126,6 +132,94 @@ async function expectNoConsoleErrors(page) {
 test.describe('workflow field builder browser regression', () => {
   test.use({ baseURL })
 
+  test('workflow template editor follows the visual field canvas and inspector workflow', async ({ page }) => {
+    const unmatchedRequests = []
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await installApi(page, { onUnmatched: (request) => unmatchedRequests.push(request) })
+    const errors = await expectNoConsoleErrors(page)
+    let draftPayload
+    await page.route('**/api/admin/workflow-config/templates/31/draft', async (route) => {
+      draftPayload = JSON.parse(route.request().postData() || '{}')
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify(api({ id: 31, projectTypeId: 1, name: '旧版九阶段', definition: draftPayload.definition })) })
+    })
+
+    await page.goto('/admin/workflows')
+    await expect(page.getByRole('heading', { name: '流程模板配置' })).toBeVisible()
+    await expect(page.getByTestId('workflow-template-bar')).toBeVisible()
+    await expect(page.locator('.workflow-node-card')).toHaveCount(1)
+    await expect(page.getByTestId('designer-palette')).toBeVisible()
+    await expect(page.getByTestId('designer-canvas')).toBeVisible()
+    await expect(page.getByTestId('designer-inspector')).toContainText('字段属性')
+    await expect(page.getByTestId('designer-fixed-owner')).toBeVisible()
+    await expect(page.getByTestId('designer-fixed-schedule')).toBeVisible()
+    await expect(page.getByTestId('designer-fixed-task-board')).toBeVisible()
+
+    const fields = page.getByTestId('designer-field-card')
+    await expect(fields).toHaveCount(3)
+    await fields.filter({ hasText: '验收结论' }).click()
+    await expect(page.locator('#workflow-field-label')).toHaveValue('验收结论')
+    await page.getByTestId('add-workflow-field-TEXT').click()
+    await expect(fields).toHaveCount(4)
+    await page.locator('#workflow-field-label').fill('浏览器创建字段')
+    await expect(fields.filter({ hasText: '浏览器创建字段' })).toHaveCount(1)
+    await page.locator('#workflow-field-required').check()
+    await page.getByRole('button', { name: '保存草稿' }).click()
+    await expect.poll(() => draftPayload).toBeTruthy()
+    const savedField = draftPayload.definition.nodes[0].fields.find((field) => field.label === '浏览器创建字段')
+    expect(savedField).toMatchObject({ label: '浏览器创建字段', type: 'TEXT', required: true })
+    expect(errors).toEqual([])
+    expect(unmatchedRequests).toEqual([])
+  })
+
+  test('read-only workflow users can inspect and switch project types without edit actions', async ({ page }) => {
+    const viewer = { ...admin, systemRole: 2, permissionCodes: ['admin:workflow:read'] }
+    const projectTypes = [
+      { id: 1, code: 'PRODUCT', name: '产品项目', sort: 0, defaultTemplateName: '旧版九阶段' },
+      { id: 2, code: 'RESEARCH', name: '研发项目', sort: 1, defaultTemplateName: '研发流程' },
+    ]
+    await installApi(page, { user: viewer, projectTypes })
+    await page.goto('/admin/workflows')
+    const typePicker = page.getByRole('combobox', { name: '项目类型' })
+    await expect(typePicker).toBeEnabled()
+    await typePicker.click()
+    await page.getByRole('option', { name: '研发项目' }).click()
+    await expect(page.getByTestId('workflow-template-bar')).toContainText('研发项目')
+    await expect(page.getByRole('textbox', { name: '模板名称' })).toHaveValue('研发流程')
+    await expect(page.getByRole('heading', { name: '立项与启动' })).toBeVisible()
+    await expect(page.getByTestId('designer-palette').getByRole('button', { name: /单行文本/ })).toBeDisabled()
+    await expect(page.getByRole('button', { name: '保存草稿' })).toHaveCount(0)
+  })
+
+  test('mobile users can reorder fields and sections and select cards with the keyboard', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    const definition = v2Definition()
+    definition.nodes.push({ key: 'design', name: '方案设计', description: '', deliverable: '', roles: '', fields: [], contentOrder: [] })
+    await installApi(page, { definition })
+    await page.goto('/admin/workflows')
+    const nextNodeSelector = page.getByRole('button', { name: '方案设计' })
+    await expect(nextNodeSelector).toHaveAttribute('aria-pressed', 'false')
+    await nextNodeSelector.focus()
+    await nextNodeSelector.press('Space')
+    await expect(nextNodeSelector).toHaveAttribute('aria-pressed', 'true')
+    const nodeSelector = page.getByRole('button', { name: '立项与启动' })
+    await nodeSelector.focus()
+    await nodeSelector.press('Space')
+    await expect(nodeSelector).toHaveAttribute('aria-pressed', 'true')
+
+    const fieldSelector = page.getByRole('button', { name: '验收结论，单选按钮' })
+    await expect(fieldSelector).toHaveAttribute('aria-pressed', 'false')
+    await fieldSelector.focus()
+    await fieldSelector.press('Space')
+    await expect(fieldSelector).toHaveAttribute('aria-pressed', 'true')
+    await page.getByTestId('move-workflow-field-custom-radio-up').press('Space')
+    await expect(page.getByTestId('designer-field-card').first()).toHaveAttribute('data-field-key', 'custom-radio')
+
+    await page.getByTestId('add-workflow-component-requirement-scope').click()
+    await page.getByTestId('move-workflow-section-down-fields').press('Space')
+    await expect(page.locator('.designer-content-item').first()).toHaveAttribute('data-content-item', 'component:requirement-scope')
+    await expect(page.getByTestId('designer-inspector')).toBeVisible()
+  })
+
   test('admin adapts a v1 nine-stage template, reorders it, and persists v2 editor changes', async ({ page }) => {
     const unmatchedRequests = []
     await installApi(page, { legacy: true, onUnmatched: (request) => unmatchedRequests.push(request) })
@@ -137,26 +231,27 @@ test.describe('workflow field builder browser regression', () => {
     })
     await page.goto('/admin/workflows')
     await expect(page.locator('.workflow-node-card')).toHaveCount(9)
-    await expect(page.locator('.fixed-blocks .ant-tag')).toHaveCount(3)
-    await expect(page.locator('.field-card')).toHaveCount(3)
+    await expect(page.locator('.designer-fixed-module .ant-tag')).toHaveCount(3)
+    await expect(page.getByTestId('designer-fixed-task-board')).toBeVisible()
+    await expect(page.getByTestId('designer-field-card')).toHaveCount(3)
     const nodes = page.locator('.workflow-node-card')
     await nodes.nth(0).dragTo(nodes.nth(1))
     await expect(page.locator('.workflow-node-card').first()).toContainText('阶段 2')
-    const fields = page.locator('.field-card')
+    const fields = page.getByTestId('designer-field-card')
     await fields.nth(2).dragTo(fields.nth(0))
-    await expect(page.locator('.field-card .custom-field-label input').first()).toHaveValue('旧版备注')
-    const contentItems = page.locator('.content-order-item')
+    await expect(fields.first()).toContainText('旧版备注')
+    const contentItems = page.locator('.designer-content-item')
     await expect(contentItems).toHaveCount(2)
     await contentItems.nth(1).dragTo(contentItems.nth(0))
-    await expect(page.locator('.content-order-item').first()).toContainText('需求范围与基线')
-    await page.locator('.field-palette button').nth(3).click()
-    await page.locator('.field-palette button').nth(7).click()
-    const added = page.locator('.field-card')
+    await expect(page.locator('.designer-content-item').first()).toContainText('需求范围与基线')
+    await page.getByTestId('add-workflow-field-RADIO').click()
+    await page.locator('#workflow-field-label').fill('浏览器单选')
+    await page.locator('#workflow-field-options').fill('通过, 待补充')
+    await page.locator('#workflow-field-required').check()
+    await page.getByTestId('add-workflow-field-PERSON_MULTI').click()
+    const added = page.getByTestId('designer-field-card')
     await expect(added).toHaveCount(5)
-    await added.nth(3).locator('.custom-field-label input').fill('浏览器单选')
-    await added.nth(3).locator('.custom-field-options input').fill('通过, 待补充')
-    await added.nth(3).locator('.custom-field-required .ant-checkbox-wrapper').click()
-    await added.nth(4).locator('.custom-field-label input').fill('浏览器多人')
+    await page.locator('#workflow-field-label').fill('浏览器多人')
     await page.getByRole('button', { name: '预览' }).click()
     const preview = page.locator('.ant-modal:visible')
     await expect(preview).toBeVisible()

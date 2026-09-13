@@ -902,6 +902,13 @@ const enUS: MessageSchema = {
   },
   admin: {
     workflow: {
+      configTitle: 'Workflow template configuration', currentTemplate: 'Current template', fieldCount: '{count} form fields',
+      fieldComponents: 'Field components', addFieldHint: 'Click to add to the node form', projectFields: 'Project fields', projectFieldsHint: 'Bind existing project data', noAvailableProjectFields: 'All project fields have been added',
+      workbenchComponents: 'Business workbenches', workbenchComponentsHint: 'Add existing business capabilities to this node', added: 'Added', add: 'Add',
+      nodeSettings: 'Node settings', nodeProperties: 'Node properties', fieldProperties: 'Field properties', nodeCanvasAria: 'Visual node detail canvas', nodeDetailCanvas: 'Node detail canvas',
+      dragFieldsHint: 'Drag fields to change their order', individualFieldHint: 'Configure each input independently', hidden: 'Hidden', projectBinding: 'Project field', nodeField: 'Node field', unnamedField: 'Untitled field', optionPlaceholder: 'Option',
+      fieldTypeHints: { TEXT: 'Names, IDs, and more', TEXTAREA: 'Descriptions and notes', NUMBER: 'Counts and amounts', RADIO: 'Choose one option', SINGLE_SELECT: 'Choose one item', MULTI_SELECT: 'Choose multiple values', PERSON: 'Choose one person', PERSON_MULTI: 'Choose multiple people', DATE: 'One date', DATE_RANGE: 'Start and end dates', ATTACHMENT: 'Upload a file' },
+      taskColumns: { todo: 'To do', inProgress: 'In progress', done: 'Done' }, addTask: 'Add task',
       description: 'Maintain workflow templates by project type. Drag nodes to reorder them and configure node components and fields; each project stays bound to its published version.',
       projectTypes: 'Project types', typeHint: 'Choose a type to manage its workflow templates', addType: 'Add type', typeCode: 'Type code', typeName: 'Type name', typeDescription: 'Type description', typeRequired: 'Type code and name are required', typeSaveFailed: 'Could not save the project type',
       templates: 'Workflow templates', templatesHint: 'Each type can have multiple templates', noTemplates: 'No templates for this type', noTypes: 'No project types yet', noDefault: 'No default template', default: 'Default',
