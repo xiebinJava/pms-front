@@ -175,3 +175,38 @@ pnpm build                                 # passed, 3367 modules
 git diff --check                           # passed
 pnpm exec playwright test ... --reporter=line # 3 skipped (credentials not set)
 ```
+
+## 2026-09-13：企业项目看板
+
+### 验收环境与结果
+
+- 入口：`http://localhost:5173/projects/dashboard`；Docker Compose 本地环境，当前 Codex 内置浏览器。
+- 页面标题为“企业项目看板”，侧栏入口位于“经营分析”；“研发管理”下不再重复显示看板入口，原 URL 保持不变。
+- 桌面首屏及整页截图已检查：页面正常渲染，无空白页或 Vite/框架错误遮罩；筛选器、状态卡、健康分布、等级分布、组织对比、节点里程碑、重点关注项目和分页项目清单均可见。
+- `指标口径` 抽屉能区分当前可计算与待接入指标，并解释已驳回、评分阈值、线上故障、人天和历史趋势等数据限制。
+- 点击高风险分布后 URL 更新为 `?health=CRITICAL`，结果从 26 个项目收窄到 8 个；清除筛选后恢复为 26 个。
+- 点击项目名称进入原项目详情；相邻的独立分析按钮打开项目分析抽屉，显示健康原因、风险登记覆盖、开发故事和验收缺陷汇总。
+- 节点数据不可用时，项目清单和分析抽屉均显示 `—`；平均节点完成度排除旧缓存/旧字段进度，只统计有效节点数据。
+- 使用 390px 窄屏 Playwright 浏览器检查：页面无横向溢出，宽项目表格仅在自身滚动区域横向滚动。
+- 当前演示数据健康分布为高风险 8、需关注 9、健康 1、待评估 8；本次未改写项目演示数据。
+- 后端、前端容器均 healthy。MySQL 容器和数据卷未重建。
+
+### 工程验证
+
+```text
+node --test "src/**/*.test.mjs"                                      # 343 passed
+vue-tsc --noEmit                                                     # passed
+vite build                                                           # passed
+ProjectBoardPermissionTest, ProjectBoardServiceTest,
+ProjectBoardCalculatorTest, ProjectBoardPermissionsBatchTest          # 33 passed
+docker compose build backend frontend                                # passed
+git diff --check                                                     # passed after record cleanup
+```
+
+全量后端 Maven 测试尝试运行 437 项。看板相关测试通过；另有 29 项依赖 Testcontainers 的用例因 Maven 测试容器无法连接 Docker daemon 而报错，3 项与当前宿主环境有关的运维检查失败（`/bin/sh` 不支持脚本所用的 Bash 选项；Helm 文本断言要求 LF，但工作树文件使用 CRLF）。
+
+### 尚未验证与数据边界
+
+- 浏览器回归使用本地开发服务器和模拟 API 快照；390px 检查覆盖无节点进度、分析抽屉、项目详情跳转和表格独立滚动。截图保存在临时目录，不包含在仓库中。
+- 当前工具链没有关联此内置浏览器会话的控制台日志 API；已检查页面渲染、交互和服务健康，不宣称控制台零警告。
+- 项目评分/业务满意度、线上 P0/P1 故障、人力投入与可用人天、战略匹配度、需求 WIP 和历史趋势仍需接入相应数据源。

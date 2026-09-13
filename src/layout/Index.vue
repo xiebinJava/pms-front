@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { BellOutlined, BookOutlined, CloudUploadOutlined, DashboardOutlined, DownOutlined, ExperimentOutlined, LogoutOutlined, MenuOutlined, ProjectOutlined, SearchOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, MessageOutlined, NodeIndexOutlined } from '@ant-design/icons-vue'
+import { BellOutlined, BookOutlined, CloudUploadOutlined, DashboardOutlined, DownOutlined, ExperimentOutlined, LineChartOutlined, LogoutOutlined, MenuOutlined, ProjectOutlined, SearchOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, MessageOutlined, NodeIndexOutlined } from '@ant-design/icons-vue'
 import { useUserStore } from '/@/store/user'
 import LocaleSwitch from '/@/components/LocaleSwitch.vue'
 import { message } from 'ant-design-vue'
@@ -23,6 +23,7 @@ const navOpen = ref(false)
 // Keep both workspace groups visible by default; users can collapse either group
 // without losing the active route or its permission-filtered child links.
 const projectNavOpen = ref(true)
+const analysisNavOpen = ref(true)
 const configNavOpen = ref(true)
 const docsNavOpen = ref(true)
 const passwordForm = reactive({ currentPassword: '', newPassword: '', confirmPassword: '' })
@@ -52,7 +53,7 @@ const selectedKeys = computed(() => {
   if (route.path.startsWith('/manual/business-rules')) return ['manual-business-rules']
   if (route.path.startsWith('/manual/design-system')) return ['manual-design-system']
   if (route.path.startsWith('/manual')) return ['manual']
-  if (route.path.startsWith('/projects/dashboard')) return ['project-dashboard']
+  if (route.path.startsWith('/projects/dashboard')) return ['enterprise-project-board']
   if (route.path.startsWith('/projects')) return ['projects']
   if (route.path.startsWith('/admin/users')) return ['admin-users']
   if (route.path.startsWith('/admin/org')) return ['admin-org']
@@ -71,6 +72,7 @@ const menuRoutes: Record<string, string> = {
   'manual-business-rules': '/manual/business-rules#identity',
   'manual-design-system': '/manual/design-system#principles',
   'project-dashboard': '/projects/dashboard',
+  'enterprise-project-board': '/projects/dashboard',
   projects: '/projects',
   feedback: '/feedback',
   'admin-users': '/admin/users',
@@ -364,14 +366,21 @@ onBeforeUnmount(() => {
                 <DashboardOutlined /><span>{{ $t('nav.dashboard') }}</span>
               </button>
             </div>
+            <div v-if="canReadProjects" class="pms-nav-group pms-nav-group--analysis">
+              <button class="pms-nav-section-label" :class="{ 'pms-nav-section-label--active': selectedKeys.includes('enterprise-project-board') }" type="button" aria-controls="pms-analysis-subnav" :aria-expanded="analysisNavOpen" @click.stop="analysisNavOpen = !analysisNavOpen">
+                <LineChartOutlined /><span>{{ $t('nav.businessAnalysis') }}</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !analysisNavOpen }" />
+              </button>
+              <div v-if="analysisNavOpen" id="pms-analysis-subnav" class="pms-nav-subnav">
+                <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('enterprise-project-board') }" :aria-current="selectedKeys.includes('enterprise-project-board') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'enterprise-project-board' })">
+                  <DashboardOutlined /><span>{{ $t('nav.enterpriseProjectBoard') }}</span>
+                </button>
+              </div>
+            </div>
             <div class="pms-nav-group pms-nav-group--projects">
               <button class="pms-nav-section-label" :class="{ 'pms-nav-section-label--active': selectedKeys.includes('projects') }" type="button" aria-controls="pms-project-subnav" :aria-expanded="projectNavOpen" @click.stop="projectNavOpen = !projectNavOpen">
                 <ExperimentOutlined /><span>{{ $t('nav.rdManagement') }}</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !projectNavOpen }" />
               </button>
               <div v-if="projectNavOpen" id="pms-project-subnav" class="pms-nav-subnav">
-                <button v-if="canReadProjects" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('project-dashboard') }" :aria-current="selectedKeys.includes('project-dashboard') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'project-dashboard' })">
-                  <DashboardOutlined /><span>{{ $t('nav.projectDashboard') }}</span>
-                </button>
                 <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('projects') }" :aria-current="selectedKeys.includes('projects') ? 'page' : undefined" type="button" :aria-label="$t('nav.projectsTab')" @click.stop="handleMenuClick({ key: 'projects' })">
                   <ProjectOutlined /><span>{{ $t('nav.projects') }}</span>
                 </button>

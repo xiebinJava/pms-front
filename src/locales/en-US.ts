@@ -1,4 +1,5 @@
 import type { MessageSchema } from './zh-CN'
+import { enterpriseBoardEn } from './enterprise-board.ts'
 
 const enUS: MessageSchema = {
   app: {
@@ -43,7 +44,7 @@ const enUS: MessageSchema = {
     dashboard: 'Workbench',
     manual: 'User guide',
     projectList: 'Projects',
-    projectDashboard: 'Project cockpit',
+    projectDashboard: 'Enterprise project board',
     projectDetail: 'Project detail',
     notifications: 'Notification center',
     adminUsers: 'People & access',
@@ -60,7 +61,9 @@ const enUS: MessageSchema = {
     primary: 'Primary navigation',
     dashboard: 'Workbench',
     rdManagement: 'Delivery',
-    projectDashboard: 'Project cockpit',
+    businessAnalysis: 'Business analysis',
+    enterpriseProjectBoard: 'Enterprise project board',
+    projectDashboard: 'Enterprise project board',
     projects: 'Projects',
     projectsTab: 'Projects tab',
     configuration: 'Administration',
@@ -178,8 +181,9 @@ const enUS: MessageSchema = {
     viewTask: 'View task: {title}',
     viewProject: 'View project: {name}',
   },
+  enterpriseBoard: enterpriseBoardEn,
   projectDashboard: {
-    pageTitle: 'Project cockpit',
+    pageTitle: 'Enterprise project board',
     pageDescription: 'See delivery health, schedule variance, and upcoming milestones across your project portfolio.',
     scopeHint: 'Projects visible to your account',
     updatedAt: 'Updated {time}',

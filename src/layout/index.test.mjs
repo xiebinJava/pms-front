@@ -33,6 +33,16 @@ test('routes workbench separately from project management', () => {
   assert.match(routerSource, /redirect:\s*'\/dashboard'/)
 })
 
+test('migrates the enterprise project board out of R&D management without changing its route', () => {
+  assert.match(source, /pms-nav-group--analysis/)
+  assert.match(source, /\$t\('nav\.businessAnalysis'\)/)
+  assert.match(source, /\$t\('nav\.enterpriseProjectBoard'\)/)
+  assert.match(source, /'enterprise-project-board': '\/projects\/dashboard'/)
+  assert.match(source, /route\.path\.startsWith\('\/projects\/dashboard'\)\) return \['enterprise-project-board'\]/)
+  assert.doesNotMatch(source, /selectedKeys\.includes\('project-dashboard'\)/)
+  assert.match(source, /pms-nav-group--projects[\s\S]*?<span>\{\{ \$t\('nav\.projects'\) \}\}<\/span>/)
+})
+
 test('uses distinct icons for each navigation meaning', () => {
   assert.match(source, /ExperimentOutlined/)
   assert.match(source, /CloudUploadOutlined/)

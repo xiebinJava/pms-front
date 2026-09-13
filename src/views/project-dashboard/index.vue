@@ -1,576 +1,382 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
-import dayjs from 'dayjs'
-import {
-  CalendarOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  ProjectOutlined,
-  ReloadOutlined,
-  WarningOutlined,
-} from '@ant-design/icons-vue'
-import { getProjectPage } from '/@/api/project'
-import { getNodes } from '/@/api/node'
-import { getNodePlanResourceRisk } from '/@/api/node-plan-resource-risk'
-import type { Project, ProjectNode } from '/@/types/domain'
+import { useRoute, useRouter } from 'vue-router'
+import { BarChartOutlined, CalendarOutlined, CheckCircleOutlined, CloseOutlined, InfoCircleOutlined, ReloadOutlined, RightOutlined, WarningOutlined } from '@ant-design/icons-vue'
+import { getEnterpriseProjectBoard, type BoardHealth, type BoardPhase, type EnterpriseProjectBoard, type EnterpriseProjectBoardItem } from '/@/api/project-board'
+import { getProjectOrgTree } from '/@/api/admin-org'
+import { apiErrorMessage } from '/@/plugins/http'
+import type { OrgUnit } from '/@/types/domain'
 import { formatDate, formatDateTime } from '/@/utils/format'
-import { nodeHasComponent } from '/@/views/project/detail/workflow-config.mjs'
 import PmsPageHeader from '/@/components/PmsPageHeader.vue'
-import {
-  assessProjectHealth,
-  buildPortfolioSummary,
-  filterDashboardProjects,
-  type DashboardDataState,
-  type DashboardHealth,
-  type ProjectHealthAssessment,
-} from './project-dashboard.mjs'
+import { buildOrgComparison, filterBoardProjects, percentage, summarizeBoard, upcomingNodes, workflowProgress } from './enterprise-board.mjs'
+import './enterprise-board.css'
 
-type ProjectStatusFilter = 'ACTIVE' | 'ALL' | 'COMPLETED' | 'TERMINATED'
-type HealthFilter = DashboardHealth | 'ATTENTION' | 'ALL'
+type PhaseFilter = BoardPhase | 'ALL'
+type HealthFilter = Extract<BoardHealth, 'HEALTHY' | 'WATCH' | 'CRITICAL' | 'UNKNOWN'> | 'ALL' | 'ATTENTION'
+type LevelFilter = 'ALL' | '3' | '2' | '1' | '0' | 'UNKNOWN'
+interface OrgTreeOption { title: string; value: number | 'ALL'; key: string; children?: OrgTreeOption[] }
 
-interface DashboardProject extends ProjectHealthAssessment {
-  nodes: ProjectNode[]
+const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
+const board = ref<EnterpriseProjectBoard | null>(null)
+const orgTree = ref<OrgUnit[]>([])
+const orgTreeReady = ref(false)
+const orgTreeUnavailable = ref(false)
+const loadedOrgUnitId = ref<number | 'ALL'>('ALL')
+const loading = ref(true)
+const refreshing = ref(false)
+const stale = ref(false)
+const loadError = ref('')
+const methodologyOpen = ref(false)
+const selectedProject = ref<EnterpriseProjectBoardItem | null>(null)
+const page = ref(1)
+const pageSize = 10
+const filters = reactive<{ orgUnitId: number | 'ALL'; phase: PhaseFilter; health: HealthFilter; level: LevelFilter; query: string }>({
+  orgUnitId: 'ALL', phase: 'ALL', health: 'ALL', level: 'ALL', query: '',
+})
+let loadGeneration = 0
+let mounted = false
+
+function orgOptions(units: OrgUnit[], ancestors: string[] = []): OrgTreeOption[] {
+  return units.filter(unit => unit.status === 'ACTIVE').map((unit) => {
+    const path = [...ancestors, unit.name]
+    const children = orgOptions(unit.children || [], path)
+    return { title: path.join(' / '), value: unit.id, key: String(unit.id), ...(children.length ? { children } : {}) }
+  })
 }
 
-const router = useRouter()
-const { t } = useI18n()
-const projects = ref<DashboardProject[]>([])
-const loading = ref(true)
-const analyticsReady = ref(false)
-const loadingProgress = ref({ completed: 0, total: 0 })
-const loadError = ref('')
-const lastUpdatedAt = ref('')
-const filters = reactive<{
-  status: ProjectStatusFilter
-  orgUnitId: number | 'ALL'
-  health: HealthFilter
-  query: string
-}>({
-  status: 'ACTIVE',
-  orgUnitId: 'ALL',
-  health: 'ALL',
-  query: '',
+const organizationOptions = computed<OrgTreeOption[]>(() => [{
+  title: t('enterpriseBoard.filters.allOrganizations'), value: 'ALL', key: 'ALL', children: orgOptions(orgTree.value),
+}])
+const visibleProjects = computed(() => filterBoardProjects(board.value?.projects || [], {
+  phase: filters.phase, health: filters.health, level: filters.level, query: filters.query,
+}))
+const summary = computed(() => summarizeBoard(visibleProjects.value))
+const orgComparison = computed(() => buildOrgComparison(visibleProjects.value, orgTree.value, filters.orgUnitId))
+const nearNodes = computed(() => upcomingNodes(visibleProjects.value, board.value?.asOfDate || ''))
+const lastPage = computed(() => Math.max(1, Math.ceil(visibleProjects.value.length / pageSize)))
+const pageProjects = computed(() => visibleProjects.value.slice((page.value - 1) * pageSize, page.value * pageSize))
+const attentionProjects = computed(() => visibleProjects.value.filter((item) => (
+  (item.phase === 'NOT_STARTED' || item.phase === 'IN_PROGRESS' || item.phase === 'UNKNOWN')
+  && (item.health === 'CRITICAL' || item.health === 'WATCH' || item.health === 'UNKNOWN')
+)).slice(0, 4))
+const hasFilters = computed(() => filters.orgUnitId !== 'ALL' || filters.phase !== 'ALL' || filters.health !== 'ALL' || filters.level !== 'ALL' || Boolean(filters.query.trim()))
+const overviewCards = computed(() => [
+  { key: 'total', label: t('enterpriseBoard.metrics.total'), value: summary.value.total, filter: 'ALL', tone: 'blue' },
+  { key: 'notStarted', label: t('enterpriseBoard.metrics.notStarted'), value: summary.value.phases.NOT_STARTED, filter: 'NOT_STARTED', tone: 'neutral' },
+  { key: 'inProgress', label: t('enterpriseBoard.metrics.inProgress'), value: summary.value.phases.IN_PROGRESS, filter: 'IN_PROGRESS', tone: 'active' },
+  { key: 'completed', label: t('enterpriseBoard.metrics.completed'), value: summary.value.phases.COMPLETED, filter: 'COMPLETED', tone: 'success' },
+  { key: 'terminated', label: t('enterpriseBoard.metrics.terminated'), value: summary.value.phases.TERMINATED, filter: 'TERMINATED', tone: 'danger' },
+  { key: 'attention', label: t('enterpriseBoard.metrics.attention'), value: summary.value.attention, filter: 'ATTENTION', tone: 'warning' },
+])
+const healthItems = computed(() => [
+  { key: 'CRITICAL', count: summary.value.health.CRITICAL, tone: 'danger' },
+  { key: 'WATCH', count: summary.value.health.WATCH, tone: 'warning' },
+  { key: 'HEALTHY', count: summary.value.health.HEALTHY, tone: 'success' },
+  { key: 'UNKNOWN', count: summary.value.health.UNKNOWN, tone: 'neutral' },
+])
+const levelItems = computed(() => [3, 2, 1, 0, 'UNKNOWN'].map((level) => ({
+  key: String(level), label: t(`enterpriseBoard.levels.${level}`), count: summary.value.levels[level] || 0,
+  percent: percentage(summary.value.levels[level] || 0, summary.value.total),
+})))
+const activeFilterLabels = computed(() => {
+  const result: string[] = []
+  if (filters.orgUnitId !== 'ALL') {
+    const findName = (units: OrgUnit[]): string => {
+      for (const unit of units) {
+        if (unit.id === filters.orgUnitId) return unit.name
+        const child = findName(unit.children || [])
+        if (child) return child
+      }
+      return ''
+    }
+    result.push(findName(orgTree.value) || t('enterpriseBoard.filters.organization'))
+  }
+  if (filters.phase !== 'ALL') result.push(t(`enterpriseBoard.phases.${filters.phase}`))
+  if (filters.health !== 'ALL') result.push(t(`enterpriseBoard.health.${filters.health}`))
+  if (filters.level !== 'ALL') result.push(t(`enterpriseBoard.levels.${filters.level}`))
+  if (filters.query.trim()) result.push(filters.query.trim())
+  return result
+})
+const scopeLabel = computed(() => filters.orgUnitId !== 'ALL'
+  ? t('enterpriseBoard.filteredScope')
+  : board.value?.allCompanyScope ? t('enterpriseBoard.fullCompany') : t('enterpriseBoard.currentScope'))
+const ringStyle = computed(() => {
+  const total = summary.value.active
+  if (!total) return { background: 'var(--pms-surface-strong)' }
+  const colors = [['CRITICAL', 'var(--pms-danger)'], ['WATCH', 'var(--pms-warning)'], ['HEALTHY', 'var(--pms-success)'], ['UNKNOWN', 'var(--pms-text-faint)']] as const
+  let start = 0
+  const stops = colors.map(([key, color]) => {
+    const end = start + (summary.value.health[key] / total) * 100
+    const segment = `${color} ${start.toFixed(2)}% ${end.toFixed(2)}%`
+    start = end
+    return segment
+  })
+  return { background: `conic-gradient(${stops.join(', ')})` }
 })
 
-let loadGeneration = 0
-
-function isActiveProject(project: Project) {
-  return project.status == null || project.status === 0 || project.status === 1
-}
-
-async function loadAllProjects() {
-  const pageSize = 100
-  const firstPage = await getProjectPage({ currPage: 1, pageSize, view: 'ALL' })
-  const all = [...firstPage.list]
-  const pageCount = Math.max(1, firstPage.totalPage || Math.ceil(firstPage.total / pageSize))
-
-  for (let currPage = 2; currPage <= pageCount; currPage += 1) {
-    const page = await getProjectPage({ currPage, pageSize, view: 'ALL' })
-    all.push(...page.list)
-    if (!page.list.length) break
-  }
-  return all
-}
-
-function lifecycleItem(project: Project): DashboardProject {
-  const health = project.status === 2 ? 'COMPLETED' : 'TERMINATED'
+function queryFromRoute() {
+  const query = route.query
+  const phaseValues: PhaseFilter[] = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'TERMINATED', 'UNKNOWN']
+  const healthValues: HealthFilter[] = ['HEALTHY', 'WATCH', 'CRITICAL', 'UNKNOWN', 'ATTENTION']
+  const levelValues: LevelFilter[] = ['3', '2', '1', '0', 'UNKNOWN']
   return {
-    project,
-    health,
-    expectedProgress: project.status === 2 ? 100 : null,
-    actualProgress: Math.max(0, Math.min(100, Number(project.progress) || 0)),
-    progressVariance: null,
-    overdueNodeCount: 0,
-    openRiskCounts: { high: 0, medium: 0, low: 0 },
-    openRiskCount: 0,
-    riskDataState: 'NOT_CONFIGURED',
-    nodeDataState: 'NOT_CONFIGURED',
-    dataIssues: [],
-    nextNode: null,
-    nodes: [],
+    orgUnitId: typeof query.orgUnitId === 'string' && /^\d+$/.test(query.orgUnitId) ? Number(query.orgUnitId) : 'ALL',
+    phase: typeof query.phase === 'string' && phaseValues.includes(query.phase as PhaseFilter) ? query.phase as PhaseFilter : 'ALL',
+    health: typeof query.health === 'string' && healthValues.includes(query.health as HealthFilter) ? query.health as HealthFilter : 'ALL',
+    level: typeof query.level === 'string' && levelValues.includes(query.level as LevelFilter) ? query.level as LevelFilter : 'ALL',
+    query: typeof query.q === 'string' ? query.q.slice(0, 120) : '',
   }
 }
 
-async function assessProject(project: Project): Promise<DashboardProject> {
-  let nodes: ProjectNode[] = []
-  let nodeDataState: DashboardDataState = 'AVAILABLE'
-  let riskDataState: DashboardDataState = 'NOT_CONFIGURED'
-  let risks: Awaited<ReturnType<typeof getNodePlanResourceRisk>>['risks'] = []
-
-  try {
-    nodes = await getNodes(project.id)
-  } catch {
-    nodeDataState = 'UNAVAILABLE'
-    riskDataState = 'UNAVAILABLE'
-  }
-
-  if (nodeDataState === 'AVAILABLE') {
-    const riskNodes = nodes.filter((node) => nodeHasComponent(node, 'plan-resource-risk'))
-    if (riskNodes.length) {
-      riskDataState = 'AVAILABLE'
-      const riskResults = await Promise.all(riskNodes.map(async (node) => {
-        try {
-          return { available: true, risks: (await getNodePlanResourceRisk(project.id, node.id)).risks || [] }
-        } catch {
-          return { available: false, risks: [] as typeof risks }
-        }
-      }))
-      if (riskResults.some((result) => !result.available)) riskDataState = 'UNAVAILABLE'
-      risks = riskResults.flatMap((result) => result.risks)
-    }
-  }
-
-  return {
-    ...assessProjectHealth(project, nodes, risks, {
-      nodeDataState,
-      riskDataState,
-    }),
-    nodes,
-  }
+function syncQuery() {
+  const query: Record<string, string> = {}
+  if (filters.orgUnitId !== 'ALL') query.orgUnitId = String(filters.orgUnitId)
+  if (filters.phase !== 'ALL') query.phase = filters.phase
+  if (filters.health !== 'ALL') query.health = filters.health
+  if (filters.level !== 'ALL') query.level = filters.level
+  if (filters.query.trim()) query.q = filters.query.trim()
+  const current = Object.fromEntries(Object.entries(route.query).filter(([, value]) => typeof value === 'string'))
+  if (JSON.stringify(current) !== JSON.stringify(query)) router.replace({ name: 'project-dashboard', query }).catch(() => {})
 }
 
 async function loadData() {
   const generation = ++loadGeneration
-  loading.value = true
-  analyticsReady.value = false
+  const requestedOrg = filters.orgUnitId
+  if (loadedOrgUnitId.value !== requestedOrg) board.value = null
+  loading.value = !board.value
+  refreshing.value = Boolean(board.value)
   loadError.value = ''
-
-  try {
-    const allProjects = await loadAllProjects()
-    if (generation !== loadGeneration) return
-
-    const activeProjects = allProjects.filter(isActiveProject)
-    const archivedItems = allProjects
-      .filter((project) => !isActiveProject(project) && project.status !== 4)
-      .map(lifecycleItem)
-    const analyzed: DashboardProject[] = [...archivedItems]
-    loadingProgress.value = { completed: 0, total: activeProjects.length }
-    projects.value = [...analyzed]
-
-    const batchSize = 6
-    for (let start = 0; start < activeProjects.length; start += batchSize) {
-      const batch = activeProjects.slice(start, start + batchSize)
-      const results = await Promise.all(batch.map(assessProject))
-      if (generation !== loadGeneration) return
-      analyzed.push(...results)
-      loadingProgress.value = {
-        completed: Math.min(start + batch.length, activeProjects.length),
-        total: activeProjects.length,
-      }
-      projects.value = [...analyzed]
-    }
-
-    analyticsReady.value = true
-    lastUpdatedAt.value = new Date().toISOString()
-  } catch (error) {
-    loadError.value = error instanceof Error && error.message ? error.message : t('projectDashboard.loadFailed')
-  } finally {
-    if (generation === loadGeneration) loading.value = false
+  stale.value = false
+  const orgPromise = orgTreeReady.value ? Promise.resolve(orgTree.value) : getProjectOrgTree()
+  const [boardResult, orgResult] = await Promise.allSettled([
+    getEnterpriseProjectBoard({ orgUnitId: requestedOrg === 'ALL' ? undefined : requestedOrg }), orgPromise,
+  ])
+  if (generation !== loadGeneration) return
+  loading.value = false
+  refreshing.value = false
+  if (orgResult.status === 'fulfilled') {
+    orgTree.value = orgResult.value
+    orgTreeReady.value = true
+    orgTreeUnavailable.value = false
+  } else if (!orgTreeReady.value) {
+    orgTreeUnavailable.value = true
   }
-}
-
-const businessLineOptions = computed(() => {
-  const lines = new Map<number, string>()
-  for (const item of projects.value) {
-    if (item.project.orgUnitId != null && item.project.orgUnitName) {
-      lines.set(item.project.orgUnitId, item.project.orgUnitName)
-    }
+  if (boardResult.status === 'rejected') {
+    loadError.value = apiErrorMessage(boardResult.reason, t('enterpriseBoard.loadFailed'))
+    if (board.value) stale.value = true
+    return
   }
-  return [...lines.entries()]
-    .map(([id, name]) => ({ id, name }))
-    .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
-})
-
-const scopedProjects = computed(() => filterDashboardProjects(projects.value, {
-  status: filters.status,
-  orgUnitId: filters.orgUnitId,
-  query: filters.query,
-  health: 'ALL',
-}))
-const visibleProjects = computed(() => filterDashboardProjects(scopedProjects.value, { health: filters.health }))
-const summary = computed(() => buildPortfolioSummary(scopedProjects.value))
-const attentionCount = computed(() => summary.value.watchProjectCount + summary.value.criticalProjectCount)
-
-const healthRows = computed(() => {
-  const total = summary.value.activeProjectCount
-  return [
-    { key: 'HEALTHY' as const, count: summary.value.healthyProjectCount, percent: total ? Math.round(summary.value.healthyProjectCount / total * 100) : 0 },
-    { key: 'WATCH' as const, count: summary.value.watchProjectCount, percent: total ? Math.round(summary.value.watchProjectCount / total * 100) : 0 },
-    { key: 'CRITICAL' as const, count: summary.value.criticalProjectCount, percent: total ? Math.round(summary.value.criticalProjectCount / total * 100) : 0 },
-  ]
-})
-
-const upcomingNodes = computed(() => {
-  const today = dayjs().format('YYYY-MM-DD')
-  const limit = dayjs().add(30, 'day').format('YYYY-MM-DD')
-  return scopedProjects.value
-    .filter((item) => isActiveProject(item.project) && item.nextNode?.endDate && item.nextNode.endDate <= limit)
-    .map((item) => ({
-      projectId: item.project.id,
-      projectName: item.project.name,
-      nodeName: item.nextNode!.name,
-      endDate: item.nextNode!.endDate!,
-      daysUntil: Math.max(0, dayjs(item.nextNode!.endDate).startOf('day').diff(dayjs(today).startOf('day'), 'day')),
-    }))
-    .sort((left, right) => left.endDate.localeCompare(right.endDate))
-    .slice(0, 6)
-})
-
-const columns = computed(() => [
-  { title: t('projectDashboard.columns.project'), key: 'project', width: 250 },
-  { title: t('projectDashboard.columns.health'), key: 'health', width: 210 },
-  { title: t('projectDashboard.columns.currentNode'), key: 'node', width: 190 },
-  { title: t('projectDashboard.columns.progress'), key: 'progress', width: 180 },
-  { title: t('projectDashboard.columns.manager'), key: 'manager', width: 150 },
-  { title: t('projectDashboard.columns.endDate'), key: 'endDate', width: 120 },
-])
-
-const tableRowKey = (item: DashboardProject) => item.project.id
-const progressLabel = computed(() => loading.value && loadingProgress.value.total
-  ? t('projectDashboard.analyzing', loadingProgress.value)
-  : '')
-
-function openProject(projectId: number) {
-  void router.push(`/projects/${projectId}`)
+  board.value = boardResult.value
+  loadedOrgUnitId.value = requestedOrg
 }
 
-function selectHealth(health: HealthFilter) {
-  filters.health = filters.health === health ? 'ALL' : health
+function setPhase(value: string) { filters.phase = filters.phase === value ? 'ALL' : value as PhaseFilter }
+function setHealth(value: string) { filters.health = filters.health === value ? 'ALL' : value as HealthFilter }
+function setLevel(value: string) { filters.level = filters.level === value ? 'ALL' : value as LevelFilter }
+function resetFilters() {
+  filters.orgUnitId = 'ALL'; filters.phase = 'ALL'; filters.health = 'ALL'; filters.level = 'ALL'; filters.query = ''
+}
+function healthTone(health: string) {
+  if (health === 'CRITICAL') return 'danger'
+  if (health === 'WATCH') return 'warning'
+  if (health === 'HEALTHY' || health === 'COMPLETED') return 'success'
+  if (health === 'TERMINATED') return 'neutral'
+  return 'neutral'
+}
+function phaseTone(phase: string) {
+  if (phase === 'IN_PROGRESS') return 'active'
+  if (phase === 'COMPLETED') return 'success'
+  if (phase === 'TERMINATED') return 'danger'
+  return 'neutral'
+}
+function progressText(value?: number | null) {
+  return Number.isFinite(value) ? `${Math.min(100, Math.max(0, Number(value)))}%` : '—'
+}
+function nodeProgressText(item: EnterpriseProjectBoardItem) {
+  return progressText(workflowProgress(item))
+}
+function dateOffset(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !board.value?.asOfDate) return null
+  return Math.round((Date.parse(`${value}T00:00:00Z`) - Date.parse(`${board.value.asOfDate}T00:00:00Z`)) / 86_400_000)
+}
+function nodeDateLabel(item: EnterpriseProjectBoardItem) {
+  const date = item.nextNode?.endDate
+  if (!date) return ''
+  const offset = dateOffset(date)
+  if (offset == null) return formatDate(date)
+  if (offset < 0) return t('enterpriseBoard.overdueDays', { days: -offset })
+  if (offset === 0) return t('enterpriseBoard.today')
+  return t('enterpriseBoard.dueInDays', { days: offset })
+}
+function healthSignals(item: EnterpriseProjectBoardItem) {
+  const signals: string[] = []
+  if (item.overdueNodeCount) signals.push(t('enterpriseBoard.overdueNode', { count: item.overdueNodeCount }))
+  if (item.overdueDays) signals.push(t('enterpriseBoard.overdueProject', { days: item.overdueDays }))
+  if (item.highRiskCount) signals.push(t('enterpriseBoard.risk', { count: item.highRiskCount }))
+  if (item.mediumRiskCount) signals.push(t('enterpriseBoard.mediumRisk', { count: item.mediumRiskCount }))
+  if (item.progressVariance != null && item.progressVariance <= -8) signals.push(t('enterpriseBoard.scheduleLag', { value: Math.abs(item.progressVariance) }))
+  const issue = item.dataIssues?.[0]
+  if (issue) signals.push(t(`enterpriseBoard.issues.${issue}`))
+  return signals.slice(0, 3)
+}
+function orgBarLabel(group: { name: string; total: number; phases: Record<string, number> }) {
+  const phases = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'TERMINATED', 'UNKNOWN']
+  return `${group.name}，${t('enterpriseBoard.metrics.total')} ${group.total}，${phases.map(phase => `${t(`enterpriseBoard.phases.${phase}`)} ${group.phases[phase] || 0}`).join('，')}`
+}
+function openProject(item: EnterpriseProjectBoardItem) {
+  router.push({ name: 'project-detail', params: { id: item.project.id } })
+}
+function openOrg(id: number | null) {
+  if (id == null) return
+  filters.orgUnitId = id
 }
 
-function healthTagColor(health: DashboardHealth) {
-  if (health === 'CRITICAL') return 'red'
-  if (health === 'WATCH') return 'orange'
-  if (health === 'HEALTHY') return 'green'
-  return 'default'
-}
+watch(() => filters.orgUnitId, (value, previous) => {
+  page.value = 1
+  if (mounted && value !== previous) void loadData()
+}, { flush: 'sync' })
+watch(filters, () => { page.value = 1; if (mounted) syncQuery() }, { deep: true })
+watch(lastPage, total => { if (page.value > total) page.value = total })
 
-function dataIssueLabel(issue: string) {
-  return t(`projectDashboard.dataIssues.${issue}`)
-}
-
-onMounted(loadData)
+onMounted(() => { Object.assign(filters, queryFromRoute()); mounted = true; void loadData() })
+onBeforeUnmount(() => { loadGeneration += 1 })
 </script>
 
 <template>
-  <div class="project-dashboard pms-page-stack">
-    <PmsPageHeader :title="$t('projectDashboard.pageTitle')" :description="$t('projectDashboard.pageDescription')">
+  <div class="enterprise-board pms-page-stack">
+    <PmsPageHeader :title="t('enterpriseBoard.title')" :description="t('enterpriseBoard.subtitle')">
       <template #actions>
-        <span class="dashboard-updated" :aria-live="loading ? 'polite' : 'off'">
-          <span>{{ progressLabel || $t('projectDashboard.scopeHint') }}</span>
-          <small v-if="lastUpdatedAt">{{ $t('projectDashboard.updatedAt', { time: formatDateTime(lastUpdatedAt) }) }}</small>
-        </span>
-        <a-button class="pms-secondary-button" :loading="loading" @click="loadData">
-          <ReloadOutlined /> {{ $t('common.refresh') }}
-        </a-button>
+        <span class="enterprise-board__scope"><CheckCircleOutlined />{{ scopeLabel }}</span>
+        <span v-if="board" class="enterprise-board__updated">{{ t('enterpriseBoard.updatedAt', { time: formatDateTime(board.generatedAt) }) }}</span>
+        <a-button :disabled="refreshing" @click="loadData"><ReloadOutlined :spin="refreshing" />{{ refreshing ? t('enterpriseBoard.refreshing') : t('enterpriseBoard.refresh') }}</a-button>
+        <a-button @click="methodologyOpen = true"><InfoCircleOutlined />{{ t('enterpriseBoard.methodology') }}</a-button>
       </template>
     </PmsPageHeader>
 
-    <a-alert
-      v-if="loadError"
-      class="dashboard-alert"
-      type="error"
-      show-icon
-      :message="$t('projectDashboard.loadUnavailable')"
-      :description="loadError"
-    >
-      <template #action><a-button size="small" @click="loadData">{{ $t('common.retry') }}</a-button></template>
-    </a-alert>
-    <a-alert
-      v-if="projects.some((item) => item.nodeDataState === 'UNAVAILABLE' || item.riskDataState === 'UNAVAILABLE')"
-      class="dashboard-alert"
-      type="warning"
-      show-icon
-      :message="$t('projectDashboard.partialData')"
-      :description="$t('projectDashboard.partialDataHint')"
-    />
-
-    <section class="dashboard-filters pms-panel" :aria-label="$t('projectDashboard.filters.label')">
-      <div class="dashboard-filter-group">
-        <label for="dashboard-status">{{ $t('projectDashboard.filters.status') }}</label>
-        <a-select id="dashboard-status" v-model:value="filters.status" class="dashboard-filter-control">
-          <a-select-option value="ACTIVE">{{ $t('projectDashboard.filters.active') }}</a-select-option>
-          <a-select-option value="ALL">{{ $t('projectDashboard.filters.all') }}</a-select-option>
-          <a-select-option value="COMPLETED">{{ $t('projectDashboard.filters.completed') }}</a-select-option>
-          <a-select-option value="TERMINATED">{{ $t('projectDashboard.filters.terminated') }}</a-select-option>
+    <div v-if="stale" class="enterprise-board__stale" role="status"><WarningOutlined />{{ t('enterpriseBoard.staleData') }}</div>
+    <section class="enterprise-board__filters pms-panel" :aria-label="t('enterpriseBoard.filters.title')">
+      <div class="enterprise-board__filter-heading">
+        <div><h2>{{ t('enterpriseBoard.filters.title') }}</h2><span>{{ t('enterpriseBoard.filters.organizationHint') }}</span></div>
+        <button v-if="hasFilters" class="enterprise-board__clear" type="button" @click="resetFilters"><CloseOutlined />{{ t('enterpriseBoard.filters.clear') }}</button>
+      </div>
+      <div class="enterprise-board__filter-controls">
+        <a-tree-select v-model:value="filters.orgUnitId" class="enterprise-board__org-select" :tree-data="organizationOptions" :disabled="orgTreeUnavailable" :show-search="true" :filter-tree-node="(input: string, node: OrgTreeOption) => node.title.toLowerCase().includes(input.toLowerCase())" :placeholder="t('enterpriseBoard.filters.organization')" :aria-label="t('enterpriseBoard.filters.organization')" />
+        <a-select v-model:value="filters.phase" class="enterprise-board__filter-select" :aria-label="t('enterpriseBoard.filters.phase')">
+          <a-select-option value="ALL">{{ t('enterpriseBoard.filters.allPhases') }}</a-select-option>
+          <a-select-option v-for="phase in ['NOT_STARTED','IN_PROGRESS','COMPLETED','TERMINATED','UNKNOWN']" :key="phase" :value="phase">{{ t(`enterpriseBoard.phases.${phase}`) }}</a-select-option>
         </a-select>
-      </div>
-      <div class="dashboard-filter-group">
-        <label for="dashboard-line">{{ $t('projectDashboard.filters.businessLine') }}</label>
-        <a-select id="dashboard-line" v-model:value="filters.orgUnitId" class="dashboard-filter-control">
-          <a-select-option value="ALL">{{ $t('projectDashboard.filters.allBusinessLines') }}</a-select-option>
-          <a-select-option v-for="line in businessLineOptions" :key="line.id" :value="line.id">{{ line.name }}</a-select-option>
+        <a-select v-model:value="filters.level" class="enterprise-board__filter-select" :aria-label="t('enterpriseBoard.filters.level')">
+          <a-select-option value="ALL">{{ t('enterpriseBoard.filters.allLevels') }}</a-select-option>
+          <a-select-option v-for="level in ['3','2','1','0','UNKNOWN']" :key="level" :value="level">{{ t(`enterpriseBoard.levels.${level}`) }}</a-select-option>
         </a-select>
+        <a-select v-model:value="filters.health" class="enterprise-board__filter-select" :aria-label="t('enterpriseBoard.filters.health')">
+          <a-select-option value="ALL">{{ t('enterpriseBoard.filters.allHealth') }}</a-select-option>
+          <a-select-option value="ATTENTION">{{ t('enterpriseBoard.health.ATTENTION') }}</a-select-option>
+          <a-select-option v-for="health in ['CRITICAL','WATCH','HEALTHY','UNKNOWN']" :key="health" :value="health">{{ t(`enterpriseBoard.health.${health}`) }}</a-select-option>
+        </a-select>
+        <a-input v-model:value="filters.query" allow-clear :placeholder="t('enterpriseBoard.filters.search')" :aria-label="t('enterpriseBoard.filters.search')" />
       </div>
-      <div class="dashboard-filter-group dashboard-filter-group--search">
-        <label for="dashboard-search">{{ $t('projectDashboard.filters.searchLabel') }}</label>
-        <a-input id="dashboard-search" v-model:value="filters.query" allow-clear :placeholder="$t('projectDashboard.filters.searchPlaceholder')">
-          <template #prefix><ProjectOutlined /></template>
-        </a-input>
-      </div>
-      <div v-if="filters.health !== 'ALL'" class="dashboard-filter-active">
-        <span>{{ $t('projectDashboard.filters.healthFilter', { health: filters.health === 'ATTENTION' ? $t('projectDashboard.health.ATTENTION') : $t(`projectDashboard.health.${filters.health}`) }) }}</span>
-        <a-button type="link" size="small" @click="filters.health = 'ALL'">{{ $t('projectDashboard.filters.clearHealth') }}</a-button>
-      </div>
+      <div v-if="orgTreeUnavailable" class="enterprise-board__org-warning" role="status"><WarningOutlined /><span>{{ t('enterpriseBoard.orgUnavailable') }}</span><a-button size="small" @click="loadData">{{ t('common.retry') }}</a-button></div>
+      <div v-if="activeFilterLabels.length" class="enterprise-board__filter-tags" aria-live="polite"><span>{{ t('enterpriseBoard.filters.active') }}:</span><a-tag v-for="label in activeFilterLabels" :key="label">{{ label }}</a-tag></div>
     </section>
 
-    <a-spin :spinning="loading && projects.length === 0" :tip="$t('projectDashboard.loading')">
-      <template v-if="projects.length || !loading">
-        <section class="dashboard-kpi-grid" :aria-label="$t('projectDashboard.overview')">
-          <button class="dashboard-kpi pms-panel" type="button" @click="selectHealth('ALL')">
-            <span class="dashboard-kpi__icon dashboard-kpi__icon--blue"><ProjectOutlined /></span>
-            <span class="dashboard-kpi__body">
-              <span class="dashboard-kpi__label">{{ $t('projectDashboard.activeProjects') }}</span>
-              <strong>{{ analyticsReady ? summary.activeProjectCount : '—' }}</strong>
-              <small>{{ $t('projectDashboard.activeProjectsHint') }}</small>
-            </span>
-          </button>
-          <button class="dashboard-kpi pms-panel" :class="{ 'is-selected': filters.health === 'ATTENTION' }" type="button" :aria-pressed="filters.health === 'ATTENTION'" @click="selectHealth('ATTENTION')">
-            <span class="dashboard-kpi__icon dashboard-kpi__icon--warning"><WarningOutlined /></span>
-            <span class="dashboard-kpi__body">
-              <span class="dashboard-kpi__label">{{ $t('projectDashboard.attentionProjects') }}</span>
-              <strong>{{ analyticsReady ? attentionCount : '—' }}</strong>
-              <small>{{ $t('projectDashboard.attentionProjectsHint') }}</small>
-            </span>
-          </button>
-          <button class="dashboard-kpi pms-panel" type="button" @click="selectHealth('CRITICAL')">
-            <span class="dashboard-kpi__icon dashboard-kpi__icon--danger"><CalendarOutlined /></span>
-            <span class="dashboard-kpi__body">
-              <span class="dashboard-kpi__label">{{ $t('projectDashboard.overdueNodes') }}</span>
-              <strong>{{ analyticsReady ? summary.overdueNodeCount : '—' }}</strong>
-              <small>{{ $t('projectDashboard.overdueNodesHint') }}</small>
-            </span>
-          </button>
-          <div class="dashboard-kpi pms-panel">
-            <span class="dashboard-kpi__icon dashboard-kpi__icon--green"><CheckCircleOutlined /></span>
-            <span class="dashboard-kpi__body">
-              <span class="dashboard-kpi__label">{{ $t('projectDashboard.averageProgress') }}</span>
-              <strong>{{ analyticsReady ? `${summary.averageProgress}%` : '—' }}</strong>
-              <small>{{ $t('projectDashboard.averageProgressHint') }}</small>
-            </span>
+    <div v-if="loading && !board" class="enterprise-board__loading pms-panel" role="status"><a-spin /><span>{{ t('projectDashboard.loading') }}</span></div>
+    <div v-else-if="loadError && !board" class="enterprise-board__error pms-panel" role="alert"><WarningOutlined /><span>{{ loadError || t('enterpriseBoard.loadFailed') }}</span><a-button type="primary" @click="loadData">{{ t('common.retry') }}</a-button></div>
+
+    <template v-else-if="board">
+      <section class="enterprise-board__kpis" :aria-label="t('enterpriseBoard.title')">
+        <button v-for="card in overviewCards" :key="card.key" class="enterprise-board__kpi pms-panel" :class="[`enterprise-board__kpi--${card.tone}`, { 'is-active': card.filter !== 'ALL' && (card.filter === 'ATTENTION' ? filters.health === 'ATTENTION' : filters.phase === card.filter) }]" type="button" :aria-pressed="card.filter === 'ATTENTION' ? filters.health === 'ATTENTION' : card.filter === 'ALL' ? filters.phase === 'ALL' : filters.phase === card.filter" @click="card.filter === 'ATTENTION' ? (filters.health = filters.health === 'ATTENTION' ? 'ALL' : 'ATTENTION') : setPhase(card.filter)">
+          <span class="enterprise-board__kpi-label">{{ card.label }}</span><strong>{{ card.value }}</strong><span class="enterprise-board__kpi-mark" aria-hidden="true"></span>
+        </button>
+      </section>
+
+      <section class="enterprise-board__analysis-grid">
+        <article class="enterprise-board__panel pms-panel enterprise-board__health-panel">
+          <header class="enterprise-board__panel-header"><div><h2>{{ t('enterpriseBoard.healthSection') }}</h2><p>{{ t('enterpriseBoard.healthDescription') }}</p></div><BarChartOutlined class="enterprise-board__panel-icon" /></header>
+          <div class="enterprise-board__health-content">
+            <div class="enterprise-board__health-ring" :style="ringStyle" role="img" :aria-label="`${t('enterpriseBoard.metrics.active')}: ${summary.active}`"><div><strong>{{ summary.active }}</strong><span>{{ t('enterpriseBoard.metrics.active') }}</span></div></div>
+            <div class="enterprise-board__health-legend">
+              <button v-for="item in healthItems" :key="item.key" type="button" :class="['enterprise-board__legend-row', `tone-${item.tone}`, { 'is-active': filters.health === item.key }]" :aria-pressed="filters.health === item.key" @click="setHealth(item.key)"><span class="enterprise-board__legend-dot"></span><span>{{ t(`enterpriseBoard.health.${item.key}`) }}</span><strong>{{ item.count }}</strong></button>
+              <div class="enterprise-board__coverage"><span>{{ t('enterpriseBoard.metrics.coverage') }}</span><strong>{{ summary.active ? `${summary.fullyAssessed} / ${summary.active}` : '—' }}</strong></div>
+              <div v-if="summary.riskIncomplete" class="enterprise-board__coverage"><span>{{ t('enterpriseBoard.metrics.riskCoverage') }}</span><strong>{{ summary.riskCovered }} / {{ summary.active }}</strong></div>
+              <div v-if="summary.riskCovered" class="enterprise-board__coverage"><span>{{ t('enterpriseBoard.metrics.highRisks') }}</span><strong>{{ summary.highRisks }}</strong></div>
+            </div>
           </div>
-        </section>
+          <p v-if="!summary.active" class="enterprise-board__panel-empty">{{ t('enterpriseBoard.healthEmpty') }}</p>
+        </article>
 
-        <div class="dashboard-analysis-grid">
-          <section class="dashboard-panel pms-panel" aria-labelledby="dashboard-health-title">
-            <div class="dashboard-panel__header">
-              <div>
-                <h2 id="dashboard-health-title">{{ $t('projectDashboard.healthDistribution') }}</h2>
-                <p>{{ $t('projectDashboard.healthDistributionHint') }}</p>
-              </div>
-              <a-tooltip :title="$t('projectDashboard.healthRule')"><span class="dashboard-health-rule">{{ $t('projectDashboard.healthRuleLabel') }}</span></a-tooltip>
-            </div>
-            <div class="dashboard-health-list">
-              <button
-                v-for="row in healthRows"
-                :key="row.key"
-                class="dashboard-health-row"
-                :class="[`dashboard-health-row--${row.key.toLowerCase()}`, { 'is-selected': filters.health === row.key }]"
-                type="button"
-                :aria-pressed="filters.health === row.key"
-                @click="selectHealth(row.key)"
-              >
-                <span class="dashboard-health-row__top">
-                  <span class="dashboard-health-row__name"><i />{{ $t(`projectDashboard.health.${row.key}`) }}</span>
-                  <strong>{{ analyticsReady ? row.count : '—' }}<small>{{ $t('projectDashboard.projectUnit') }}</small></strong>
-                </span>
-                <span class="dashboard-health-meter"><i :style="{ width: `${row.percent}%` }" /></span>
-              </button>
-            </div>
-            <div class="dashboard-health-footnote">
-              <span>{{ $t('projectDashboard.healthDataHint') }}</span>
-              <span>{{ $t('projectDashboard.criticalRuleShort') }}</span>
-            </div>
-          </section>
+        <article class="enterprise-board__panel pms-panel enterprise-board__level-panel">
+          <header class="enterprise-board__panel-header"><div><h2>{{ t('enterpriseBoard.levelSection') }}</h2><p>{{ t('enterpriseBoard.levelDescription') }}</p></div><span class="enterprise-board__panel-total">{{ summary.total }}</span></header>
+          <div class="enterprise-board__level-list"><button v-for="item in levelItems" :key="item.key" type="button" class="enterprise-board__level-row" :class="{ 'is-active': filters.level === item.key }" :aria-pressed="filters.level === item.key" @click="setLevel(item.key)"><span class="enterprise-board__level-name">{{ item.label }}</span><span class="enterprise-board__bar"><i :style="{ width: `${item.percent ?? 0}%` }"></i></span><strong>{{ item.count }}</strong><small>{{ item.percent == null ? '—' : `${item.percent}%` }}</small></button></div>
+          <div class="enterprise-board__average"><span>{{ t('enterpriseBoard.metrics.averageProgress') }}</span><strong>{{ progressText(summary.averageProgress) }}</strong></div>
+        </article>
+      </section>
 
-          <section class="dashboard-panel pms-panel" aria-labelledby="dashboard-upcoming-title">
-            <div class="dashboard-panel__header">
-              <div>
-                <h2 id="dashboard-upcoming-title">{{ $t('projectDashboard.upcomingNodes') }}</h2>
-                <p>{{ $t('projectDashboard.upcomingNodesHint') }}</p>
-              </div>
-              <ClockCircleOutlined class="dashboard-panel__icon" />
+      <section class="enterprise-board__analysis-grid enterprise-board__analysis-grid--lower">
+        <article class="enterprise-board__panel pms-panel enterprise-board__org-panel">
+          <header class="enterprise-board__panel-header"><div><h2>{{ t('enterpriseBoard.orgSection') }}</h2><p>{{ t('enterpriseBoard.orgDescription') }}</p></div></header>
+          <div v-if="orgComparison.length" class="enterprise-board__org-list">
+            <div v-for="group in orgComparison.slice(0, 7)" :key="`${group.id ?? 'unassigned'}-${group.name}`" class="enterprise-board__org-row">
+              <button type="button" class="enterprise-board__org-name" :disabled="group.id == null" :title="group.id == null ? group.name : t('enterpriseBoard.scopeOrg')" @click="openOrg(group.id)">{{ group.name }}<RightOutlined v-if="group.id != null" /></button>
+              <button type="button" class="enterprise-board__org-bar" :aria-label="orgBarLabel(group)" :disabled="group.id == null" @click="group.id != null && openOrg(group.id)"><span v-for="segment in ['IN_PROGRESS','NOT_STARTED','COMPLETED','TERMINATED','UNKNOWN']" :key="segment" :class="`phase-${segment.toLowerCase()}`" :style="{ width: `${percentage(group.phases[segment], group.total) ?? 0}%` }" :title="`${t(`enterpriseBoard.phases.${segment}`)}: ${group.phases[segment]}`"></span></button>
+              <strong>{{ group.total }}</strong>
             </div>
-            <div v-if="upcomingNodes.length" class="dashboard-upcoming-list">
-              <button v-for="node in upcomingNodes" :key="`${node.projectId}-${node.nodeName}`" class="dashboard-upcoming-row" type="button" @click="openProject(node.projectId)">
-                <span class="dashboard-upcoming-row__date">
-                  <strong>{{ formatDate(node.endDate) }}</strong>
-                  <small>{{ node.daysUntil === 0 ? $t('projectDashboard.today') : node.daysUntil === 1 ? $t('projectDashboard.tomorrow') : $t('projectDashboard.daysUntil', { days: node.daysUntil }) }}</small>
-                </span>
-                <span class="dashboard-upcoming-row__content"><strong>{{ node.nodeName }}</strong><small>{{ node.projectName }}</small></span>
-                <span class="dashboard-upcoming-row__arrow">›</span>
-              </button>
-            </div>
-            <a-empty v-else :description="$t('projectDashboard.noUpcomingNodes')" />
-          </section>
+            <div class="enterprise-board__org-legend"><span v-for="phase in ['IN_PROGRESS','NOT_STARTED','COMPLETED','TERMINATED','UNKNOWN']" :key="phase" :class="`phase-${phase.toLowerCase()}`"><i></i>{{ t(`enterpriseBoard.phases.${phase}`) }}</span></div>
+          </div>
+          <p v-else class="enterprise-board__panel-empty">{{ t('enterpriseBoard.noOrgData') }}</p>
+        </article>
+
+        <article class="enterprise-board__panel pms-panel enterprise-board__upcoming-panel">
+          <header class="enterprise-board__panel-header"><div><h2>{{ t('enterpriseBoard.upcomingSection') }}</h2><p>{{ t('enterpriseBoard.upcomingDescription') }}</p></div><CalendarOutlined class="enterprise-board__panel-icon" /></header>
+          <div v-if="nearNodes.length" class="enterprise-board__upcoming-list"><button v-for="item in nearNodes" :key="`${item.project.id}-${item.nextNode?.id}`" type="button" class="enterprise-board__upcoming-row" @click="openProject(item)"><span class="enterprise-board__upcoming-date"><strong>{{ item.nextNode?.endDate ? formatDate(item.nextNode.endDate) : '—' }}</strong><small>{{ nodeDateLabel(item) }}</small></span><span class="enterprise-board__upcoming-copy"><strong>{{ item.nextNode?.name }}</strong><small>{{ item.project.name }}</small></span><RightOutlined /></button></div>
+          <p v-else class="enterprise-board__panel-empty">{{ t('enterpriseBoard.noUpcoming') }}</p>
+        </article>
+      </section>
+
+      <section class="enterprise-board__panel pms-panel enterprise-board__attention-panel">
+        <header class="enterprise-board__panel-header"><div><h2><WarningOutlined />{{ t('enterpriseBoard.attentionSection') }}</h2><p>{{ t('enterpriseBoard.attentionDescription') }}</p></div><span class="enterprise-board__attention-total">{{ t('enterpriseBoard.attentionCount', { count: summary.attention }) }}</span></header>
+        <div v-if="attentionProjects.length" class="enterprise-board__attention-list"><button v-for="item in attentionProjects" :key="item.project.id" type="button" class="enterprise-board__attention-row" @click="openProject(item)"><span :class="['enterprise-board__status-dot', `tone-${healthTone(item.health)}`]"></span><span class="enterprise-board__attention-name"><strong>{{ item.project.name }}</strong><small>{{ item.project.orgUnitName || t('enterpriseBoard.levels.UNKNOWN') }} · {{ t(`enterpriseBoard.levels.${item.project.projectLevel ?? 'UNKNOWN'}`) }}</small></span><span :class="['enterprise-board__status-tag', `tone-${healthTone(item.health)}`]">{{ t(`enterpriseBoard.health.${item.health}`) }}</span><span class="enterprise-board__attention-signal">{{ healthSignals(item).join(' · ') || (item.dataIssues?.[0] ? t(`enterpriseBoard.issues.${item.dataIssues[0]}`) : t('enterpriseBoard.healthAssessmentPending')) }}</span><RightOutlined /></button></div>
+        <p v-else class="enterprise-board__panel-empty">{{ t('enterpriseBoard.noResults') }}</p>
+      </section>
+
+      <section class="enterprise-board__panel pms-panel enterprise-board__projects">
+        <header class="enterprise-board__panel-header"><div><h2>{{ t('enterpriseBoard.projectSection') }}</h2><p>{{ t('enterpriseBoard.projectCount', { visible: visibleProjects.length, total: board.projects.length }) }}</p></div><span>{{ t('enterpriseBoard.updatedAt', { time: formatDateTime(board.generatedAt) }) }}</span></header>
+        <div v-if="pageProjects.length" class="enterprise-board__table-scroll" role="region" tabindex="0" :aria-label="t('enterpriseBoard.projectSection')">
+          <table class="enterprise-board__table"><thead><tr><th>{{ t('enterpriseBoard.table.project') }}</th><th>{{ t('enterpriseBoard.table.organization') }}</th><th>{{ t('enterpriseBoard.table.level') }}</th><th>{{ t('enterpriseBoard.table.manager') }}</th><th>{{ t('enterpriseBoard.table.phase') }}</th><th>{{ t('enterpriseBoard.table.progress') }}</th><th>{{ t('enterpriseBoard.table.health') }}</th><th>{{ t('enterpriseBoard.table.dueDate') }}</th></tr></thead>
+            <tbody><tr v-for="item in pageProjects" :key="item.project.id">
+              <td><div class="enterprise-board__project-actions"><button class="enterprise-board__project-link" type="button" @click="openProject(item)"><strong>{{ item.project.name }}</strong><small>{{ item.project.code }}</small></button><button class="enterprise-board__analysis-action" type="button" :aria-label="t('enterpriseBoard.openAnalysis', { project: item.project.name })" :title="t('enterpriseBoard.openAnalysis', { project: item.project.name })" @click="selectedProject = item"><BarChartOutlined /></button></div></td>
+              <td>{{ item.project.orgUnitName || '—' }}</td><td>{{ t(`enterpriseBoard.levels.${item.project.projectLevel ?? 'UNKNOWN'}`) }}</td><td>{{ item.project.projectManagerName || '—' }}</td>
+              <td><span :class="['enterprise-board__status-tag', `tone-${phaseTone(item.phase)}`]">{{ t(`enterpriseBoard.phases.${item.phase}`) }}</span><small v-if="item.project.currentNodeName" class="enterprise-board__node-name">{{ item.project.currentNodeName }}</small></td>
+              <td><span class="enterprise-board__progress"><i><b :style="{ width: nodeProgressText(item) }"></b></i><strong>{{ nodeProgressText(item) }}</strong></span></td>
+              <td><span :class="['enterprise-board__status-tag', `tone-${healthTone(item.health)}`]">{{ t(`enterpriseBoard.health.${item.health}`) }}</span><small v-for="signal in healthSignals(item).slice(0, 1)" :key="signal" class="enterprise-board__node-name">{{ signal }}</small></td>
+              <td>{{ item.project.endDate ? formatDate(item.project.endDate) : '—' }}</td>
+            </tr></tbody>
+          </table>
         </div>
+        <div v-else class="enterprise-board__empty"><BarChartOutlined /><strong>{{ t('enterpriseBoard.noProjects') }}</strong><button v-if="hasFilters" type="button" @click="resetFilters">{{ t('enterpriseBoard.filters.clear') }}</button></div>
+        <footer v-if="visibleProjects.length" class="enterprise-board__pagination"><span>{{ t('enterpriseBoard.page', { current: page, total: lastPage }) }}</span><div><a-button size="small" :disabled="page <= 1" @click="page -= 1">{{ t('enterpriseBoard.previous') }}</a-button><a-button size="small" :disabled="page >= lastPage" @click="page += 1">{{ t('enterpriseBoard.next') }}</a-button></div></footer>
+      </section>
+    </template>
 
-        <section class="dashboard-panel dashboard-projects pms-panel" aria-labelledby="dashboard-projects-title">
-          <div class="dashboard-panel__header dashboard-projects__header">
-            <div>
-              <h2 id="dashboard-projects-title">{{ $t('projectDashboard.projectPortfolio') }}</h2>
-              <p>{{ $t('projectDashboard.projectPortfolioHint') }}</p>
-            </div>
-            <span class="dashboard-project-count">{{ $t('projectDashboard.projectCount', { count: visibleProjects.length }) }}</span>
-          </div>
-          <div v-if="loading && loadingProgress.total" class="dashboard-load-progress" role="status">
-            <a-progress :percent="Math.round(loadingProgress.completed / loadingProgress.total * 100)" size="small" :show-info="false" />
-            <span>{{ progressLabel }}</span>
-          </div>
-          <a-table
-            v-if="visibleProjects.length"
-            class="dashboard-project-table"
-            :columns="columns"
-            :data-source="visibleProjects"
-            :row-key="tableRowKey"
-            :pagination="{ pageSize: 8, showSizeChanger: false, hideOnSinglePage: true }"
-            :scroll="{ x: 1100 }"
-            size="middle"
-          >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'project'">
-                <button class="dashboard-project-link" type="button" @click="openProject(record.project.id)">
-                  <strong>{{ record.project.name }}</strong>
-                  <small>{{ record.project.code }}<template v-if="record.project.orgUnitName"> · {{ record.project.orgUnitName }}</template></small>
-                </button>
-              </template>
-              <template v-else-if="column.key === 'health'">
-                <div class="dashboard-project-health">
-                  <a-tag :color="healthTagColor(record.health)">{{ $t(`projectDashboard.health.${record.health}`) }}</a-tag>
-                  <small v-if="record.overdueNodeCount">{{ $t('projectDashboard.reasons.overdueNodes', { count: record.overdueNodeCount }) }}</small>
-                  <small v-if="record.openRiskCounts.high">{{ $t('projectDashboard.reasons.highRisks', { count: record.openRiskCounts.high }) }}</small>
-                  <small v-if="record.openRiskCounts.medium">{{ $t('projectDashboard.reasons.mediumRisks', { count: record.openRiskCounts.medium }) }}</small>
-                  <small v-if="record.progressVariance != null && record.progressVariance <= -8">{{ $t('projectDashboard.reasons.progressBehind', { points: Math.abs(record.progressVariance) }) }}</small>
-                  <small v-if="!record.overdueNodeCount && !record.openRiskCount && !(record.progressVariance != null && record.progressVariance <= -8) && record.health === 'HEALTHY'">{{ $t('projectDashboard.reasons.noMajorIssue') }}</small>
-                  <small v-for="issue in record.dataIssues" :key="issue" class="dashboard-project-health__data-issue">{{ dataIssueLabel(issue) }}</small>
-                </div>
-              </template>
-              <template v-else-if="column.key === 'node'">
-                <span class="dashboard-project-node">
-                  <strong>{{ record.project.currentNodeName || '—' }}</strong>
-                  <small v-if="record.nextNode">{{ $t('projectDashboard.nextNodeDue', { name: record.nextNode.name, date: formatDate(record.nextNode.endDate) }) }}</small>
-                </span>
-              </template>
-              <template v-else-if="column.key === 'progress'">
-                <span class="dashboard-project-progress">
-                  <span class="dashboard-project-progress__line"><i :style="{ width: `${record.actualProgress}%` }" /></span>
-                  <strong>{{ record.actualProgress }}%</strong>
-                  <small>{{ record.expectedProgress == null ? $t('projectDashboard.scheduleMissing') : $t('projectDashboard.plannedProgress', { progress: record.expectedProgress }) }}</small>
-                </span>
-              </template>
-              <template v-else-if="column.key === 'manager'">
-                <span class="dashboard-manager">{{ record.project.projectManagerName || '—' }}</span>
-              </template>
-              <template v-else-if="column.key === 'endDate'">
-                <span class="dashboard-end-date">{{ formatDate(record.project.endDate) }}</span>
-              </template>
-            </template>
-            <template #emptyText><a-empty :description="$t('projectDashboard.noProjects')" /></template>
-          </a-table>
-          <a-empty v-else-if="!loading" :description="$t('projectDashboard.noProjects')" />
-        </section>
+    <a-drawer :open="Boolean(selectedProject)" :title="t('enterpriseBoard.projectAnalysis')" placement="right" :width="460" @close="selectedProject = null">
+      <template v-if="selectedProject">
+        <div class="enterprise-board__drawer-project"><div><span>{{ selectedProject.project.code }}</span><h2>{{ selectedProject.project.name }}</h2></div><span :class="['enterprise-board__status-tag', `tone-${healthTone(selectedProject.health)}`]">{{ t(`enterpriseBoard.health.${selectedProject.health}`) }}</span></div>
+        <div class="enterprise-board__drawer-grid"><div><span>{{ t('enterpriseBoard.table.phase') }}</span><strong>{{ t(`enterpriseBoard.phases.${selectedProject.phase}`) }}</strong></div><div><span>{{ t('enterpriseBoard.table.progress') }}</span><strong>{{ nodeProgressText(selectedProject) }}</strong></div><div><span>{{ t('enterpriseBoard.table.manager') }}</span><strong>{{ selectedProject.project.projectManagerName || '—' }}</strong></div><div><span>{{ t('enterpriseBoard.table.dueDate') }}</span><strong>{{ selectedProject.project.endDate ? formatDate(selectedProject.project.endDate) : '—' }}</strong></div></div>
+        <section class="enterprise-board__drawer-section"><h3>{{ t('enterpriseBoard.healthSection') }}</h3><p v-for="signal in healthSignals(selectedProject)" :key="signal">{{ signal }}</p><p v-for="issue in selectedProject.dataIssues" :key="issue">{{ t(`enterpriseBoard.issues.${issue}`) }}</p><p v-if="!healthSignals(selectedProject).length && !selectedProject.dataIssues.length">{{ t('enterpriseBoard.healthRule') }}</p></section>
+        <section class="enterprise-board__drawer-section"><h3>{{ t('enterpriseBoard.metrics.riskCoverage') }}</h3><template v-if="selectedProject.riskDataState === 'AVAILABLE'"><p>{{ selectedProject.openRiskCount == null ? '—' : t('enterpriseBoard.risk', { count: selectedProject.openRiskCount }) }}</p><p>{{ t('enterpriseBoard.metrics.highRisks') }}：{{ selectedProject.highRiskCount ?? '—' }}</p><p>{{ t('enterpriseBoard.metrics.mediumRisks') }}：{{ selectedProject.mediumRiskCount ?? '—' }}</p></template><p v-else>{{ t('enterpriseBoard.notConfigured') }}</p></section>
+        <section class="enterprise-board__drawer-section"><h3>{{ t('enterpriseBoard.storySummary') }}</h3><template v-if="selectedProject.storySummary"><p>{{ t('enterpriseBoard.storyTotal', { count: selectedProject.storySummary.total }) }}</p><p>{{ t('enterpriseBoard.storyStates', selectedProject.storySummary) }}</p><p>{{ t('enterpriseBoard.storyPoints', { done: selectedProject.storySummary.donePoints, total: selectedProject.storySummary.points }) }}</p><p>{{ t('enterpriseBoard.overdueStories', { count: selectedProject.storySummary.overdue }) }}</p></template><p v-else>{{ t('enterpriseBoard.notConfigured') }}</p></section>
+        <section class="enterprise-board__drawer-section"><h3>{{ t('enterpriseBoard.acceptanceSummary') }}</h3><template v-if="selectedProject.acceptanceSummary"><p>{{ t('enterpriseBoard.acceptanceBreakdown', selectedProject.acceptanceSummary) }}</p></template><p v-else>{{ t('enterpriseBoard.notConfigured') }}</p></section>
+        <a-button type="primary" block @click="openProject(selectedProject)">{{ t('enterpriseBoard.detail') }}<RightOutlined /></a-button>
       </template>
-    </a-spin>
+    </a-drawer>
+
+    <a-drawer :open="methodologyOpen" :title="t('enterpriseBoard.methodologyTitle')" placement="right" :width="460" @close="methodologyOpen = false">
+      <section class="enterprise-board__drawer-section"><h3>{{ t('enterpriseBoard.availableTitle') }}</h3><p>{{ t('enterpriseBoard.availableItems') }}</p></section>
+      <section class="enterprise-board__drawer-section"><h3>{{ t('enterpriseBoard.pendingTitle') }}</h3><p>{{ t('enterpriseBoard.pendingItems') }}</p><ul><li>{{ t('enterpriseBoard.rejectedPending') }}</li><li>{{ t('enterpriseBoard.waitingAgingPending') }}</li><li>{{ t('enterpriseBoard.ratingPending') }}</li><li>{{ t('enterpriseBoard.productionIncidentPending') }}</li><li>{{ t('enterpriseBoard.capacityPending') }}</li><li>{{ t('enterpriseBoard.trendPending') }}</li></ul></section>
+      <section class="enterprise-board__drawer-section"><h3>{{ t('enterpriseBoard.sourceTitle') }}</h3><p>{{ t('enterpriseBoard.lifecycleRule') }}</p><p>{{ t('enterpriseBoard.progressRule') }}</p><p>{{ t('enterpriseBoard.healthRule') }}</p><p>{{ t('enterpriseBoard.permissionRule') }}</p></section>
+    </a-drawer>
   </div>
 </template>
-
-<style scoped>
-.project-dashboard { min-width: 0; }
-.dashboard-updated { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); }
-.dashboard-updated small { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
-.dashboard-alert { margin-bottom: 0; }
-.dashboard-filters { display: grid; grid-template-columns: minmax(150px, 190px) minmax(180px, 240px) minmax(240px, 1fr) auto; align-items: end; gap: 12px; padding: 14px 16px; }
-.dashboard-filter-group { display: flex; min-width: 0; flex-direction: column; gap: 6px; }
-.dashboard-filter-group label { color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); }
-.dashboard-filter-control, .dashboard-filter-group :deep(.ant-input-affix-wrapper) { width: 100%; }
-.dashboard-filter-active { grid-column: 1 / -1; display: flex; align-items: center; justify-content: flex-end; gap: 6px; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); }
-.dashboard-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.dashboard-kpi { display: flex; min-width: 0; align-items: flex-start; gap: 12px; padding: 16px; color: inherit; text-align: left; cursor: pointer; transition: border-color var(--pms-motion-fast), background var(--pms-motion-fast), box-shadow var(--pms-motion-fast); }
-.dashboard-kpi:hover, .dashboard-kpi.is-selected { border-color: var(--pms-primary); background: var(--pms-primary-soft); }
-.dashboard-kpi:focus-visible, .dashboard-health-row:focus-visible, .dashboard-upcoming-row:focus-visible, .dashboard-project-link:focus-visible { outline: 0; box-shadow: var(--pms-focus-ring); }
-.dashboard-kpi__icon { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: 8px; background: var(--pms-primary-soft); color: var(--pms-primary); font-size: 16px; }
-.dashboard-kpi__icon--warning { background: color-mix(in srgb, var(--pms-warning) 10%, white); color: var(--pms-warning); }
-.dashboard-kpi__icon--danger { background: color-mix(in srgb, var(--pms-danger) 9%, white); color: var(--pms-danger); }
-.dashboard-kpi__icon--green { background: color-mix(in srgb, var(--pms-success) 9%, white); color: var(--pms-success); }
-.dashboard-kpi__body { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.dashboard-kpi__label { color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); }
-.dashboard-kpi__body strong { color: var(--pms-text); font-size: 25px; font-weight: 700; line-height: 1.2; }
-.dashboard-kpi__body small { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
-.dashboard-analysis-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(340px, .9fr); gap: 14px; }
-.dashboard-panel { min-width: 0; padding: 18px; }
-.dashboard-panel__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-.dashboard-panel__header h2 { margin: 0; color: var(--pms-text); font-size: var(--pms-font-size-section); font-weight: 650; }
-.dashboard-panel__header p { margin: 4px 0 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
-.dashboard-health-rule { color: var(--pms-primary); font-size: var(--pms-font-size-compact); cursor: help; white-space: nowrap; }
-.dashboard-panel__icon { color: var(--pms-text-faint); font-size: 17px; }
-.dashboard-health-list { display: flex; flex-direction: column; gap: 13px; }
-.dashboard-health-row { display: flex; width: 100%; flex-direction: column; gap: 7px; padding: 3px 2px; color: inherit; text-align: left; background: transparent; border: 0; cursor: pointer; }
-.dashboard-health-row__top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.dashboard-health-row__name { display: inline-flex; align-items: center; gap: 8px; color: var(--pms-text); font-size: var(--pms-font-size-body); }
-.dashboard-health-row__name i { width: 8px; height: 8px; border-radius: 50%; background: var(--pms-success); }
-.dashboard-health-row--watch .dashboard-health-row__name i { background: var(--pms-warning); }
-.dashboard-health-row--critical .dashboard-health-row__name i { background: var(--pms-danger); }
-.dashboard-health-row__top > strong { color: var(--pms-text); font-size: var(--pms-font-size-section); font-weight: 650; }
-.dashboard-health-row__top > strong small { margin-left: 4px; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); font-weight: 400; }
-.dashboard-health-meter { display: block; height: 7px; overflow: hidden; border-radius: 5px; background: var(--pms-surface-strong); }
-.dashboard-health-meter i { display: block; height: 100%; border-radius: inherit; background: var(--pms-success); transition: width var(--pms-motion-fast); }
-.dashboard-health-row--watch .dashboard-health-meter i { background: var(--pms-warning); }
-.dashboard-health-row--critical .dashboard-health-meter i { background: var(--pms-danger); }
-.dashboard-health-row.is-selected .dashboard-health-row__name { color: var(--pms-primary); font-weight: 650; }
-.dashboard-health-footnote { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 14px; padding-top: 11px; border-top: 1px solid var(--pms-border); color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
-.dashboard-upcoming-list { display: flex; flex-direction: column; }
-.dashboard-upcoming-row { display: grid; grid-template-columns: 90px minmax(0, 1fr) 18px; align-items: center; gap: 12px; min-width: 0; padding: 10px 4px; color: inherit; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--pms-border); cursor: pointer; }
-.dashboard-upcoming-row:last-child { border-bottom: 0; }
-.dashboard-upcoming-row:hover { background: var(--pms-surface-muted); }
-.dashboard-upcoming-row__date, .dashboard-upcoming-row__content { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
-.dashboard-upcoming-row__date strong { color: var(--pms-text); font-size: var(--pms-font-size-compact); font-weight: 600; }
-.dashboard-upcoming-row__date small { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
-.dashboard-upcoming-row__content strong, .dashboard-upcoming-row__content small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dashboard-upcoming-row__content strong { color: var(--pms-text); font-size: var(--pms-font-size-compact); font-weight: 600; }
-.dashboard-upcoming-row__content small { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); }
-.dashboard-upcoming-row__arrow { color: var(--pms-text-faint); font-size: 20px; }
-.dashboard-projects { padding-bottom: 8px; }
-.dashboard-projects__header { align-items: center; }
-.dashboard-project-count { color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); }
-.dashboard-load-progress { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
-.dashboard-load-progress :deep(.ant-progress) { max-width: 160px; margin: 0; }
-.dashboard-project-table :deep(.ant-table-thead > tr > th) { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); font-weight: 600; white-space: nowrap; }
-.dashboard-project-table :deep(.ant-table-tbody > tr > td) { vertical-align: middle; }
-.dashboard-project-link { display: flex; min-width: 0; flex-direction: column; gap: 4px; padding: 0; color: inherit; text-align: left; background: transparent; border: 0; cursor: pointer; }
-.dashboard-project-link strong { overflow: hidden; color: var(--pms-primary); text-overflow: ellipsis; white-space: nowrap; font-size: var(--pms-font-size-body); font-weight: 650; }
-.dashboard-project-link:hover strong { text-decoration: underline; }
-.dashboard-project-link small { overflow: hidden; color: var(--pms-text-faint); text-overflow: ellipsis; white-space: nowrap; font-size: var(--pms-font-size-caption); }
-.dashboard-project-health { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 4px; }
-.dashboard-project-health :deep(.ant-tag) { margin: 0; }
-.dashboard-project-health small { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); line-height: 1.35; }
-.dashboard-project-health .dashboard-project-health__data-issue { color: var(--pms-warning); }
-.dashboard-project-node { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
-.dashboard-project-node strong { overflow: hidden; color: var(--pms-text); text-overflow: ellipsis; white-space: nowrap; font-size: var(--pms-font-size-compact); font-weight: 550; }
-.dashboard-project-node small { display: -webkit-box; overflow: hidden; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.dashboard-project-progress { display: grid; grid-template-columns: minmax(48px, 1fr) auto; align-items: center; gap: 5px 8px; min-width: 108px; }
-.dashboard-project-progress__line { display: block; height: 6px; overflow: hidden; border-radius: 4px; background: var(--pms-surface-strong); }
-.dashboard-project-progress__line i { display: block; height: 100%; border-radius: inherit; background: var(--pms-primary); }
-.dashboard-project-progress > strong { color: var(--pms-text); font-size: var(--pms-font-size-compact); font-weight: 600; }
-.dashboard-project-progress > small { grid-column: 1 / -1; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
-.dashboard-manager, .dashboard-end-date { color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); }
-
-@media (max-width: 1100px) {
-  .dashboard-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dashboard-analysis-grid { grid-template-columns: minmax(0, 1fr); }
-}
-
-@media (max-width: 720px) {
-  .dashboard-updated { display: none; }
-  .dashboard-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dashboard-filter-group--search { grid-column: 1 / -1; }
-  .dashboard-kpi-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .dashboard-kpi { padding: 12px; }
-  .dashboard-kpi__body { display: grid; grid-template-columns: 1fr auto; align-items: baseline; width: 100%; }
-  .dashboard-kpi__body strong { grid-column: 2; grid-row: 1 / span 2; }
-  .dashboard-panel { padding: 14px; }
-  .dashboard-health-footnote { flex-direction: column; }
-  .dashboard-panel__header { align-items: flex-start; }
-}
-</style>

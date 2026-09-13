@@ -1,3 +1,5 @@
+import { enterpriseBoardZh } from './enterprise-board.ts'
+
 const zhCN = {
   app: {
     name: 'PMS 项目管理系统',
@@ -41,7 +43,7 @@ const zhCN = {
     dashboard: '工作台',
     manual: '使用手册',
     projectList: '项目管理',
-    projectDashboard: '项目驾驶舱',
+    projectDashboard: '企业项目看板',
     projectDetail: '项目详情',
     notifications: '通知中心',
     adminUsers: '人员与权限',
@@ -58,7 +60,9 @@ const zhCN = {
     primary: '主导航',
     dashboard: '工作台',
     rdManagement: '研发管理',
-    projectDashboard: '项目驾驶舱',
+    businessAnalysis: '经营分析',
+    enterpriseProjectBoard: '企业项目看板',
+    projectDashboard: '企业项目看板',
     projects: '项目管理',
     projectsTab: '项目管理子页签',
     configuration: '配置管理',
@@ -176,8 +180,9 @@ const zhCN = {
     viewTask: '查看任务：{title}',
     viewProject: '查看项目：{name}',
   },
+  enterpriseBoard: enterpriseBoardZh,
   projectDashboard: {
-    pageTitle: '项目驾驶舱',
+    pageTitle: '企业项目看板',
     pageDescription: '从项目组合视角掌握交付健康、偏差与近期关键节点，快速定位需要关注的项目。',
     scopeHint: '当前账号可查看的项目范围',
     updatedAt: '更新于 {time}',
