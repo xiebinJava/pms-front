@@ -78,6 +78,12 @@ const router = createRouter({
           meta: { titleKey: 'route.projectList' },
         },
         {
+          path: 'projects/dashboard',
+          name: 'project-dashboard',
+          component: () => import('/@/views/project-dashboard/index.vue'),
+          meta: { titleKey: 'route.projectDashboard', permission: 'project:read' },
+        },
+        {
           path: 'projects/:id',
           name: 'project-detail',
           component: () => import('/@/views/project/detail/index.vue'),

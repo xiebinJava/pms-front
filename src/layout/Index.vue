@@ -52,6 +52,7 @@ const selectedKeys = computed(() => {
   if (route.path.startsWith('/manual/business-rules')) return ['manual-business-rules']
   if (route.path.startsWith('/manual/design-system')) return ['manual-design-system']
   if (route.path.startsWith('/manual')) return ['manual']
+  if (route.path.startsWith('/projects/dashboard')) return ['project-dashboard']
   if (route.path.startsWith('/projects')) return ['projects']
   if (route.path.startsWith('/admin/users')) return ['admin-users']
   if (route.path.startsWith('/admin/org')) return ['admin-org']
@@ -69,6 +70,7 @@ const menuRoutes: Record<string, string> = {
   manual: '/manual#quick-start',
   'manual-business-rules': '/manual/business-rules#identity',
   'manual-design-system': '/manual/design-system#principles',
+  'project-dashboard': '/projects/dashboard',
   projects: '/projects',
   feedback: '/feedback',
   'admin-users': '/admin/users',
@@ -367,6 +369,9 @@ onBeforeUnmount(() => {
                 <ExperimentOutlined /><span>{{ $t('nav.rdManagement') }}</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !projectNavOpen }" />
               </button>
               <div v-if="projectNavOpen" id="pms-project-subnav" class="pms-nav-subnav">
+                <button v-if="canReadProjects" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('project-dashboard') }" :aria-current="selectedKeys.includes('project-dashboard') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'project-dashboard' })">
+                  <DashboardOutlined /><span>{{ $t('nav.projectDashboard') }}</span>
+                </button>
                 <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('projects') }" :aria-current="selectedKeys.includes('projects') ? 'page' : undefined" type="button" :aria-label="$t('nav.projectsTab')" @click.stop="handleMenuClick({ key: 'projects' })">
                   <ProjectOutlined /><span>{{ $t('nav.projects') }}</span>
                 </button>
