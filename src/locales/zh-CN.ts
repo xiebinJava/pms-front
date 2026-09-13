@@ -903,7 +903,7 @@ const zhCN = {
       configTitle: '流程模板配置', currentTemplate: '当前模板', fieldCount: '{count} 个表单字段',
       fieldComponents: '字段组件', addFieldHint: '点击添加到节点表单', projectFields: '项目字段', projectFieldsHint: '绑定已有项目数据', noAvailableProjectFields: '项目字段已全部添加',
       workbenchComponents: '业务工作台', workbenchComponentsHint: '将现有业务能力配置到此节点', added: '已添加', add: '添加',
-      nodeSettings: '节点设置', nodeProperties: '节点属性', fieldProperties: '字段属性', nodeCanvasAria: '节点详情可视化画布', nodeDetailCanvas: '节点详情画布',
+      nodeSettings: '节点设置', nodeProperties: '节点属性', fieldProperties: '字段属性', closeInspector: '关闭属性面板', nodeCanvasAria: '节点详情可视化画布', nodeDetailCanvas: '节点详情画布',
       dragFieldsHint: '拖动字段可调整顺序', individualFieldHint: '每个输入项都可独立配置', hidden: '已隐藏', projectBinding: '项目字段', nodeField: '节点字段', unnamedField: '未命名字段', optionPlaceholder: '选项',
       fieldTypeHints: { TEXT: '名称、编号等', TEXTAREA: '描述、说明等', NUMBER: '数量、金额等', RADIO: '互斥选项', SINGLE_SELECT: '单项选择', MULTI_SELECT: '可选多个值', PERSON: '单人选择', PERSON_MULTI: '多人选择', DATE: '单个日期', DATE_RANGE: '开始与结束', ATTACHMENT: '上传文件' },
       taskColumns: { todo: '待办', inProgress: '进行中', done: '已完成' }, addTask: '添加任务',

@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import type { Component } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { PlusOutlined, EyeOutlined, SaveOutlined, SendOutlined, ArrowUpOutlined, ArrowDownOutlined, DeleteOutlined } from '@ant-design/icons-vue'
+import {
+  PlusOutlined, EyeOutlined, SaveOutlined, SendOutlined, ArrowUpOutlined, ArrowDownOutlined, DeleteOutlined,
+  CloseOutlined, FileTextOutlined, AlignLeftOutlined, FieldNumberOutlined, CheckCircleOutlined, DownOutlined,
+  UnorderedListOutlined, UserOutlined, TeamOutlined, CalendarOutlined, SwapOutlined, PaperClipOutlined, CheckOutlined,
+} from '@ant-design/icons-vue'
 import PmsPageHeader from '/@/components/PmsPageHeader.vue'
 import { useUserStore } from '/@/store/user'
 import {
@@ -49,6 +54,9 @@ const contentDragItem = ref<WorkflowContentOrderItem>()
 const fieldDragKey = ref<string>()
 const previewOpen = ref(false)
 const typeModalOpen = ref(false)
+const mobileInspectorOpen = ref(false)
+const mobileInspectorPanel = ref<HTMLElement>()
+const mobileInspectorTrigger = ref<HTMLElement>()
 const typeForm = reactive({ code: '', name: '', description: '' })
 
 const COMPONENTS = [
@@ -57,6 +65,19 @@ const COMPONENTS = [
   { key: 'release-handover' }, { key: 'value-review' }, { key: 'knowledge-standard' },
 ]
 const fieldTypes: WorkflowFieldType[] = ['TEXT', 'TEXTAREA', 'NUMBER', 'RADIO', 'SINGLE_SELECT', 'MULTI_SELECT', 'PERSON', 'PERSON_MULTI', 'DATE', 'DATE_RANGE', 'ATTACHMENT']
+const FIELD_TYPE_ICONS: Record<WorkflowFieldType, Component> = {
+  TEXT: FileTextOutlined,
+  TEXTAREA: AlignLeftOutlined,
+  NUMBER: FieldNumberOutlined,
+  RADIO: CheckCircleOutlined,
+  SINGLE_SELECT: DownOutlined,
+  MULTI_SELECT: UnorderedListOutlined,
+  PERSON: UserOutlined,
+  PERSON_MULTI: TeamOutlined,
+  DATE: CalendarOutlined,
+  DATE_RANGE: SwapOutlined,
+  ATTACHMENT: PaperClipOutlined,
+}
 const selectedType = computed(() => types.value.find((type) => type.id === selectedTypeId.value))
 const selectedTemplateSummary = computed(() => templates.value.find((template) => template.id === selectedTemplateId.value))
 const currentNode = computed(() => definition.value.nodes.find((node) => node.key === selectedNodeKey.value))
@@ -142,6 +163,31 @@ function selectNode(nodeKey: string) {
   if (!node) return
   selectedNodeKey.value = nodeKey
   selectedFieldKey.value = firstFieldKey(node)
+}
+
+function isMobileViewport(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 700px)').matches
+}
+
+function openMobileInspector(trigger?: EventTarget | null) {
+  if (!isMobileViewport()) return
+  if (trigger instanceof HTMLElement) mobileInspectorTrigger.value = trigger
+  const alreadyOpen = mobileInspectorOpen.value
+  mobileInspectorOpen.value = true
+  if (!alreadyOpen) window.requestAnimationFrame(() => {
+    mobileInspectorPanel.value?.querySelector<HTMLElement>('[data-mobile-inspector-close]')?.focus()
+  })
+}
+
+function closeMobileInspector() {
+  if (!mobileInspectorOpen.value) return
+  mobileInspectorOpen.value = false
+  window.requestAnimationFrame(() => mobileInspectorTrigger.value?.focus())
+}
+
+function openNodeSettings(event?: MouseEvent) {
+  selectedFieldKey.value = ''
+  openMobileInspector(event?.currentTarget)
 }
 
 async function confirmDiscard(): Promise<boolean> {
@@ -237,15 +283,16 @@ function toggleComponent(componentKey: string, checked: boolean) {
   markDirty()
 }
 
-function addField(type: WorkflowFieldType = 'TEXT') {
+function addField(type: WorkflowFieldType = 'TEXT', event?: MouseEvent) {
   const node = currentNode.value
   if (!node) return
   const next = addWorkflowField(node, { label: t('admin.workflow.newFieldName'), type })
   selectedFieldKey.value = next.fields.at(-1)?.key || ''
   replaceCurrentNode(next)
+  openMobileInspector(event?.currentTarget)
 }
 
-function addBoundField(projectFieldKey: string) {
+function addBoundField(projectFieldKey: string, event?: MouseEvent) {
   const node = currentNode.value
   const binding = PROJECT_FIELD_BINDINGS[projectFieldKey]
   if (!node || !binding) return
@@ -257,6 +304,7 @@ function addBoundField(projectFieldKey: string) {
   })
   selectedFieldKey.value = next.fields.at(-1)?.key || ''
   replaceCurrentNode(next)
+  openMobileInspector(event?.currentTarget)
 }
 
 function replaceCurrentNode(next: WorkflowNodeDefinitionV2) {
@@ -313,8 +361,9 @@ function removeField(fieldKey: string) {
   if (selectedFieldKey.value === fieldKey) selectedFieldKey.value = firstFieldKey(next)
 }
 
-function selectField(fieldKey: string) {
+function selectField(fieldKey: string, event?: MouseEvent) {
   selectedFieldKey.value = fieldKey
+  openMobileInspector(event?.currentTarget)
 }
 
 function fieldIndex(fieldKey: string): number {
@@ -415,9 +464,7 @@ async function saveType() {
 function componentLabel(key: string) { return t(`admin.workflow.componentLabels.${key}`) }
 function fieldTypeLabel(type: WorkflowFieldType) { return t(`admin.workflow.fieldTypes.${type}`) }
 function bindingLabel(binding: WorkflowFieldBinding) { return t(`admin.workflow.bindingLabels.${binding}`) }
-function fieldTypeSymbol(type: WorkflowFieldType): string {
-  return ({ TEXT: 'T', TEXTAREA: '¶', NUMBER: '#', RADIO: '◉', SINGLE_SELECT: '⌄', MULTI_SELECT: '☷', PERSON: '人', PERSON_MULTI: '人+', DATE: '日', DATE_RANGE: '↔', ATTACHMENT: '↑' } as Record<WorkflowFieldType, string>)[type]
-}
+function fieldTypeIcon(type: WorkflowFieldType): Component { return FIELD_TYPE_ICONS[type] }
 function setFieldOptionsFromEvent(field: WorkflowFieldDefinition, event: unknown) {
   setFieldOptions(field, String((event as { target?: { value?: string } })?.target?.value || ''))
 }
@@ -441,10 +488,16 @@ onMounted(async () => {
   <section class="workflow-admin-page">
     <PmsPageHeader :title="$t('admin.workflow.configTitle')" :description="$t('admin.workflow.description')">
       <template #actions>
-        <a-button @click="previewOpen = true" :disabled="!definition.nodes.length"><EyeOutlined /> {{ $t('admin.workflow.preview') }}</a-button>
-        <a-button v-if="canWrite" @click="newTemplate">{{ $t('admin.workflow.newTemplate') }}</a-button>
-        <a-button v-if="canWrite" type="primary" :loading="saving" @click="saveDraft"><SaveOutlined /> {{ $t('admin.workflow.saveDraft') }}</a-button>
-        <a-button v-if="canWrite && selectedTemplateId" type="primary" ghost :loading="saving" @click="publish"><SendOutlined /> {{ $t('admin.workflow.publish') }}</a-button>
+        <div class="workflow-page-actions">
+          <div class="workflow-page-actions__secondary">
+            <a-button @click="previewOpen = true" :disabled="!definition.nodes.length"><EyeOutlined /> {{ $t('admin.workflow.preview') }}</a-button>
+            <a-button v-if="canWrite" @click="newTemplate">{{ $t('admin.workflow.newTemplate') }}</a-button>
+          </div>
+          <div v-if="canWrite" class="workflow-page-actions__primary">
+            <a-button type="primary" :loading="saving" @click="saveDraft"><SaveOutlined /> {{ $t('admin.workflow.saveDraft') }}</a-button>
+            <a-button v-if="selectedTemplateId" type="primary" ghost :loading="saving" @click="publish"><SendOutlined /> {{ $t('admin.workflow.publish') }}</a-button>
+          </div>
+        </div>
       </template>
     </PmsPageHeader>
 
@@ -504,23 +557,23 @@ onMounted(async () => {
                 <aside class="designer-panel designer-palette" data-testid="designer-palette" :aria-label="$t('admin.workflow.fieldPaletteAria')">
                   <div class="designer-panel-heading"><h3>{{ $t('admin.workflow.fieldComponents') }}</h3><p>{{ $t('admin.workflow.addFieldHint') }}</p></div>
                   <div class="designer-palette-list">
-                    <button v-for="type in fieldTypes" :key="type" type="button" class="designer-palette-item" :data-testid="`add-workflow-field-${type}`" :aria-label="`${$t('admin.workflow.addField')}：${fieldTypeLabel(type)}`" :disabled="!canWrite" @click="addField(type)">
-                      <span class="field-type-symbol">{{ fieldTypeSymbol(type) }}</span><span class="designer-palette-item__copy"><strong>{{ fieldTypeLabel(type) }}</strong><small>{{ $t(`admin.workflow.fieldTypeHints.${type}`) }}</small></span><PlusOutlined />
+                    <button v-for="type in fieldTypes" :key="type" type="button" class="designer-palette-item" :data-testid="`add-workflow-field-${type}`" :aria-label="`${$t('admin.workflow.addField')}：${fieldTypeLabel(type)}`" :disabled="!canWrite" @click="addField(type, $event)">
+                      <span class="field-type-symbol"><component :is="fieldTypeIcon(type)" /></span><span class="designer-palette-item__copy"><strong>{{ fieldTypeLabel(type) }}</strong><small>{{ $t(`admin.workflow.fieldTypeHints.${type}`) }}</small></span><PlusOutlined />
                     </button>
                   </div>
                   <div class="designer-palette-section">
                     <div class="designer-subheading"><strong>{{ $t('admin.workflow.projectFields') }}</strong><small>{{ $t('admin.workflow.projectFieldsHint') }}</small></div>
-                    <button v-for="[key, binding] in availableBindings" :key="binding.binding" type="button" class="designer-palette-item designer-palette-item--compact" :disabled="!canWrite" @click="addBoundField(key)"><span class="field-type-symbol">{{ fieldTypeSymbol(binding.type) }}</span><span class="designer-palette-item__copy"><strong>{{ $t(`admin.workflow.projectFieldLabels.${key}`) }}</strong><small>{{ fieldTypeLabel(binding.type) }}</small></span><PlusOutlined /></button>
+                    <button v-for="[key, binding] in availableBindings" :key="binding.binding" type="button" class="designer-palette-item designer-palette-item--compact" :disabled="!canWrite" @click="addBoundField(key, $event)"><span class="field-type-symbol"><component :is="fieldTypeIcon(binding.type)" /></span><span class="designer-palette-item__copy"><strong>{{ $t(`admin.workflow.projectFieldLabels.${key}`) }}</strong><small>{{ fieldTypeLabel(binding.type) }}</small></span><PlusOutlined /></button>
                     <a-empty v-if="!availableBindings.length" :description="$t('admin.workflow.noAvailableProjectFields')" />
                   </div>
                   <div class="designer-palette-section">
                     <div class="designer-subheading"><strong>{{ $t('admin.workflow.workbenchComponents') }}</strong><small>{{ $t('admin.workflow.workbenchComponentsHint') }}</small></div>
-                    <button v-for="component in COMPONENTS" :key="component.key" type="button" class="designer-palette-item designer-palette-item--compact" :data-testid="`add-workflow-component-${component.key}`" :class="{ 'is-added': configuredComponents.includes(component.key) }" :aria-pressed="configuredComponents.includes(component.key)" :disabled="!canWrite" @click="toggleComponent(component.key, !configuredComponents.includes(component.key))"><span class="field-type-symbol">{{ configuredComponents.includes(component.key) ? '✓' : '+' }}</span><span class="designer-palette-item__copy"><strong>{{ componentLabel(component.key) }}</strong><small>{{ $t(`admin.workflow.componentHints.${component.key}`) }}</small></span><span class="palette-state">{{ configuredComponents.includes(component.key) ? $t('admin.workflow.added') : $t('admin.workflow.add') }}</span></button>
+                    <button v-for="component in COMPONENTS" :key="component.key" type="button" class="designer-palette-item designer-palette-item--compact" :data-testid="`add-workflow-component-${component.key}`" :class="{ 'is-added': configuredComponents.includes(component.key) }" :aria-pressed="configuredComponents.includes(component.key)" :disabled="!canWrite" @click="toggleComponent(component.key, !configuredComponents.includes(component.key))"><span class="field-type-symbol"><CheckOutlined v-if="configuredComponents.includes(component.key)" /><PlusOutlined v-else /></span><span class="designer-palette-item__copy"><strong>{{ componentLabel(component.key) }}</strong><small>{{ $t(`admin.workflow.componentHints.${component.key}`) }}</small></span><span class="palette-state">{{ configuredComponents.includes(component.key) ? $t('admin.workflow.added') : $t('admin.workflow.add') }}</span></button>
                   </div>
                 </aside>
 
                 <section class="designer-panel designer-canvas" data-testid="designer-canvas" :aria-label="$t('admin.workflow.nodeCanvasAria')">
-                  <div class="designer-canvas-heading"><div><span>{{ $t('admin.workflow.nodeDetailCanvas') }}</span><h3>{{ currentNode.name || $t('admin.workflow.unnamedNode') }}</h3><p>{{ currentNode.description || $t('admin.workflow.noNodeDescription') }}</p></div><span class="designer-canvas-heading__hint">{{ $t('admin.workflow.dragFieldsHint') }}</span></div>
+                  <div class="designer-canvas-heading"><div><span>{{ $t('admin.workflow.nodeDetailCanvas') }}</span><h3>{{ currentNode.name || $t('admin.workflow.unnamedNode') }}</h3><p>{{ currentNode.description || $t('admin.workflow.noNodeDescription') }}</p></div><div class="designer-canvas-heading__actions"><span class="designer-canvas-heading__hint">{{ $t('admin.workflow.dragFieldsHint') }}</span><a-button size="small" type="link" aria-controls="workflow-inspector-panel" @click="openNodeSettings($event)">{{ $t('admin.workflow.nodeSettings') }}</a-button></div></div>
                   <div class="designer-fixed-grid">
                     <section class="designer-fixed-module" data-testid="designer-fixed-owner"><div class="designer-fixed-module__heading"><strong>{{ $t('admin.workflow.fixedBlocks.owner') }}</strong><a-tag color="blue">{{ $t('admin.workflow.fixed') }}</a-tag></div><a-select disabled :placeholder="$t('admin.workflow.previewPerson')" /></section>
                     <section class="designer-fixed-module" data-testid="designer-fixed-schedule"><div class="designer-fixed-module__heading"><strong>{{ $t('admin.workflow.fixedBlocks.schedule') }}</strong><a-tag color="blue">{{ $t('admin.workflow.fixed') }}</a-tag></div><a-range-picker disabled /></section>
@@ -533,7 +586,7 @@ onMounted(async () => {
                         <div class="designer-field-grid">
                           <article v-for="field in fieldsForContentItem(currentNode, contentItem, true)" :key="field.key" class="designer-field-card" :class="{ selected: selectedFieldKey === field.key, 'is-hidden': field.visible === false }" data-testid="designer-field-card" :data-field-key="field.key" :aria-label="`${field.label}，${fieldTypeLabel(field.type)}`" role="group" :draggable="canWrite" @dragstart.stop="fieldDragKey = field.key" @dragover.prevent @drop.prevent.stop="onFieldDrop(fieldIndex(field.key))" @dragend.stop="fieldDragKey = undefined">
                             <div class="designer-field-card__top"><span>{{ fieldTypeLabel(field.type) }}</span><a-tag v-if="field.visible === false" color="default">{{ $t('admin.workflow.hidden') }}</a-tag><span v-else-if="field.binding" class="designer-field-binding">{{ $t('admin.workflow.projectBinding') }}</span><a-tag v-else-if="field.required" color="red">{{ $t('admin.workflow.required') }}</a-tag></div>
-                            <div class="designer-field-card__name"><button type="button" class="designer-field-select" :aria-pressed="selectedFieldKey === field.key" :aria-label="`${field.label}，${fieldTypeLabel(field.type)}`" @click="selectField(field.key)"><strong>{{ field.label || $t('admin.workflow.unnamedField') }}</strong><em v-if="field.required">*</em></button><div class="designer-field-card__actions"><a-button size="small" type="text" :disabled="!canWrite || fieldIndexInContentItem(field.key, contentItem) === 0" :data-testid="`move-workflow-field-${field.key}-up`" :aria-label="`${$t('admin.workflow.moveUp')}：${field.label}`" @click.stop="moveField(field.key, -1, contentItem)"><ArrowUpOutlined /></a-button><a-button size="small" type="text" :disabled="!canWrite || fieldIndexInContentItem(field.key, contentItem) === fieldsForContentItem(currentNode, contentItem, true).length - 1" :data-testid="`move-workflow-field-${field.key}-down`" :aria-label="`${$t('admin.workflow.moveDown')}：${field.label}`" @click.stop="moveField(field.key, 1, contentItem)"><ArrowDownOutlined /></a-button></div></div>
+                            <div class="designer-field-card__name"><button type="button" class="designer-field-select" :aria-pressed="selectedFieldKey === field.key" aria-controls="workflow-inspector-panel" :aria-label="`${field.label}，${fieldTypeLabel(field.type)}`" @click="selectField(field.key, $event)"><strong>{{ field.label || $t('admin.workflow.unnamedField') }}</strong><em v-if="field.required">*</em></button><div class="designer-field-card__actions"><a-button size="small" type="text" :disabled="!canWrite || fieldIndexInContentItem(field.key, contentItem) === 0" :data-testid="`move-workflow-field-${field.key}-up`" :aria-label="`${$t('admin.workflow.moveUp')}：${field.label}`" @click.stop="moveField(field.key, -1, contentItem)"><ArrowUpOutlined /></a-button><a-button size="small" type="text" :disabled="!canWrite || fieldIndexInContentItem(field.key, contentItem) === fieldsForContentItem(currentNode, contentItem, true).length - 1" :data-testid="`move-workflow-field-${field.key}-down`" :aria-label="`${$t('admin.workflow.moveDown')}：${field.label}`" @click.stop="moveField(field.key, 1, contentItem)"><ArrowDownOutlined /></a-button></div></div>
                             <small class="designer-field-card__key">{{ field.binding ? bindingLabel(field.binding) : `${$t('admin.workflow.nodeField')} · ${field.key}` }}</small>
                             <div class="designer-field-control">
                               <a-input v-if="field.type === 'TEXT'" disabled :placeholder="$t('admin.workflow.previewValue')" />
@@ -563,8 +616,8 @@ onMounted(async () => {
                   <section class="designer-fixed-module designer-task-board" data-testid="designer-fixed-task-board"><div class="designer-fixed-module__heading"><strong>{{ $t('admin.workflow.fixedBlocks.task-board') }}</strong><a-tag color="blue">{{ $t('admin.workflow.fixed') }}</a-tag></div><div class="designer-task-columns"><div v-for="column in ['todo', 'inProgress', 'done']" :key="column"><span>{{ $t(`admin.workflow.taskColumns.${column}`) }}</span><small>+ {{ $t('admin.workflow.addTask') }}</small></div></div></section>
                 </section>
 
-                <aside class="designer-panel designer-inspector" data-testid="designer-inspector" :aria-label="$t('admin.workflow.fieldProperties')">
-                  <div class="designer-panel-heading"><div><h3>{{ selectedField ? $t('admin.workflow.fieldProperties') : $t('admin.workflow.nodeProperties') }}</h3><p>{{ selectedField?.label || currentNode.name }}</p></div><a-button v-if="selectedField" type="text" size="small" :aria-label="$t('admin.workflow.nodeSettings')" @click="selectedFieldKey = ''">{{ $t('admin.workflow.nodeSettings') }}</a-button><a-button v-else type="text" size="small" :aria-label="$t('admin.workflow.fieldProperties')" :disabled="!currentNode.fields.length" @click="selectedFieldKey = firstFieldKey(currentNode)">{{ $t('admin.workflow.fieldProperties') }}</a-button></div>
+                <aside id="workflow-inspector-panel" ref="mobileInspectorPanel" class="designer-panel designer-inspector" :class="{ 'designer-inspector--mobile-open': mobileInspectorOpen }" data-testid="designer-inspector" :aria-label="selectedField ? $t('admin.workflow.fieldProperties') : $t('admin.workflow.nodeProperties')" @keydown.esc.stop.prevent="closeMobileInspector">
+                  <div class="designer-panel-heading"><div><h3>{{ selectedField ? $t('admin.workflow.fieldProperties') : $t('admin.workflow.nodeProperties') }}</h3><p>{{ selectedField?.label || currentNode.name }}</p></div><div class="designer-inspector__heading-actions"><a-button v-if="selectedField" type="text" size="small" :aria-label="$t('admin.workflow.nodeSettings')" @click="selectedFieldKey = ''">{{ $t('admin.workflow.nodeSettings') }}</a-button><a-button v-else type="text" size="small" :aria-label="$t('admin.workflow.fieldProperties')" :disabled="!currentNode.fields.length" @click="selectedFieldKey = firstFieldKey(currentNode)">{{ $t('admin.workflow.fieldProperties') }}</a-button><a-button class="designer-inspector__close" type="text" size="small" data-mobile-inspector-close :aria-label="$t('admin.workflow.closeInspector')" @click="closeMobileInspector"><CloseOutlined /></a-button></div></div>
                   <a-form v-if="selectedField" layout="vertical" class="designer-property-form">
                     <a-form-item :label="$t('admin.workflow.fieldLabel')"><a-input id="workflow-field-label" v-model:value="selectedField.label" :disabled="!canWrite" :maxlength="60" @input="markDirty" /></a-form-item>
                     <a-form-item :label="$t('admin.workflow.fieldKey')"><a-input :value="selectedField.key" disabled /></a-form-item>
@@ -602,6 +655,9 @@ onMounted(async () => {
 
 <style scoped>
 .workflow-admin-page { display: grid; gap: var(--pms-space-4); min-width: 0; }
+.workflow-admin-page :deep(.workflow-page-actions) { display: flex; align-items: center; justify-content: flex-end; gap: var(--pms-space-3); flex-wrap: wrap; }
+.workflow-admin-page :deep(.workflow-page-actions__secondary), .workflow-admin-page :deep(.workflow-page-actions__primary) { display: flex; align-items: center; gap: var(--pms-space-2); flex-wrap: nowrap; flex: 0 0 auto; }
+.workflow-admin-page :deep(.workflow-page-actions__primary) { padding-inline-start: var(--pms-space-3); border-inline-start: 1px solid var(--pms-border); }
 .workflow-admin-layout { display: grid; grid-template-columns: minmax(240px, 260px) minmax(0, 1fr); align-items: start; gap: var(--pms-space-4); }
 .workflow-library, .workflow-editor, .workflow-canvas-panel, .node-inspector { background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); box-shadow: var(--pms-shadow-sm); }
 .workflow-library { position: sticky; top: calc(var(--pms-topbar-height) + var(--pms-space-4)); max-height: calc(100vh - var(--pms-topbar-height) - var(--pms-space-8)); padding: var(--pms-space-4); overflow-y: auto; }
@@ -790,18 +846,19 @@ onMounted(async () => {
 .palette-state { color: var(--pms-primary); font-size: var(--pms-font-size-caption); white-space: nowrap; }
 .designer-canvas { display: grid; gap: var(--pms-space-3); background: var(--pms-surface); }
 .designer-canvas-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--pms-space-3); }
+.designer-canvas-heading__actions { display: flex; align-items: center; gap: var(--pms-space-2); }
 .designer-canvas-heading > div > span { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
 .designer-canvas-heading h3 { margin: var(--pms-space-2) 0; color: var(--pms-text); font-size: var(--pms-font-size-body); }
 .designer-canvas-heading p { margin: 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-relaxed); }
 .designer-canvas-heading__hint { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); text-align: right; }
 .designer-fixed-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--pms-space-2); }
-.designer-fixed-module { min-width: 0; padding: var(--pms-space-3); background: var(--pms-surface-muted); border: 1px dashed var(--pms-border-strong); border-radius: var(--pms-radius-sm); }
+.designer-fixed-module { min-width: 0; padding: var(--pms-space-3); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); }
 .designer-fixed-module__heading { display: flex; align-items: center; justify-content: space-between; gap: var(--pms-space-2); margin-bottom: var(--pms-space-2); }
 .designer-fixed-module__heading strong { color: var(--pms-text); font-size: var(--pms-font-size-compact); }
 .designer-fixed-module :deep(.ant-select), .designer-fixed-module :deep(.ant-picker) { width: 100%; }
 .designer-fixed-module :deep(.ant-tag) { margin: 0; font-size: var(--pms-font-size-caption); }
-.designer-content-stack { display: grid; gap: var(--pms-space-3); min-width: 0; }
-.designer-content-item { min-width: 0; padding: var(--pms-space-3); background: var(--pms-surface-muted); border: 1px dashed var(--pms-border-strong); border-radius: var(--pms-radius-sm); }
+.designer-content-stack { display: grid; gap: 0; min-width: 0; }
+.designer-content-item { min-width: 0; padding: var(--pms-space-3) 0 0; background: transparent; border: 0; border-top: 1px solid var(--pms-border); border-radius: 0; }
 .designer-content-item[draggable="true"] { cursor: grab; }
 .designer-content-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--pms-space-3); margin-bottom: var(--pms-space-3); }
 .designer-content-heading > div { display: grid; gap: var(--pms-space-2); }
@@ -811,10 +868,10 @@ onMounted(async () => {
 .designer-fields-section__tools { display: flex; align-items: center; gap: var(--pms-space-2); }
 .designer-fields-section__tools > span { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
 .designer-fields-section__tools :deep(.ant-btn), .designer-field-card__actions :deep(.ant-btn) { width: 32px; min-width: 32px; height: 32px; padding: 0; }
-.designer-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--pms-space-2); }
-.designer-field-card { display: grid; align-content: start; gap: var(--pms-space-2); min-width: 0; padding: var(--pms-space-3); background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); cursor: grab; transition: border-color var(--pms-motion-fast) ease, box-shadow var(--pms-motion-fast) ease; }
-.designer-field-card:hover { border-color: var(--pms-border-strong); }
-.designer-field-card.selected { border-color: var(--pms-primary); box-shadow: 0 0 0 2px var(--pms-primary-soft); }
+.designer-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--pms-space-2); }
+.designer-field-card { display: grid; align-content: start; gap: var(--pms-space-2); min-width: 0; padding: var(--pms-space-3); background: transparent; border: 0; border-bottom: 1px solid var(--pms-border); border-radius: 0; cursor: grab; transition: background-color var(--pms-motion-fast) ease, box-shadow var(--pms-motion-fast) ease; }
+.designer-field-card:hover { background: var(--pms-surface-muted); }
+.designer-field-card.selected { background: var(--pms-primary-soft); box-shadow: inset 3px 0 0 var(--pms-primary); }
 .designer-field-card.is-hidden { opacity: .62; border-style: dashed; }
 .designer-field-card:focus-visible { outline: 0; box-shadow: var(--pms-focus-ring); }
 .designer-field-card__top { display: flex; align-items: center; justify-content: space-between; gap: var(--pms-space-2); color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
@@ -838,9 +895,11 @@ onMounted(async () => {
 .designer-inspector { position: sticky; top: calc(var(--pms-topbar-height) + var(--pms-space-3)); }
 .designer-inspector .designer-panel-heading { flex-direction: row; align-items: flex-start; justify-content: space-between; gap: var(--pms-space-2); padding-bottom: var(--pms-space-3); border-bottom: 1px solid var(--pms-border); }
 .designer-inspector .designer-panel-heading p { margin: var(--pms-space-2) 0 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); }
+.designer-inspector__heading-actions { display: flex; align-items: center; gap: var(--pms-space-2); }
+.designer-inspector__close { display: none; }
 .designer-property-form { display: grid; gap: var(--pms-space-2); }
 .designer-property-form :deep(.ant-form-item) { margin-bottom: var(--pms-space-2); }
-.designer-property-form :deep(.ant-form-item-label > label) { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); }
+.designer-property-form :deep(.ant-form-item-label > label) { color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); }
 .designer-property-form :deep(.ant-input), .designer-property-form :deep(.ant-select) { width: 100%; font-size: var(--pms-font-size-compact); }
 .designer-property-form :deep(.ant-form-item-extra), .designer-property-form small { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-normal); }
 .designer-property-switches { display: grid; gap: var(--pms-space-3); margin: var(--pms-space-2) 0 var(--pms-space-4); padding: var(--pms-space-3) 0; border-top: 1px solid var(--pms-border); border-bottom: 1px solid var(--pms-border); }
@@ -866,6 +925,7 @@ onMounted(async () => {
 }
 @media (max-width: 700px) {
   .workflow-editor { padding: 0; }
+  .workflow-admin-page :deep(.workflow-page-actions) { width: 100%; justify-content: flex-start; }
   .workflow-template-bar { padding: var(--pms-space-3); }
   .template-current__name { flex-wrap: wrap; }
   .template-selectors { grid-template-columns: minmax(0, 1fr); }
@@ -879,8 +939,12 @@ onMounted(async () => {
   .designer-palette-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .designer-palette-item { grid-template-columns: 28px minmax(0, 1fr) 16px; }
   .designer-canvas-heading { flex-direction: column; }
+  .designer-canvas-heading__actions { width: 100%; justify-content: space-between; }
   .designer-fixed-grid, .designer-field-grid { grid-template-columns: minmax(0, 1fr); }
   .designer-task-columns { grid-template-columns: minmax(0, 1fr); }
-  .designer-inspector { grid-column: auto; }
+  .designer-inspector { position: fixed; z-index: 1100; left: 50%; bottom: 0; width: min(640px, calc(100vw - var(--pms-space-8))); max-height: min(72vh, 620px); overflow: auto; grid-column: auto; border-radius: var(--pms-radius) var(--pms-radius) 0 0; box-shadow: 0 -12px 32px rgb(16 34 63 / 18%); visibility: hidden; transform: translate(-50%, calc(100% + var(--pms-space-3))); transition: transform var(--pms-motion-fast) ease, visibility 0s linear var(--pms-motion-fast); }
+  .designer-inspector:not(.designer-inspector--mobile-open) { visibility: hidden; }
+  .designer-inspector--mobile-open { visibility: visible; transform: translate(-50%, 0); transition-delay: 0s; }
+  .designer-inspector__close { display: inline-flex; }
 }
 </style>

@@ -124,6 +124,35 @@ test('preview uses dedicated controls for numeric, people, and date field types'
   assert.match(template, /<a-range-picker v-else-if="field\.type === 'DATE_RANGE'"/)
 })
 
+test('field component palette uses semantic icon components instead of typed glyphs', () => {
+  assert.match(source, /FieldNumberOutlined/)
+  assert.match(source, /CalendarOutlined/)
+  assert.match(template, /class="field-type-symbol"><component :is="fieldTypeIcon\(type\)"\s*\/><\/span>/)
+  assert.match(template, /class="field-type-symbol"><component :is="fieldTypeIcon\(binding\.type\)"\s*\/><\/span>/)
+  assert.match(template, /<CheckOutlined v-if="configuredComponents\.includes\(component\.key\)" \/>/)
+  assert.doesNotMatch(source, /function fieldTypeSymbol\(/)
+})
+
+test('mobile field selection opens a dismissible inspector sheet and keeps it out of document flow', () => {
+  assert.match(source, /function selectField\(fieldKey: string, event\?: MouseEvent\)[\s\S]*?openMobileInspector\(event\?\.currentTarget\)/)
+  assert.match(template, /id="workflow-inspector-panel"[^>]*:class="\{ 'designer-inspector--mobile-open': mobileInspectorOpen \}"/)
+  assert.match(template, /class="designer-inspector__close"[^>]*@click="closeMobileInspector"/)
+  assert.match(template, /class="designer-field-select"[^>]*aria-controls="workflow-inspector-panel"/)
+  assert.match(style, /@media \(max-width: 700px\)[\s\S]*?\.designer-inspector\s*\{[^}]*position:\s*fixed/)
+  assert.match(style, /\.designer-inspector:not\(\.designer-inspector--mobile-open\)[\s\S]*?visibility:\s*hidden/)
+})
+
+test('workflow header keeps primary save and publish actions together when actions wrap', () => {
+  assert.match(template, /class="workflow-page-actions"[\s\S]*?class="workflow-page-actions__primary"[\s\S]*?@click="saveDraft"[\s\S]*?@click="publish"/)
+  assert.match(style, /:deep\(\.workflow-page-actions__primary\)[^}]*\{[^}]*flex-wrap:\s*nowrap/)
+})
+
+test('designer field cards use lighter section separators and readable inspector labels', () => {
+  assert.match(style, /\.designer-content-item\s*\{[^}]*background:\s*transparent[^}]*border:\s*0/)
+  assert.match(style, /\.designer-field-card\s*\{[^}]*background:\s*transparent[^}]*border:\s*0/)
+  assert.match(style, /\.designer-property-form :deep\(\.ant-form-item-label > label\)\s*\{[^}]*font-size:\s*var\(--pms-font-size-compact\)/)
+})
+
 test('node preview sizes to its content instead of stretching beside the full editor', () => {
   const inspector = style.match(/\.designer-inspector\s*\{([^}]+)\}/)?.[1] || ''
   assert.match(inspector, /position:\s*sticky/)

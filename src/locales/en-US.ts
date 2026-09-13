@@ -905,7 +905,7 @@ const enUS: MessageSchema = {
       configTitle: 'Workflow template configuration', currentTemplate: 'Current template', fieldCount: '{count} form fields',
       fieldComponents: 'Field components', addFieldHint: 'Click to add to the node form', projectFields: 'Project fields', projectFieldsHint: 'Bind existing project data', noAvailableProjectFields: 'All project fields have been added',
       workbenchComponents: 'Business workbenches', workbenchComponentsHint: 'Add existing business capabilities to this node', added: 'Added', add: 'Add',
-      nodeSettings: 'Node settings', nodeProperties: 'Node properties', fieldProperties: 'Field properties', nodeCanvasAria: 'Visual node detail canvas', nodeDetailCanvas: 'Node detail canvas',
+      nodeSettings: 'Node settings', nodeProperties: 'Node properties', fieldProperties: 'Field properties', closeInspector: 'Close properties panel', nodeCanvasAria: 'Visual node detail canvas', nodeDetailCanvas: 'Node detail canvas',
       dragFieldsHint: 'Drag fields to change their order', individualFieldHint: 'Configure each input independently', hidden: 'Hidden', projectBinding: 'Project field', nodeField: 'Node field', unnamedField: 'Untitled field', optionPlaceholder: 'Option',
       fieldTypeHints: { TEXT: 'Names, IDs, and more', TEXTAREA: 'Descriptions and notes', NUMBER: 'Counts and amounts', RADIO: 'Choose one option', SINGLE_SELECT: 'Choose one item', MULTI_SELECT: 'Choose multiple values', PERSON: 'Choose one person', PERSON_MULTI: 'Choose multiple people', DATE: 'One date', DATE_RANGE: 'Start and end dates', ATTACHMENT: 'Upload a file' },
       taskColumns: { todo: 'To do', inProgress: 'In progress', done: 'Done' }, addTask: 'Add task',
