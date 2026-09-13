@@ -92,7 +92,7 @@ Output summary: `Files: 48; tests: 313; passed: 313; failed: 0`.
 - Profile `profileContainer` remains on the bound/project-profile wrapper because document pointer handling uses it as the project profile auto-save boundary. The unbound compatibility wrapper does not claim it.
 - Backend allows an empty v2 node (`fields=[]`, `contentOrder=[]`) and workbench-only nodes, but rejects dangling field tokens and missing required field slots. A null token now yields the standard unknown-item validation error, not an NPE.
 - Draft persistence accepts `DATE_RANGE: []`; required completion semantics remain missing because empty arrays still fail the required-value check.
-- No full Maven suite, committed Playwright runner, branch switch, reset, merge, or push was performed.
+- No full Maven suite, committed Playwright runner, branch switch, reset, or merge was performed. See the final verification below for the independent controller rerun.
 
 ## Deferred concerns
 
@@ -102,4 +102,23 @@ Output summary: `Files: 48; tests: 313; passed: 313; failed: 0`.
 
 ## Commits
 
-Two local commits were created on the existing feature branch, one in each linked worktree. Nothing was pushed.
+The fix round was committed on the existing feature branch:
+
+- Frontend: `382ae8b4c361a52aed5072786384c978e51b7e5d` — `fix(workflow): preserve legacy field placement in migration`
+- Backend: `8b6bb6c568e21a6931682c6e9eadec60f2db22be` — `fix(workflow): validate empty nodes and date ranges`
+
+## Controller verification and scoped re-review
+
+Fresh verification on 2026-09-13:
+
+- All frontend `src/**/*.test.mjs` files: 48 files, 313 tests passed, 0 failed.
+- Four focused workflow/node admin and runtime frontend test files: 49/49 passed.
+- `node_modules/.bin/vue-tsc.CMD --noEmit`: exit 0.
+- `node node_modules/vite/bin/vite.js build`: exit 0; 3423 modules transformed.
+- Focused backend Maven suite (`WorkflowTemplateDefinitionValidatorTest`, `WorkflowFieldValueValidatorTest`, `NodeCustomFieldServiceTest`, `NodeServiceCompleteTest`): 39 tests passed, 0 failures/errors/skips; `BUILD SUCCESS`.
+- Both scoped fix diffs passed `git diff --check`; Playwright spec/config syntax checks passed.
+- Independent scoped re-review: all six findings ADDRESSED; no new breakage found.
+- Fresh remote fetches showed both feature branches are ahead only (frontend 13 commits, backend 4 commits) with no remote-only commits.
+- The browser's `localhost:5173` still serves the older static bundle (`/assets/index-HcphHPy1.js`); a Vue source-module request returns the SPA HTML shell. The fresh feature-worktree build has a different entry bundle (`/assets/index-Ct53ZwsL.js`). The main checkouts and their local edits were left untouched; the feature branch has not been merged into `main`.
+
+Deferred limitations remain: the full Maven suite is not claimed because Testcontainers cannot access Docker from the Maven container; the committed Playwright runner hangs before tests start on this host. Direct browser smoke from Task 6 passed before this final fix, but the latest template-preview delta was verified with focused regressions, typecheck, and production build rather than a new interactive browser run.
