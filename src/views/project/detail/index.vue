@@ -97,6 +97,8 @@ const profileSaving = ref(false)
 const membersRevision = ref(0)
 const knownMemberIds = ref<number[]>([])
 let profileSavePromise: Promise<void> | null = null
+let projectLoadSequence = 0
+let scheduleLoadSequence = 0
 let assignedMemberRefreshTimer: ReturnType<typeof setTimeout> | undefined
 const profileContainer = ref<HTMLElement | null>(null)
 const activeNodeId = ref<number | null>(null)
@@ -303,6 +305,24 @@ async function savePendingWorkflowCustomFields(): Promise<boolean> {
   return true
 }
 
+async function savePendingProfileChanges(): Promise<boolean> {
+  if (profileSavePromise) await profileSavePromise
+  if (profileDirty.value) {
+    await onSaveProfile()
+    if (profileSavePromise) await profileSavePromise
+  }
+  return !profileDirty.value && !profileSaving.value
+}
+
+async function savePendingProjectChanges(): Promise<boolean> {
+  if (!(await savePendingProfileChanges())) return false
+  return savePendingWorkflowCustomFields()
+}
+
+function onWorkflowFieldsSaveRequested() {
+  void savePendingProjectChanges()
+}
+
 async function flushWorkflowCustomFields(): Promise<boolean> {
   for (const fieldsRef of [workflowCustomFieldsRef, legacyWorkflowCustomFieldsRef]) {
     if (await fieldsRef.value?.flushAutoSave() === false) return false
@@ -311,16 +331,19 @@ async function flushWorkflowCustomFields(): Promise<boolean> {
 }
 
 async function loadData() {
+  const requestProjectId = projectId.value
+  const requestSequence = ++projectLoadSequence
   loading.value = true
   loadError.value = false
   try {
     const [projectData, nodeData, memberData, followerData, orgData] = await Promise.all([
-      getProject(projectId.value),
-      getNodes(projectId.value),
-      getMembers(projectId.value),
-      getFollowers(projectId.value),
+      getProject(requestProjectId),
+      getNodes(requestProjectId),
+      getMembers(requestProjectId),
+      getFollowers(requestProjectId),
       getProjectOrgTree().catch(() => []),
     ])
+    if (requestSequence !== projectLoadSequence || requestProjectId !== projectId.value) return
     project.value = projectData
     nodes.value = nodeData
     activeNodeTaskSummary.value = { done: 0, total: 0 }
@@ -331,6 +354,7 @@ async function loadData() {
     profileUserOptions.value = []
     syncProfileUserOptions()
     await persistDefaultNodeOwners()
+    if (requestSequence !== projectLoadSequence || requestProjectId !== projectId.value) return
     activeNodeId.value = getInitialActiveNodeId(nodes.value)
     await applyFocusTask()
     await applyFocusNode()
@@ -339,10 +363,11 @@ async function loadData() {
       void loadSchedule()
     }
   } catch (error) {
+    if (requestSequence !== projectLoadSequence || requestProjectId !== projectId.value) return
     loadError.value = !project.value
     message.error((error as Error).message || t('detail.loadFailed'))
   } finally {
-    loading.value = false
+    if (requestSequence === projectLoadSequence) loading.value = false
   }
 }
 
@@ -388,7 +413,7 @@ async function activateNode(nodeId: number): Promise<boolean> {
 }
 
 async function onSelectNode(node: ProjectNode) {
-  if (profileDirty.value) void onSaveProfile()
+  if (!(await savePendingProfileChanges())) return
   await activateNode(node.id)
 }
 
@@ -397,19 +422,23 @@ function isScheduleSection(section: string) {
 }
 
 async function loadSchedule() {
+  const requestProjectId = projectId.value
+  const requestSequence = ++scheduleLoadSequence
   if (!scheduleLoaded.value) scheduleLoading.value = true
   try {
     const [taskData, iterationPlanData] = await Promise.all([
-      getTasks(projectId.value),
-      getIterationPlans(projectId.value),
+      getTasks(requestProjectId),
+      getIterationPlans(requestProjectId),
     ])
+    if (requestSequence !== scheduleLoadSequence || requestProjectId !== projectId.value) return
     scheduleTasks.value = taskData
     scheduleIterationPlans.value = iterationPlanData
     scheduleLoaded.value = true
   } catch (error) {
+    if (requestSequence !== scheduleLoadSequence || requestProjectId !== projectId.value) return
     message.error((error as Error).message || t('schedule.empty'))
   } finally {
-    scheduleLoading.value = false
+    if (requestSequence === scheduleLoadSequence) scheduleLoading.value = false
   }
 }
 
@@ -418,9 +447,16 @@ watch(activeSection, (section) => {
 })
 
 watch(projectId, () => {
+  projectLoadSequence += 1
+  scheduleLoadSequence += 1
+  project.value = null
+  nodes.value = []
+  activeNodeId.value = null
   scheduleLoaded.value = false
+  scheduleLoading.value = false
   scheduleTasks.value = []
   scheduleIterationPlans.value = []
+  void loadData()
 })
 
 watch(focusTaskId, (taskId) => {
@@ -563,6 +599,7 @@ function applyDefaultNodeOwnersLocally(
 
 async function persistDefaultNodeOwners(previousManagerId?: number) {
   if (!project.value || !(canAssignNodeOwner.value || canSetProjectManager.value)) return
+  const requestProjectId = project.value.id
   const creatorId = project.value.createdBy ?? project.value.ownerId
   const managerId = profileForm.projectManagerId ?? project.value.projectManagerId
   const assignments = listDefaultNodeOwnerAssignments(
@@ -574,7 +611,7 @@ async function persistDefaultNodeOwners(previousManagerId?: number) {
   if (!assignments.length) return
   applyDefaultNodeOwnersLocally(assignments, managerId)
   const [first, ...rest] = assignments
-  const writeOwner = (assignment: typeof first) => updateNodeOwner(project.value!.id, assignment.node.id, {
+  const writeOwner = (assignment: typeof first) => updateNodeOwner(requestProjectId, assignment.node.id, {
     ownerId: assignment.ownerId,
     version: assignment.node.version ?? 0,
   })
@@ -586,9 +623,11 @@ async function persistDefaultNodeOwners(previousManagerId?: number) {
       if (result.status === 'fulfilled') updatedNodes.push(result.value)
     })
   } catch (error) {
+    if (project.value?.id !== requestProjectId) return
     message.error(apiErrorMessage(error, t('detail.ownerSaveFailed')))
     return
   }
+  if (project.value?.id !== requestProjectId) return
   updatedNodes.forEach((updated) => {
     const index = nodes.value.findIndex((node) => node.id === updated.id)
     if (index >= 0) nodes.value[index] = updated
@@ -831,6 +870,7 @@ async function onSaveProfile() {
 }
 
 async function onComplete() {
+  if (!(await savePendingProfileChanges())) return
   const nodeToComplete = activeNode.value
   if (!nodeToComplete || !canCompleteActiveNode.value) {
     message.info(t('detail.cannotComplete'))
@@ -1020,13 +1060,13 @@ onMounted(() => {
 })
 
 onBeforeRouteLeave(async () => {
-  const saved = await savePendingWorkflowCustomFields()
+  const saved = await savePendingProjectChanges()
   return saved !== false
 })
 
 onBeforeRouteUpdate(async (to, from) => {
   if (to.params.id !== from.params.id) {
-    const saved = await savePendingWorkflowCustomFields()
+    const saved = await savePendingProjectChanges()
     return saved !== false
   }
   return true
@@ -1214,6 +1254,8 @@ onBeforeUnmount(() => {
            :person-options="nodeOwnerOptions"
            :can-edit="canEditActiveNode"
            :read-only="activeNodeReadOnly"
+           :has-pending-profile-changes="profileDirty"
+           @save-requested="onWorkflowFieldsSaveRequested"
          >
            <template #bound-field="{ field }">
              <a-textarea v-if="field.binding === 'project.description'" v-model:value="profileForm.description" :rows="4" :disabled="!canManageProject || activeNodeReadOnly" class="project-profile-control project-description-control" @input="markProfileDirty" />
@@ -1237,6 +1279,8 @@ onBeforeUnmount(() => {
            :person-options="nodeOwnerOptions"
            :can-edit="canEditActiveNode"
            :read-only="activeNodeReadOnly"
+           :has-pending-profile-changes="profileDirty"
+           @save-requested="onWorkflowFieldsSaveRequested"
          />
        </div>
 

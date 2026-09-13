@@ -20,7 +20,9 @@ const props = defineProps<{
   personOptions: Array<{ value: number; label: string }>
   canEdit: boolean
   readOnly: boolean
+  hasPendingProfileChanges: boolean
 }>()
+const emit = defineEmits<{ (event: 'save-requested'): void }>()
 
 const { t } = useI18n()
 const loading = ref(false)
@@ -169,7 +171,7 @@ defineExpose({ flushAutoSave, saveIfDirty: save })
   <section v-if="hasFields" class="workflow-custom-fields pms-detail-panel pms-section-panel card-surface" :aria-busy="loading">
     <header class="workflow-custom-fields__header">
       <div><h2>{{ $t('detail.workflowFields.title') }}</h2><p>{{ $t('detail.workflowFields.hint') }}</p></div>
-      <a-button v-if="canEdit && !readOnly" size="small" :loading="saving" :disabled="!dirty" @click="save"><SaveOutlined /> {{ $t('common.save') }}</a-button>
+      <a-button v-if="canEdit && !readOnly" size="small" :loading="saving" :disabled="!dirty && !hasPendingProfileChanges" @click="emit('save-requested')"><SaveOutlined /> {{ $t('common.save') }}</a-button>
     </header>
     <a-spin :spinning="loading">
       <div class="workflow-custom-fields__grid">

@@ -429,7 +429,7 @@ test('profile member save keeps a baseline so auto-joined people are not replace
   assert.match(detail, /nodes\.value = await getNodes\(project\.value\.id\)/)
   assert.match(detail, /persistDefaultNodeOwners\(pendingPreviousManagerId\)/)
   assert.match(detail, /listDefaultNodeOwnerAssignments/)
-  assert.match(detail, /updateNodeOwner\(project\.value!\.id, assignment\.node\.id/)
+  assert.match(detail, /updateNodeOwner\(requestProjectId, assignment\.node\.id/)
   assert.match(detail, /void onSaveProfile\(\)/)
 })
 

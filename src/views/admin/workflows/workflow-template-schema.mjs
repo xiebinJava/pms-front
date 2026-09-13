@@ -9,6 +9,17 @@ export const PROJECT_FIELD_BINDINGS = Object.freeze({
   followers: { binding: 'project.followers', type: 'PERSON_MULTI' },
 })
 
+const DEFAULT_PROJECT_FIELDS = Object.freeze([
+  { key: 'description', label: 'detail.profileDescription', visible: true, required: true },
+  { key: 'priority', label: 'detail.profilePriority', visible: true, required: true },
+  { key: 'projectLevel', label: 'detail.profileProjectLevel', visible: true, required: false },
+  { key: 'schedule', label: 'detail.profileSchedule', visible: true, required: true },
+  { key: 'businessLine', label: 'detail.businessLine', visible: true, required: false },
+  { key: 'projectManager', label: 'detail.manager', visible: true, required: true },
+  { key: 'projectMembers', label: 'detail.members', visible: true, required: true },
+  { key: 'followers', label: 'detail.followers', visible: true, required: false },
+])
+
 function clone(value) {
   return structuredClone(value)
 }
@@ -27,7 +38,7 @@ function uniqueProjectFieldKey(key, usedKeys) {
 }
 
 function normalizeProjectFields(fields, usedKeys) {
-  return (Array.isArray(fields) ? fields : [])
+  return (Array.isArray(fields) ? fields : DEFAULT_PROJECT_FIELDS)
     .filter((field) => PROJECT_FIELD_BINDINGS[field.key])
     .map((field) => {
       const definition = PROJECT_FIELD_BINDINGS[field.key]

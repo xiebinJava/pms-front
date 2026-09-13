@@ -62,7 +62,7 @@ test('workflow editor normalizes legacy definitions before editing and persists 
   assert.match(source, /definition\.value = normalizeWorkflowDefinition\(template\.definition\)/)
   assert.match(source, /normalizeWorkflowDefinition\(baseTemplate\.definition\)/)
   assert.match(source, /const definition = ref<WorkflowTemplateDefinitionV2>\(\{ schemaVersion: 2, nodes: \[\] \}\)/)
-  assert.match(source, /definition:\s*definition\.value/)
+  assert.match(source, /definition:\s*JSON\.parse\(JSON\.stringify\(definition\.value\)\)/)
 })
 
 test('content editor uses v2 contentOrder and model helpers rather than legacy component arrays', () => {

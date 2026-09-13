@@ -130,6 +130,57 @@ test('existing workflow drafts send the revision loaded by the editor', () => {
   assert.match(handler, /expectedDraftRevision:\s*selectedTemplateSummary\.value\?\.draftRevision\s*\?\?\s*null/)
 })
 
+test('ignores stale workflow template list and detail responses after a newer selection', () => {
+  const source = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+  assert.match(source, /let templateListRequestSequence\s*=\s*0/)
+  assert.match(source, /let templateDetailRequestSequence\s*=\s*0/)
+  const loadTemplates = source.match(/async function loadTemplates\([\s\S]*?\n\}/)?.[0]
+  const selectTemplate = source.match(/async function selectTemplate\([\s\S]*?\n\}/)?.[0]
+  assert.ok(loadTemplates)
+  assert.ok(selectTemplate)
+  assert.match(loadTemplates, /requestSequence !== templateListRequestSequence \|\| typeId !== selectedTypeId\.value/)
+  assert.match(selectTemplate, /requestSequence !== templateDetailRequestSequence \|\| typeId !== selectedTypeId\.value/)
+})
+
+test('changing project type clears the previous type editor before loading its templates', () => {
+  const source = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+  const changeType = source.match(/async function changeProjectType\([\s\S]*?\n\}/)?.[0]
+  assert.ok(changeType)
+  assert.match(changeType, /selectedTypeId\.value = typeId[\s\S]*?templates\.value = \[\][\s\S]*?clearEditor\(\)[\s\S]*?await loadTemplates\(\)/)
+})
+
+test('draft save snapshots edits and refuses to publish a stale draft', () => {
+  const source = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+  const saveDraft = source.match(/async function saveDraft\(\)[\s\S]*?\n\}/)?.[0]
+  const publish = source.match(/async function publish\(\)[\s\S]*?\n\}/)?.[0]
+  assert.ok(saveDraft)
+  assert.ok(publish)
+  assert.match(saveDraft, /const editRevision = templateEditSequence/)
+  assert.match(saveDraft, /definition: JSON\.parse\(JSON\.stringify\(definition\.value\)\)/)
+  assert.match(saveDraft, /dirty\.value = templateEditSequence !== editRevision/)
+  assert.doesNotMatch(saveDraft, /await loadTemplates\(saved\.id\)/)
+  assert.match(publish, /if \(dirty\.value\).*?return/s)
+  assert.match(source, /class="workflow-editor"[^>]*:inert="saving \|\| loading"/)
+})
+
+test('uses write responses as the source of truth for saved and published template versions', () => {
+  const source = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+  const saveDraft = source.match(/async function saveDraft\(\)[\s\S]*?\n\}/)?.[0]
+  const publish = source.match(/async function publish\(\)[\s\S]*?\n\}/)?.[0]
+  const setDefault = source.match(/async function setAsDefault\(\)[\s\S]*?\n\}/)?.[0]
+  const upsertSummary = source.match(/function upsertTemplateSummary\([\s\S]*?\n\}/)?.[0]
+  assert.ok(saveDraft)
+  assert.ok(publish)
+  assert.ok(setDefault)
+  assert.ok(upsertSummary)
+  assert.match(saveDraft, /upsertTemplateSummary\(saved\)/)
+  assert.match(upsertSummary, /draftRevision:\s*template\.draftRevision/)
+  assert.match(publish, /const published = await publishWorkflowTemplate\(templateId\)/)
+  assert.match(publish, /upsertTemplateSummary\(published\)/)
+  assert.match(setDefault, /const updatedType = await setWorkflowDefault\(typeId, versionId\)/)
+  assert.match(setDefault, /defaultTemplateVersionId:\s*updatedType\.defaultTemplateVersionId/)
+})
+
 test('node preview shows fixed sections and configured components and fields', () => {
   const source = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
   assert.match(source, /preview-owner-schedule/)

@@ -121,3 +121,22 @@ test('uses the legacy component marker only when project-basic-info flag is abse
   assert.equal(definition.nodes[0].fields.length, 8)
   assert.deepEqual(definition.nodes[0].contentOrder, ['fields'])
 })
+
+test('preserves the runtime default project fields when migrating a v1 node without an explicit field list', () => {
+  const definition = normalizeWorkflowDefinition({
+    schemaVersion: 1,
+    nodes: [{
+      key: 'implicit-profile',
+      name: '使用默认项目信息',
+      components: ['project-basic-info'],
+      projectBasicInfo: true,
+      fields: [],
+    }],
+  })
+
+  assert.deepEqual(definition.nodes[0].fields.map((field) => field.binding), [
+    'project.description', 'project.priority', 'project.projectLevel', 'project.schedule',
+    'project.businessLine', 'project.projectManager', 'project.projectMembers', 'project.followers',
+  ])
+  assert.deepEqual(definition.nodes[0].contentOrder, ['fields'])
+})

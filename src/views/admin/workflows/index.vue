@@ -58,6 +58,11 @@ const mobileInspectorOpen = ref(false)
 const mobileInspectorPanel = ref<HTMLElement>()
 const mobileInspectorTrigger = ref<HTMLElement>()
 const typeForm = reactive({ code: '', name: '', description: '' })
+let typeListRequestSequence = 0
+let templateListRequestSequence = 0
+let templateDetailRequestSequence = 0
+let typeChangeRequestSequence = 0
+let templateEditSequence = 0
 
 const COMPONENTS = [
   { key: 'requirement-scope' }, { key: 'solution-design' },
@@ -105,25 +110,63 @@ function fieldsForContentItem(node: WorkflowNodeDefinitionV2, contentItem: Workf
   return []
 }
 
-function markDirty() { dirty.value = true }
+function markDirty() {
+  templateEditSequence += 1
+  dirty.value = true
+}
 
 async function loadTypes(preferredTypeId?: number) {
-  types.value = await listWorkflowProjectTypes()
-  if (!types.value.length) { selectedTypeId.value = undefined; templates.value = []; return }
-  selectedTypeId.value = types.value.some((type) => type.id === preferredTypeId)
-    ? preferredTypeId
-    : types.value[0].id
-  await loadTemplates()
+  const requestSequence = ++typeListRequestSequence
+  loading.value = true
+  try {
+    const loadedTypes = await listWorkflowProjectTypes()
+    if (requestSequence !== typeListRequestSequence) return
+    types.value = loadedTypes
+    if (!types.value.length) {
+      selectedTypeId.value = undefined
+      templates.value = []
+      templateListRequestSequence += 1
+      templateDetailRequestSequence += 1
+      clearEditor()
+      return
+    }
+    selectedTypeId.value = types.value.some((type) => type.id === preferredTypeId)
+      ? preferredTypeId
+      : types.value[0].id
+    await loadTemplates()
+  } catch (error) {
+    if (requestSequence === typeListRequestSequence) message.error((error as Error).message || t('admin.workflow.loadFailed'))
+  } finally {
+    if (requestSequence === typeListRequestSequence) loading.value = false
+  }
 }
 
 async function loadTemplates(preferredTemplateId?: number) {
-  if (!selectedTypeId.value) { templates.value = []; return }
-  templates.value = await listWorkflowTemplates(selectedTypeId.value)
-  const selected = templates.value.find((template) => template.id === preferredTemplateId)
-    || templates.value.find((template) => template.defaultTemplate)
-    || templates.value[0]
-  if (selected) await selectTemplate(selected.id)
-  else clearEditor()
+  const typeId = selectedTypeId.value
+  if (!typeId) {
+    templateListRequestSequence += 1
+    templateDetailRequestSequence += 1
+    templates.value = []
+    clearEditor()
+    return
+  }
+  const requestSequence = ++templateListRequestSequence
+  templateDetailRequestSequence += 1
+  loading.value = true
+  try {
+    const loadedTemplates = await listWorkflowTemplates(typeId)
+    if (requestSequence !== templateListRequestSequence || typeId !== selectedTypeId.value) return
+    templates.value = loadedTemplates
+    const selected = loadedTemplates.find((template) => template.id === preferredTemplateId)
+      || loadedTemplates.find((template) => template.defaultTemplate)
+      || loadedTemplates[0]
+    if (selected) await selectTemplate(selected.id)
+    else clearEditor()
+  } catch (error) {
+    if (requestSequence === templateListRequestSequence) message.error((error as Error).message || t('admin.workflow.loadFailed'))
+  } finally {
+    if (requestSequence === templateListRequestSequence) loading.value = false
+  }
 }
 
 function clearEditor() {
@@ -136,13 +179,43 @@ function clearEditor() {
   dirty.value = false
 }
 
+function upsertTemplateSummary(template: WorkflowTemplateSummary) {
+  const existingIndex = templates.value.findIndex((item) => item.id === template.id)
+  const existing = existingIndex >= 0 ? templates.value[existingIndex] : undefined
+  const next: WorkflowTemplateSummary = {
+    ...existing,
+    id: template.id,
+    code: template.code,
+    projectTypeId: template.projectTypeId,
+    name: template.name,
+    description: template.description,
+    draftVersionNo: template.draftVersionNo,
+    draftRevision: template.draftRevision,
+    publishedVersionNo: template.publishedVersionNo,
+    publishedVersionId: template.publishedVersionId,
+    publishedVersions: template.publishedVersions ?? existing?.publishedVersions,
+    defaultTemplateVersionId: template.defaultTemplateVersionId ?? existing?.defaultTemplateVersionId,
+    defaultTemplate: existing?.defaultTemplate ?? false,
+  }
+  if (existingIndex >= 0) {
+    templates.value = templates.value.map((item, index) => index === existingIndex ? next : item)
+  } else {
+    templates.value = [...templates.value, next]
+  }
+}
+
 async function selectTemplate(id: number) {
+  if (saving.value) return
+  const requestSequence = ++templateDetailRequestSequence
+  templateListRequestSequence += 1
+  const typeId = selectedTypeId.value
   if (!(await confirmDiscard())) return
+  if (requestSequence !== templateDetailRequestSequence || typeId !== selectedTypeId.value) return
   loading.value = true
   try {
     const template = await getWorkflowTemplate(id)
+    if (requestSequence !== templateDetailRequestSequence || typeId !== selectedTypeId.value || template.projectTypeId !== typeId) return
     selectedTemplateId.value = template.id
-    selectedTypeId.value = template.projectTypeId
     templateName.value = template.name
     templateDescription.value = template.description || ''
     definition.value = normalizeWorkflowDefinition(template.definition)
@@ -150,8 +223,10 @@ async function selectTemplate(id: number) {
     selectedFieldKey.value = firstFieldKey(definition.value.nodes[0])
     dirty.value = false
   } catch (error) {
-    message.error((error as Error).message || t('admin.workflow.loadFailed'))
-  } finally { loading.value = false }
+    if (requestSequence === templateDetailRequestSequence) message.error((error as Error).message || t('admin.workflow.loadFailed'))
+  } finally {
+    if (requestSequence === templateDetailRequestSequence) loading.value = false
+  }
 }
 
 function firstFieldKey(node?: WorkflowNodeDefinitionV2): string {
@@ -204,28 +279,41 @@ onBeforeRouteLeave(async () => {
 })
 
 async function changeProjectType(typeId: number) {
-  if (typeId === selectedTypeId.value || !(await confirmDiscard())) return
+  if (saving.value || typeId === selectedTypeId.value) return
+  const requestSequence = ++typeChangeRequestSequence
+  if (!(await confirmDiscard())) return
+  if (requestSequence !== typeChangeRequestSequence || saving.value) return
+  templateListRequestSequence += 1
+  templateDetailRequestSequence += 1
   selectedTypeId.value = typeId
+  templates.value = []
+  clearEditor()
   await loadTemplates()
 }
 
 async function newTemplate() {
+  if (saving.value || loading.value) return
   if (!selectedTypeId.value) { message.warning(t('admin.workflow.chooseTypeFirst')); return }
   const hadUnsavedChanges = dirty.value
   if (!(await confirmDiscard())) return
+  const typeId = selectedTypeId.value
+  const requestSequence = ++templateDetailRequestSequence
+  templateListRequestSequence += 1
   const base = templates.value.find((template) => template.defaultTemplate) || templates.value[0]
   let nodes: WorkflowNodeDefinitionV2[] = []
   if (base) {
     loading.value = true
     try {
       const baseTemplate = await getWorkflowTemplate(base.id)
+      if (requestSequence !== templateDetailRequestSequence || typeId !== selectedTypeId.value) return
       nodes = normalizeWorkflowDefinition(baseTemplate.definition).nodes
     } catch (error) {
       dirty.value = hadUnsavedChanges
       message.error((error as Error).message || t('admin.workflow.loadFailed'))
       return
-    } finally { loading.value = false }
+    } finally { if (requestSequence === templateDetailRequestSequence) loading.value = false }
   }
+  if (requestSequence !== templateDetailRequestSequence || typeId !== selectedTypeId.value) return
   selectedTemplateId.value = null
   templateName.value = t('admin.workflow.newTemplateName')
   templateDescription.value = ''
@@ -398,25 +486,38 @@ function updateFieldVisibility(field: WorkflowFieldDefinition, visible: boolean)
 }
 
 async function saveDraft(): Promise<boolean> {
+  if (saving.value || loading.value) return false
   if (!selectedTypeId.value || !templateName.value.trim() || !definition.value.nodes.length) {
     message.warning(t('admin.workflow.completeBeforeSave'))
     return false
   }
+  const editRevision = templateEditSequence
+  const typeId = selectedTypeId.value
+  const previousTemplateId = selectedTemplateId.value
   saving.value = true
   try {
     const payload = {
       name: templateName.value.trim(),
       description: templateDescription.value.trim(),
-      definition: definition.value,
+      definition: JSON.parse(JSON.stringify(definition.value)) as WorkflowTemplateDefinitionV2,
       expectedDraftRevision: selectedTemplateSummary.value?.draftRevision ?? null,
     }
-    const saved = selectedTemplateId.value
-      ? await saveWorkflowTemplateDraft(selectedTemplateId.value, payload)
-      : await createWorkflowTemplate({ ...payload, projectTypeId: selectedTypeId.value })
+    const saved = previousTemplateId
+      ? await saveWorkflowTemplateDraft(previousTemplateId, payload)
+      : await createWorkflowTemplate({ ...payload, projectTypeId: typeId })
+    if (selectedTypeId.value !== typeId || selectedTemplateId.value !== previousTemplateId) return false
     selectedTemplateId.value = saved.id
-    dirty.value = false
-    await loadTemplates(saved.id)
-    message.success(t('admin.workflow.draftSaved'))
+    upsertTemplateSummary(saved)
+    dirty.value = templateEditSequence !== editRevision
+    const listRequestSequence = ++templateListRequestSequence
+    try {
+      const refreshedTemplates = await listWorkflowTemplates(typeId)
+      if (listRequestSequence === templateListRequestSequence && selectedTypeId.value === typeId) templates.value = refreshedTemplates
+    } catch {
+      // The draft was saved successfully; a failed summary refresh must not report the save as failed.
+    }
+    if (dirty.value) message.warning(t('admin.workflow.saveChangesRemain'))
+    else message.success(t('admin.workflow.draftSaved'))
     return true
   } catch (error) {
     message.error((error as Error).message || t('admin.workflow.saveFailed'))
@@ -425,29 +526,55 @@ async function saveDraft(): Promise<boolean> {
 }
 
 async function publish() {
-  if (!canWrite.value) return
+  if (!canWrite.value || saving.value || loading.value) return
   if (dirty.value && !(await saveDraft())) return
+  if (dirty.value) { message.warning(t('admin.workflow.saveChangesBeforePublish')); return }
   if (!selectedTemplateId.value) return
+  const templateId = selectedTemplateId.value
+  const typeId = selectedTypeId.value
   saving.value = true
   try {
-    await publishWorkflowTemplate(selectedTemplateId.value)
-    await loadTemplates(selectedTemplateId.value)
+    const published = await publishWorkflowTemplate(templateId)
+    upsertTemplateSummary(published)
     message.success(t('admin.workflow.published'))
+    try {
+      const requestSequence = ++templateListRequestSequence
+      const refreshedTemplates = typeId ? await listWorkflowTemplates(typeId) : []
+      if (requestSequence === templateListRequestSequence && selectedTypeId.value === typeId) templates.value = refreshedTemplates
+    } catch {
+      message.warning(t('admin.workflow.publishedRefreshFailed'))
+    }
   } catch (error) { message.error((error as Error).message || t('admin.workflow.publishFailed')) }
   finally { saving.value = false }
 }
 
 async function setAsDefault() {
+  if (saving.value || loading.value) return
+  const typeId = selectedTypeId.value
+  const templateId = selectedTemplateId.value
   const versionId = selectedTemplateSummary.value?.publishedVersionId
-  if (!selectedTypeId.value || !versionId) { message.warning(t('admin.workflow.publishBeforeDefault')); return }
+  if (!typeId || !templateId || !versionId) { message.warning(t('admin.workflow.publishBeforeDefault')); return }
+  saving.value = true
   try {
-    const templateId = selectedTemplateId.value
-    await setWorkflowDefault(selectedTypeId.value, versionId)
-    types.value = await listWorkflowProjectTypes()
-    templates.value = await listWorkflowTemplates(selectedTypeId.value)
-    if (templateId != null) await selectTemplate(templateId)
+    const updatedType = await setWorkflowDefault(typeId, versionId)
+    types.value = types.value.map((type) => type.id === typeId ? updatedType : type)
+    templates.value = templates.value.map((template) => ({
+      ...template,
+      defaultTemplateVersionId: updatedType.defaultTemplateVersionId,
+      defaultTemplate: template.publishedVersions?.some((version) => version.id === versionId)
+        ?? template.id === templateId,
+    }))
     message.success(t('admin.workflow.defaultUpdated'))
+    try {
+      const refreshedTemplates = await listWorkflowTemplates(typeId)
+      if (selectedTypeId.value === typeId && selectedTemplateId.value === templateId) {
+        templates.value = refreshedTemplates
+      }
+    } catch {
+      message.warning(t('admin.workflow.defaultUpdatedRefreshFailed'))
+    }
   } catch (error) { message.error((error as Error).message || t('admin.workflow.defaultFailed')) }
+  finally { saving.value = false }
 }
 
 async function saveType() {
@@ -501,7 +628,7 @@ onMounted(async () => {
       </template>
     </PmsPageHeader>
 
-    <div class="workflow-editor" :aria-busy="loading">
+    <div class="workflow-editor" :aria-busy="loading || saving" :inert="saving || loading">
         <a-spin :spinning="loading">
           <template v-if="selectedTypeId">
             <section class="workflow-template-bar" data-testid="workflow-template-bar">

@@ -50,15 +50,54 @@ test('node navigation waits for custom field persistence before replacing the ed
   assert.match(activateNode, /savePendingWorkflowCustomFields/)
   assert.match(savePending, /workflowCustomFieldsRef, legacyWorkflowCustomFieldsRef/)
   assert.match(customFields, /defineExpose\(\{ flushAutoSave, saveIfDirty: save \}\)/)
-  assert.match(detailPage, /onBeforeRouteLeave\(async \(\) => \{[\s\S]*?savePendingWorkflowCustomFields\(\)/)
+  assert.match(detailPage, /onBeforeRouteLeave\(async \(\) => \{[\s\S]*?savePendingProjectChanges\(\)/)
   assert.match(customFields, /:disabled="!canEdit \|\| readOnly \|\| saving"/)
   assert.match(customFields, /watch\(\(\) => \[props\.projectId, props\.nodeId\], loadValues/)
   assert.match(customFields, /if \(activeSave\) return activeSave/)
 })
 
+test('the workflow field save action persists bound project profile values and custom values together', () => {
+  const detailPage = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+  const customFields = readFileSync(new URL('./components/WorkflowCustomFields.vue', import.meta.url), 'utf8')
+  assert.match(customFields, /defineEmits<\{\s*\(event: 'save-requested'\): void\s*\}>/)
+  assert.match(customFields, /@click="emit\('save-requested'\)"/)
+  assert.match(customFields, /:disabled="!dirty && !hasPendingProfileChanges"/)
+  assert.match(detailPage, /:has-pending-profile-changes="profileDirty"/)
+  assert.match(detailPage, /function onWorkflowFieldsSaveRequested\(\)\s*\{\s*void savePendingProjectChanges\(\)\s*\}/)
+  assert.equal((detailPage.match(/@save-requested="onWorkflowFieldsSaveRequested"/g) || []).length, 2)
+})
+
 test('project parameter changes save custom fields even when the route component is reused', () => {
   const detailPage = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
-  assert.match(detailPage, /onBeforeRouteUpdate\(async \(to, from\) => \{[\s\S]*?to\.params\.id !== from\.params\.id[\s\S]*?savePendingWorkflowCustomFields\(\)/)
+  assert.match(detailPage, /onBeforeRouteUpdate\(async \(to, from\) => \{[\s\S]*?to\.params\.id !== from\.params\.id[\s\S]*?savePendingProjectChanges\(\)/)
+})
+
+test('reused project routes persist profile edits and load the newly selected project', () => {
+  const detailPage = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+  const routeUpdate = detailPage.match(/onBeforeRouteUpdate\(async \(to, from\) => \{[\s\S]*?\n\}\)/)?.[0]
+  const projectWatch = detailPage.match(/watch\(projectId, \(\) => \{[\s\S]*?\n\}\)/)?.[0]
+
+  assert.ok(routeUpdate)
+  assert.match(routeUpdate, /savePendingProjectChanges\(\)/)
+  assert.ok(projectWatch)
+  assert.match(projectWatch, /project\.value = null/)
+  assert.match(projectWatch, /nodes\.value = \[\]/)
+  assert.match(projectWatch, /loadData\(\)/)
+  assert.match(detailPage, /async function savePendingProjectChanges\(\)[\s\S]*?profileDirty\.value[\s\S]*?savePendingWorkflowCustomFields\(\)/)
+  const loadData = detailPage.match(/async function loadData\(\) \{[\s\S]*?\n\}/)?.[0]
+  assert.ok(loadData)
+  assert.match(loadData, /const requestProjectId = projectId\.value/)
+  assert.match(loadData, /requestSequence !== projectLoadSequence \|\| requestProjectId !== projectId\.value/)
+})
+
+test('default-owner persistence stays scoped to the project that started the request', () => {
+  const detailPage = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+  const persistOwners = detailPage.match(/async function persistDefaultNodeOwners\([\s\S]*?\n\}/)?.[0]
+
+  assert.ok(persistOwners)
+  assert.match(persistOwners, /const requestProjectId = project\.value\.id/)
+  assert.match(persistOwners, /updateNodeOwner\(requestProjectId, assignment\.node\.id/)
+  assert.match(persistOwners, /if \(project\.value\?\.id !== requestProjectId\) return/)
 })
 
 test('project basics use configured visibility and requiredness, with the canonical fallback', () => {
