@@ -30,7 +30,7 @@
     "@vitejs/plugin-vue": "5.2.1",
     "prettier": "3.5.3",
     "typescript": "5.7.2",
-    "unocss": "0.65.2",
+    "unocss": "66.10.1",
     "vite": "6.3.5",
     "vue-tsc": "2.2.4"
   },
