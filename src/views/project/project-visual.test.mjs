@@ -63,6 +63,18 @@ test('task schedule presentation consumes server-provided schedule state', () =>
   assert.doesNotMatch(kanban, /new Date\(\).*dueDate/)
 })
 
+test('schedule timelines render overdue task treatment without dependency lines', () => {
+  const chart = fs.readFileSync(path.join(root, 'views/project/detail/components/ProjectScheduleChart.vue'), 'utf8')
+  const calendar = fs.readFileSync(path.join(root, 'views/project/detail/components/ProjectScheduleCalendar.vue'), 'utf8')
+  assert.match(chart, /gantt-legend--overdue/)
+  assert.match(chart, /gantt-mark--task\.gantt-mark--overdue/)
+  assert.match(chart, /overdueDays/)
+  assert.match(calendar, /cal-chip--overdue/)
+  assert.match(calendar, /overdueDays/)
+  assert.doesNotMatch(chart, /dependency|<svg|<canvas/i)
+  assert.doesNotMatch(calendar, /dependency|<svg|<canvas/i)
+})
+
 test('project buttons expose a shared semantic visual contract', () => {
   const styleSource = fs.readFileSync(path.join(root, 'styles/pms-theme.css'), 'utf8')
   assert.match(styleSource, /\.pms-project-button\s*\{[\s\S]*border-radius:\s*8px;/)

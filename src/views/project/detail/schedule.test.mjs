@@ -10,6 +10,7 @@ import {
   applyScheduleDrag,
   createScheduleFromDrag,
   nodeScheduleTone,
+  taskMarkerTone,
   toDateKey,
 } from './schedule.ts'
 
@@ -72,6 +73,38 @@ test('places project, nodes, iteration plans and dated tasks on the chart', () =
   assert.equal(iterationPlanLane?.markers.length, 1)
   assert.equal(iterationPlanLane?.markers[0]?.title, 'Iteration 1')
   assert.equal(taskLane?.markers.map((marker) => marker.refId).join(','), '11')
+})
+
+test('overdue unfinished tasks use overdue timeline markers and retain their server-provided days', () => {
+  const tasks = [
+    { id: 11, title: 'Past due', dueDate: '2026-09-14', status: 1, scheduleState: 'OVERDUE', overdueDays: 2, nodeId: 2 },
+    { id: 12, title: 'Finished', dueDate: '2026-09-14', status: 2, scheduleState: 'OVERDUE', overdueDays: 2, nodeId: 2 },
+  ]
+  const model = buildScheduleModel({
+    today: '2026-09-16',
+    project: { id: 1, name: 'Alpha', startDate: '2026-09-01', endDate: '2026-09-30' },
+    nodes: [{ id: 2, name: 'Kickoff', status: 1, startDate: '2026-09-01', endDate: '2026-09-30' }],
+    tasks,
+    iterationPlans: [],
+  })
+  const markers = model.lanes.find((lane) => lane.id === 'tasks')?.markers
+  const events = buildCalendarEvents({
+    project: { id: 1, name: 'Alpha', startDate: '2026-09-01', endDate: '2026-09-30' },
+    nodes: [],
+    tasks,
+    iterationPlans: [],
+  })
+
+  assert.equal(taskMarkerTone(tasks[0]), 'overdue')
+  assert.equal(taskMarkerTone(tasks[1]), 'completed')
+  assert.deepEqual(markers?.map(({ refId, tone, overdueDays }) => ({ refId, tone, overdueDays })), [
+    { refId: 11, tone: 'overdue', overdueDays: 2 },
+    { refId: 12, tone: 'completed', overdueDays: 2 },
+  ])
+  assert.deepEqual(events.filter((event) => event.kind === 'task').map(({ refId, tone, overdueDays }) => ({ refId, tone, overdueDays })), [
+    { refId: 11, tone: 'overdue', overdueDays: 2 },
+    { refId: 12, tone: 'completed', overdueDays: 2 },
+  ])
 })
 
 test('calendar keeps range bars on week rows and day chips on dates', () => {

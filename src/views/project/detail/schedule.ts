@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
 import type { NodeIterationPlan, Project, ProjectNode, Task } from '/@/types/domain'
 
-export type ScheduleTone = 'project' | 'active' | 'completed' | 'locked' | 'terminated' | 'iteration-plan' | 'task'
+export type ScheduleTone = 'project' | 'active' | 'completed' | 'overdue' | 'locked' | 'terminated' | 'iteration-plan' | 'task'
 
 export interface TimelineDay {
   date: string
@@ -52,6 +52,7 @@ export interface ScheduleMarker {
   tone: ScheduleTone
   nodeId?: number
   status?: number
+  overdueDays?: number
 }
 
 export interface ScheduleLane {
@@ -87,6 +88,7 @@ export interface CalendarEvent {
   endDate?: string
   tone: ScheduleTone
   nodeId?: number
+  overdueDays?: number
 }
 
 export interface CalendarDayCell {
@@ -129,9 +131,10 @@ export function nodeScheduleTone(status?: number): ScheduleTone {
   return 'locked'
 }
 
-export function taskMarkerTone(status?: number): ScheduleTone {
-  if (status === 2) return 'completed'
-  if (status === 1) return 'active'
+export function taskMarkerTone(task: Pick<Task, 'status' | 'scheduleState'>): ScheduleTone {
+  if (task.status === 2 || task.scheduleState === 'COMPLETED') return 'completed'
+  if (task.scheduleState === 'OVERDUE') return 'overdue'
+  if (task.status === 1) return 'active'
   return 'task'
 }
 
@@ -404,9 +407,10 @@ export function buildScheduleModel(input: {
       title: task.title,
       date,
       offset: offsetOf(window, date),
-      tone: taskMarkerTone(task.status),
+      tone: taskMarkerTone(task),
       nodeId: task.nodeId,
       status: task.status,
+      overdueDays: task.overdueDays,
     })
   })
 
@@ -480,8 +484,9 @@ export function buildCalendarEvents(input: {
       refId: task.id,
       title: task.title,
       date,
-      tone: taskMarkerTone(task.status),
+      tone: taskMarkerTone(task),
       nodeId: task.nodeId,
+      overdueDays: task.overdueDays,
     })
   })
 

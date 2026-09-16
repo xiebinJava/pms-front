@@ -101,6 +101,9 @@ function barMeta(lane: ScheduleLane): string {
 }
 
 function markerMeta(marker: ScheduleMarker): string {
+  if (marker.tone === 'overdue') {
+    return t('schedule.overdueMeta', { date: formatDate(marker.date), days: marker.overdueDays ?? 0 })
+  }
   return formatDate(marker.date)
 }
 
@@ -346,6 +349,7 @@ watch(() => model.value.window.start, () => {
       <div class="gantt__legend" aria-hidden="true">
         <span class="gantt-legend gantt-legend--project">{{ $t('schedule.legendProject') }}</span>
         <span class="gantt-legend gantt-legend--active">{{ $t('schedule.legendActive') }}</span>
+        <span class="gantt-legend gantt-legend--overdue">{{ $t('schedule.legendOverdue') }}</span>
         <span class="gantt-legend gantt-legend--completed">{{ $t('schedule.legendDone') }}</span>
         <span class="gantt-legend gantt-legend--locked">{{ $t('schedule.legendPending') }}</span>
         <span class="gantt-legend gantt-legend--iteration-plan">{{ $t('schedule.legendIterationPlan') }}</span>
@@ -537,6 +541,7 @@ watch(() => model.value.window.start, () => {
 .gantt-legend::before { content: ''; width: 14px; height: 8px; border-radius: 999px; }
 .gantt-legend--project::before { background: linear-gradient(90deg, var(--pms-primary), color-mix(in srgb, var(--pms-primary) 55%, #7aa7e6)); }
 .gantt-legend--active::before { background: var(--pms-status-active); }
+.gantt-legend--overdue::before { background: var(--pms-danger); }
 .gantt-legend--completed::before { background: var(--pms-success); }
 .gantt-legend--locked::before { background: var(--pms-status-neutral); }
 .gantt-legend--iteration-plan::before { width: 8px; height: 8px; background: var(--pms-warning); transform: rotate(45deg); border-radius: 1px; }
@@ -785,6 +790,7 @@ watch(() => model.value.window.start, () => {
 .gantt-mark--task { border-radius: 50%; }
 .gantt-mark--task.gantt-mark--task { background: color-mix(in srgb, var(--pms-primary) 72%, #fff); }
 .gantt-mark--task.gantt-mark--active { background: var(--pms-status-active); }
+.gantt-mark--task.gantt-mark--overdue { background: var(--pms-danger); }
 .gantt-mark--task.gantt-mark--completed { background: var(--pms-success); }
 .gantt__today-line {
   position: absolute;

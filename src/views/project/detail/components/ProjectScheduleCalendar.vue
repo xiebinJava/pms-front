@@ -46,6 +46,13 @@ function onDayEvent(event: CalendarEvent) {
   if (event.kind === 'task') emit('openTask', event.refId, event.nodeId)
 }
 
+function eventMeta(event: CalendarEvent): string {
+  if (event.tone === 'overdue') {
+    return t('schedule.overdueMeta', { date: event.date, days: event.overdueDays ?? 0 })
+  }
+  return event.date
+}
+
 function onRange(bar: { kind: 'project' | 'node'; refId: number; nodeId?: number }) {
   if (bar.kind === 'node') emit('selectNode', bar.nodeId || bar.refId)
 }
@@ -103,7 +110,8 @@ function onRange(bar: { kind: 'project' | 'node'; refId: number; nodeId?: number
                 :key="event.id"
                 type="button"
                 class="cal-chip"
-                :class="`cal-chip--${event.kind}`"
+                :class="[`cal-chip--${event.kind}`, `cal-chip--${event.tone}`]"
+                :title="eventMeta(event)"
                 @click="onDayEvent(event)"
               >
                 {{ event.title }}
@@ -212,6 +220,7 @@ function onRange(bar: { kind: 'project' | 'node'; refId: number; nodeId?: number
 }
 .cal-chip--iteration-plan { color: var(--pms-warning); background: var(--pms-warning-soft); }
 .cal-chip--task { color: var(--pms-primary); background: var(--pms-primary-soft); }
+.cal-chip--overdue { color: var(--pms-danger); background: var(--pms-danger-soft); }
 .cal-more { color: var(--pms-text-faint); font-size: 10px; }
 @media (max-width: 720px) {
   .cal-day { min-height: 72px; padding: 6px; }
