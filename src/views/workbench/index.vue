@@ -6,6 +6,7 @@ import {
   CalendarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
+  ExclamationCircleOutlined,
   MessageOutlined,
   ReloadOutlined,
   TeamOutlined,
@@ -26,6 +27,7 @@ const emptySummary = (): WorkbenchSummary => ({
   pendingTaskCount: 0,
   inProgressTaskCount: 0,
   dueSoonTaskCount: 0,
+  overdueTaskCount: 0,
   participatingProjectCount: 0,
 })
 
@@ -43,6 +45,7 @@ const overviewCards = computed(() => [
   { key: 'doing', label: t('workbench.inProgressTasks'), value: summary.value.inProgressTaskCount, hint: t('workbench.inProgressHint'), icon: ClockCircleOutlined, tone: 'orange' },
   { key: 'due', label: t('workbench.dueSoon'), value: summary.value.dueSoonTaskCount, hint: t('workbench.dueSoonHint'), icon: CalendarOutlined, tone: 'purple' },
   { key: 'projects', label: t('workbench.participating'), value: summary.value.participatingProjectCount, hint: t('workbench.participatingHint'), icon: TeamOutlined, tone: 'green' },
+  { key: 'overdue', label: t('workbench.overdueTasks'), value: summary.value.overdueTaskCount, hint: t('workbench.overdueHint'), icon: ExclamationCircleOutlined, tone: 'danger' },
 ])
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -152,6 +155,9 @@ onMounted(loadData)
               </span>
               <span class="workbench-task-row__meta">
                 <a-tag :color="taskStatusTagColor(task.status)">{{ $t(taskStatusKey(task.status)) }}</a-tag>
+                <a-tag v-if="task.scheduleState === 'OVERDUE'" class="workbench-overdue-tag">
+                  {{ $t('workbench.overdueDays', { days: task.overdueDays }) }}
+                </a-tag>
                 <a-tag :color="priorityTagColor[task.priority]">{{ $t(priorityKey(task.priority)) }}</a-tag>
                 <small>{{ formatDate(task.dueDate) }}</small>
               </span>

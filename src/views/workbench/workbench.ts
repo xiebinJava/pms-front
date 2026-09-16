@@ -18,6 +18,7 @@ export interface WorkbenchSummary {
   pendingTaskCount: number
   inProgressTaskCount: number
   dueSoonTaskCount: number
+  overdueTaskCount: number
   participatingProjectCount: number
 }
 
@@ -70,11 +71,17 @@ export function buildWorkbenchSummary(
     const dueTime = new Date(task.dueDate).getTime()
     return Number.isFinite(dueTime) && dueTime >= nowTime && dueTime <= dueLimit
   }).length
+  const overdueTaskCount = myTasks.filter((task) => {
+    if (task.status === DONE_STATUS || !task.dueDate) return false
+    const dueTime = new Date(task.dueDate).getTime()
+    return Number.isFinite(dueTime) && dueTime < nowTime
+  }).length
 
   return {
     pendingTaskCount: myTasks.filter((task) => task.status === PENDING_STATUS).length,
     inProgressTaskCount: myTasks.filter((task) => task.status === IN_PROGRESS_STATUS).length,
     dueSoonTaskCount,
+    overdueTaskCount,
     participatingProjectCount: selectMyProjects(projects, tasks, userId).length,
   }
 }
