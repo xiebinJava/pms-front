@@ -169,7 +169,7 @@ const enUS: MessageSchema = {
     dueSoonHint: 'Watch the deadline',
     overdueTasks: 'Overdue tasks',
     overdueHint: 'Needs attention now',
-    overdueDays: 'Overdue {days} days',
+    overdueDays: 'Overdue {count} day | Overdue {count} days',
     participating: 'Projects',
     participatingHint: 'Owned or joined',
     emptyTasks: 'No open work',

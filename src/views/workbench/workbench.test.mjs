@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import test from 'node:test'
+import { createI18n } from 'vue-i18n'
+import enUS from '../../locales/en-US.ts'
 import {
   buildWorkbenchSummary,
   selectMyProjects,
@@ -50,6 +52,26 @@ test('counts only unfinished tasks past the current date as overdue', () => {
   ], 7, new Date('2026-08-30T00:00:00Z'))
 
   assert.equal(summary.overdueTaskCount, 2)
+})
+
+test('does not count an unfinished task due today in Shanghai as overdue', () => {
+  const summary = buildWorkbenchSummary(projects, [
+    { id: 4, projectId: 1, title: '昨天到期', assigneeId: 7, status: 0, priority: 1, dueDate: '2026-09-15' },
+    { id: 5, projectId: 1, title: '今天到期', assigneeId: 7, status: 1, priority: 1, dueDate: '2026-09-16' },
+  ], 7, new Date('2026-09-16T15:59:59.999Z'))
+
+  assert.equal(summary.overdueTaskCount, 1)
+})
+
+test('pluralizes the English overdue-days label', () => {
+  const i18n = createI18n({
+    legacy: false,
+    locale: 'en-US',
+    messages: { 'en-US': enUS },
+  })
+
+  assert.equal(i18n.global.t('workbench.overdueDays', 1), 'Overdue 1 day')
+  assert.equal(i18n.global.t('workbench.overdueDays', 2), 'Overdue 2 days')
 })
 
 test('renders an overdue overview card and label from backend schedule fields', () => {

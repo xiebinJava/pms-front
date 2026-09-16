@@ -168,7 +168,7 @@ const zhCN = {
     dueSoonHint: '请关注截止时间',
     overdueTasks: '已逾期任务',
     overdueHint: '请尽快处理',
-    overdueDays: '已逾期 {days} 天',
+    overdueDays: '已逾期 {count} 天',
     participating: '参与项目',
     participatingHint: '我负责或参与',
     emptyTasks: '暂无待处理工作',

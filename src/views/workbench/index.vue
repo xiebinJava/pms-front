@@ -156,7 +156,7 @@ onMounted(loadData)
               <span class="workbench-task-row__meta">
                 <a-tag :color="taskStatusTagColor(task.status)">{{ $t(taskStatusKey(task.status)) }}</a-tag>
                 <a-tag v-if="task.scheduleState === 'OVERDUE'" class="workbench-overdue-tag">
-                  {{ $t('workbench.overdueDays', { days: task.overdueDays }) }}
+                  {{ $t('workbench.overdueDays', task.overdueDays ?? 0) }}
                 </a-tag>
                 <a-tag :color="priorityTagColor[task.priority]">{{ $t(priorityKey(task.priority)) }}</a-tag>
                 <small>{{ formatDate(task.dueDate) }}</small>

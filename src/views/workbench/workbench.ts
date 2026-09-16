@@ -25,10 +25,36 @@ export interface WorkbenchSummary {
 const DONE_STATUS = 2
 const IN_PROGRESS_STATUS = 1
 const PENDING_STATUS = 0
-const DAY_MS = 24 * 60 * 60 * 1000
+const DUE_SOON_DAYS = 7
+const SHANGHAI_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Shanghai',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
 
 function projectMap(projects: Project[]) {
   return new Map(projects.map((project) => [project.id, project]))
+}
+
+function dateKey(value?: string) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined
+  const date = new Date(`${value}T00:00:00.000Z`)
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? value : undefined
+}
+
+function shanghaiDateKey(now: Date) {
+  const parts = SHANGHAI_DATE_FORMATTER.formatToParts(now)
+  const year = parts.find((part) => part.type === 'year')?.value
+  const month = parts.find((part) => part.type === 'month')?.value
+  const day = parts.find((part) => part.type === 'day')?.value
+  return `${year}-${month}-${day}`
+}
+
+function addDays(dateKeyValue: string, days: number) {
+  const date = new Date(`${dateKeyValue}T00:00:00.000Z`)
+  date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString().slice(0, 10)
 }
 
 export function selectMyTasks(tasks: Task[], projects: Project[], userId?: number): WorkbenchTask[] {
@@ -64,17 +90,17 @@ export function buildWorkbenchSummary(
   now = new Date(),
 ): WorkbenchSummary {
   const myTasks = tasks.filter((task) => userId != null && task.assigneeId === userId)
-  const nowTime = now.getTime()
-  const dueLimit = nowTime + 7 * DAY_MS
+  const today = shanghaiDateKey(now)
+  const dueLimit = addDays(today, DUE_SOON_DAYS)
   const dueSoonTaskCount = myTasks.filter((task) => {
     if (task.status === DONE_STATUS || !task.dueDate) return false
-    const dueTime = new Date(task.dueDate).getTime()
-    return Number.isFinite(dueTime) && dueTime >= nowTime && dueTime <= dueLimit
+    const dueDate = dateKey(task.dueDate)
+    return dueDate != null && dueDate >= today && dueDate <= dueLimit
   }).length
   const overdueTaskCount = myTasks.filter((task) => {
     if (task.status === DONE_STATUS || !task.dueDate) return false
-    const dueTime = new Date(task.dueDate).getTime()
-    return Number.isFinite(dueTime) && dueTime < nowTime
+    const dueDate = dateKey(task.dueDate)
+    return dueDate != null && dueDate < today
   }).length
 
   return {
