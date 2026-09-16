@@ -22,6 +22,12 @@ const props = defineProps<{
 const emit = defineEmits<{ changed: [] }>()
 const { t } = useI18n()
 const DONE_TASK_STATUS = 2
+const scheduleChangeKey: Record<TaskScheduleChangeType, string> = {
+  SET: 'set',
+  RESCHEDULED: 'rescheduled',
+  MOVED_EARLIER: 'movedEarlier',
+  CLEARED: 'cleared',
+}
 
 const subtaskTitle = ref('')
 const subtaskDueDate = ref<string | null>(null)
@@ -44,7 +50,7 @@ function formatScheduleDate(value?: string | null) {
 }
 
 function scheduleChangeLabel(changeType: TaskScheduleChangeType) {
-  return t(`task.scheduleChange.${changeType.toLowerCase()}`)
+  return t(`task.scheduleChange.${scheduleChangeKey[changeType]}`)
 }
 
 function fileSize(size: number) {
@@ -261,7 +267,7 @@ async function onDownload(item: TaskAttachment) {
           <span>{{ formatScheduleDate(item.previousDueDate) }} → {{ formatScheduleDate(item.nextDueDate) }}</span>
           <span class="task-work-panel__schedule-history-meta">
             <strong>{{ scheduleChangeLabel(item.changeType) }}</strong>
-            <small>{{ item.operatorName || '—' }}</small>
+            <small>{{ item.operatorName || $t('common.system') }}</small>
             <small>{{ formatDateTime(item.createdAt) }}</small>
           </span>
         </div>

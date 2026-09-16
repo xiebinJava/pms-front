@@ -29,3 +29,16 @@ test('task work panel renders schedule history with date and change metadata', (
   assert.match(panel, /formatDateTime/)
   assert.match(panel, /scheduleChange/)
 })
+
+test('task work panel maps moved-earlier history to the camel-cased locale key', () => {
+  const panel = read('components/TaskWorkPanel.vue')
+
+  assert.match(panel, /MOVED_EARLIER: 'movedEarlier'/)
+  assert.doesNotMatch(panel, /changeType\.toLowerCase/)
+})
+
+test('task work panel identifies automatic history entries as the system operator', () => {
+  const panel = read('components/TaskWorkPanel.vue')
+
+  assert.match(panel, /item\.operatorName \|\| \$t\('common\.system'\)/)
+})
