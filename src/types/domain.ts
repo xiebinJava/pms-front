@@ -136,6 +136,8 @@ export interface Role {
   customOrgUnitIds: number[]
 }
 
+export type TaskScheduleState = 'NO_DUE_DATE' | 'DUE_TODAY' | 'ON_TIME' | 'OVERDUE' | 'COMPLETED'
+
 export interface Task {
   id: number
   version?: number
@@ -153,6 +155,8 @@ export interface Task {
   requirementCode?: string
   sort: number
   dueDate?: string
+  scheduleState?: TaskScheduleState
+  overdueDays?: number
   createdAt: string
   updatedAt: string
   subtaskCount?: number
