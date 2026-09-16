@@ -20,6 +20,7 @@ import {
   sortTasksByPriority,
 } from '../workflow'
 import { nodeHasComponent, shouldRefreshRequirements } from '../workflow-config.mjs'
+import { scheduleLabelKey, scheduleTone } from '../task-schedule.mjs'
 import PersonSelect from './PersonSelect.vue'
 import TaskWorkPanel from './TaskWorkPanel.vue'
 
@@ -389,6 +390,13 @@ defineExpose({ openCreateForRequirement, refreshRequirements })
             <span class="task-card__meta-item task-card__due-date">
               <CalendarOutlined />
               <span>{{ formatDate(task.dueDate) }}</span>
+              <span
+                v-if="task.scheduleState === 'DUE_TODAY' || task.scheduleState === 'OVERDUE'"
+                class="pms-task-schedule-badge"
+                :class="`pms-task-schedule-badge--${scheduleTone(task.scheduleState)}`"
+              >
+                {{ $t(scheduleLabelKey(task.scheduleState), task.scheduleState === 'OVERDUE' ? { days: task.overdueDays ?? 0 } : {}) }}
+              </span>
             </span>
           </div>
           <div v-if="task.requirementCode || task.subtaskCount" class="task-card__context">
@@ -456,6 +464,9 @@ defineExpose({ openCreateForRequirement, refreshRequirements })
         </a-form-item>
         <a-form-item :label="$t('task.dueDate')">
           <a-date-picker v-model:value="form.dueDate" :disabled="!canEditModal" value-format="YYYY-MM-DD" :placeholder="$t('task.dueDate')" style="width: 100%" />
+          <div class="pms-task-schedule-summary" :class="`pms-task-schedule-summary--${scheduleTone(editingTask?.scheduleState)}`">
+            {{ $t(scheduleLabelKey(editingTask?.scheduleState), editingTask?.scheduleState === 'OVERDUE' ? { days: editingTask.overdueDays ?? 0 } : {}) }}
+          </div>
         </a-form-item>
       </div>
     </a-form>

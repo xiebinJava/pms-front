@@ -56,6 +56,13 @@ test('task cards reserve an accessible action region for the hover affordance', 
   assert.match(source, /\.pms-task-card__actions\s*\{[\s\S]*min-width:/)
 })
 
+test('task schedule presentation consumes server-provided schedule state', () => {
+  const kanban = fs.readFileSync(path.join(root, 'views/project/detail/components/TaskKanban.vue'), 'utf8')
+  assert.match(kanban, /scheduleState/)
+  assert.match(kanban, /overdueDays/)
+  assert.doesNotMatch(kanban, /new Date\(\).*dueDate/)
+})
+
 test('project buttons expose a shared semantic visual contract', () => {
   const styleSource = fs.readFileSync(path.join(root, 'styles/pms-theme.css'), 'utf8')
   assert.match(styleSource, /\.pms-project-button\s*\{[\s\S]*border-radius:\s*8px;/)

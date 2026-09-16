@@ -247,6 +247,28 @@ body { font-family: var(--pms-font-family); background: var(--pms-bg); }
 .pms-project-badge--priority-medium { color: var(--pms-primary); background: var(--pms-primary-soft); }
 .pms-project-badge--priority-urgent { color: var(--pms-danger); background: var(--pms-danger-soft); }
 
+.pms-task-schedule-badge {
+  display: inline-flex;
+  min-height: 20px;
+  align-items: center;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+.pms-task-schedule-badge--due-today { color: var(--pms-warning); background: var(--pms-warning-soft); border-color: color-mix(in srgb, var(--pms-warning) 18%, var(--pms-border)); }
+.pms-task-schedule-badge--overdue { color: var(--pms-danger); background: var(--pms-danger-soft); border-color: color-mix(in srgb, var(--pms-danger) 18%, var(--pms-border)); }
+.pms-task-schedule-badge--on-time { color: var(--pms-success); background: var(--pms-success-soft); border-color: color-mix(in srgb, var(--pms-success) 18%, var(--pms-border)); }
+.pms-task-schedule-badge--completed { color: var(--pms-text-muted); background: var(--pms-surface-muted); border-color: var(--pms-border); }
+.pms-task-schedule-summary { margin-top: 6px; font-size: 12px; line-height: 1.4; }
+.pms-task-schedule-summary--due-today { color: var(--pms-warning); }
+.pms-task-schedule-summary--overdue { color: var(--pms-danger); }
+.pms-task-schedule-summary--on-time { color: var(--pms-success); }
+.pms-task-schedule-summary--completed { color: var(--pms-text-muted); }
+
 .pms-auth-page {
   display: grid;
   min-height: 100vh;
