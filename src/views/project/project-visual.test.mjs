@@ -2,6 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
+import { createI18n } from 'vue-i18n'
+import enUS from '../../locales/en-US.ts'
 
 const root = path.resolve(import.meta.dirname, '../..')
 
@@ -73,6 +75,16 @@ test('schedule timelines render overdue task treatment without dependency lines'
   assert.match(calendar, /overdueDays/)
   assert.doesNotMatch(chart, /dependency|<svg|<canvas/i)
   assert.doesNotMatch(calendar, /dependency|<svg|<canvas/i)
+})
+
+test('pluralizes the one-day English overdue timeline tooltip', () => {
+  const i18n = createI18n({
+    legacy: false,
+    locale: 'en-US',
+    messages: { 'en-US': enUS },
+  })
+
+  assert.equal(i18n.global.t('schedule.overdueMeta', { date: '2026-09-14', days: 1 }, 1), 'Due 2026-09-14 · Overdue 1 day')
 })
 
 test('project buttons expose a shared semantic visual contract', () => {

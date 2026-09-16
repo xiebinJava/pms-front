@@ -48,7 +48,8 @@ function onDayEvent(event: CalendarEvent) {
 
 function eventMeta(event: CalendarEvent): string {
   if (event.tone === 'overdue') {
-    return t('schedule.overdueMeta', { date: event.date, days: event.overdueDays ?? 0 })
+    const overdueDays = event.overdueDays ?? 0
+    return t('schedule.overdueMeta', { date: event.date, days: overdueDays }, overdueDays)
   }
   return event.date
 }

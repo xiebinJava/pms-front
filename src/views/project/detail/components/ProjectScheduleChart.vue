@@ -102,7 +102,8 @@ function barMeta(lane: ScheduleLane): string {
 
 function markerMeta(marker: ScheduleMarker): string {
   if (marker.tone === 'overdue') {
-    return t('schedule.overdueMeta', { date: formatDate(marker.date), days: marker.overdueDays ?? 0 })
+    const overdueDays = marker.overdueDays ?? 0
+    return t('schedule.overdueMeta', { date: formatDate(marker.date), days: overdueDays }, overdueDays)
   }
   return formatDate(marker.date)
 }

@@ -951,7 +951,7 @@ const enUS: MessageSchema = {
     legendPending: 'Not started',
     legendIterationPlan: 'Iteration plan',
     legendTask: 'Task',
-    overdueMeta: 'Due {date} · Overdue {days} days',
+    overdueMeta: 'Due {date} · Overdue {days} day | Due {date} · Overdue {days} days',
     dayWidth: 'Day width',
     zoomOut: 'Narrow day columns',
     zoomIn: 'Widen day columns',
