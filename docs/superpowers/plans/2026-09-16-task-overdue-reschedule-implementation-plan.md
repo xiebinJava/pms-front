@@ -19,6 +19,7 @@
 - Due-date changes are recorded in a separate history table; do not add a duplicate TASK_DUE_DATE_CHANGED audit event because existing TASK_UPDATED already captures the task date snapshot.
 - Existing permissions, optimistic locking, project/node read-only rules, reminder jobs, soft deletion, and task deep links must remain compatible.
 - Do not stage unrelated existing work; every commit must list only the files changed for that task.
+- Backend verification commands use the installed `mvn` executable because this checkout does not contain `mvnw`.
 
 ## File Map
 
@@ -95,7 +96,7 @@ void completedTaskWithPastDueDateIsCompleted() {
 
 ~~~bash
 cd /Users/fs/Desktop/Project/pms-backend
-./mvnw -q -Dtest=TaskScheduleCalculatorTest test
+mvn -q -Dtest=TaskScheduleCalculatorTest test
 ~~~
 
 Expected: FAIL because TaskScheduleState and TaskScheduleCalculator do not exist.
@@ -132,7 +133,7 @@ public final class TaskScheduleCalculator {
 - [ ] Step 5: Run the focused test and commit.
 
 ~~~bash
-./mvnw -q -Dtest=TaskScheduleCalculatorTest test
+mvn -q -Dtest=TaskScheduleCalculatorTest test
 git add src/main/java/com/brad/pms/common/enums/TaskScheduleState.java src/main/java/com/brad/pms/common/TaskScheduleCalculator.java src/test/java/com/brad/pms/common/TaskScheduleCalculatorTest.java
 git commit -m 'feat: add task schedule state calculator'
 ~~~
@@ -179,7 +180,7 @@ void taskDtoIncludesDerivedOverdueState() {
 - [ ] Step 2: Run the focused backend tests to verify they fail to compile.
 
 ~~~bash
-./mvnw -q -Dtest=TaskServiceTest,WorkbenchServiceTest test
+mvn -q -Dtest=TaskServiceTest,WorkbenchServiceTest test
 ~~~
 
 Expected: FAIL because the DTO does not yet contain schedule fields.
@@ -202,7 +203,7 @@ private void enrichSchedule(ProjectTaskDTO dto, ProjectTaskDO task, LocalDate to
 - [ ] Step 6: Run the focused tests and commit.
 
 ~~~bash
-./mvnw -q -Dtest=TaskServiceTest,WorkbenchServiceTest test
+mvn -q -Dtest=TaskServiceTest,WorkbenchServiceTest test
 git add src/main/java/com/brad/pms/dto/response/ProjectTaskDTO.java src/main/java/com/brad/pms/service/TaskService.java src/main/java/com/brad/pms/service/WorkbenchService.java src/main/resources/openapi/pms-api.yaml src/test/java/com/brad/pms/service/TaskServiceTest.java src/test/java/com/brad/pms/service/WorkbenchServiceTest.java
 git commit -m 'feat: expose task schedule state'
 ~~~
@@ -345,7 +346,7 @@ void migrationDefinesTaskScheduleHistoryAndIndexes() throws IOException {
 - [ ] Step 2: Run the migration test to verify it fails.
 
 ~~~bash
-./mvnw -q -Dtest=TaskScheduleHistoryMigrationTest test
+mvn -q -Dtest=TaskScheduleHistoryMigrationTest test
 ~~~
 
 - [ ] Step 3: Add the V45 migration and mirror it in schema.sql. Use the exact table and index definition from the approved spec; do not add a deleted column because history follows the task's existing soft-delete visibility rules.
@@ -413,7 +414,7 @@ Add `@Mock ProjectTaskScheduleHistoryMapper scheduleHistoryMapper` to the existi
 - [ ] Step 9: Update OpenAPI and run backend tests.
 
 ~~~bash
-./mvnw -q -Dtest=TaskScheduleHistoryMigrationTest,TaskServiceTest test
+mvn -q -Dtest=TaskScheduleHistoryMigrationTest,TaskServiceTest test
 ~~~
 
 - [ ] Step 10: Commit only backend history files.
@@ -491,7 +492,7 @@ assertThat(WorkbenchService.summarize(tasks, 1, LocalDate.of(2026, 9, 16))
 - [ ] Step 2: Run the focused backend test to verify it fails.
 
 ~~~bash
-./mvnw -q -Dtest=WorkbenchServiceTest test
+mvn -q -Dtest=WorkbenchServiceTest test
 ~~~
 
 - [ ] Step 3: Add the count and make workbench loading use Asia/Shanghai. Replace the current LocalDate.now() call in load() with TaskScheduleCalculator.today() and count only unfinished tasks with due dates before that date.
@@ -606,7 +607,7 @@ Expected: PASS for task card, detail, timeline/calendar, and English-copy checks
 
 ~~~bash
 cd /Users/fs/Desktop/Project/pms-backend
-./mvnw -q test
+mvn -q test
 ~~~
 
 Expected: all existing and new backend tests pass, including migration, task, notification, and workbench tests.
