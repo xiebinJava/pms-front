@@ -7,7 +7,7 @@ import { addComment, deleteComment } from '/@/api/comment'
 import { createTask, deleteTask, deleteTaskAttachment, downloadTaskAttachment, updateTask, uploadTaskAttachment } from '/@/api/task'
 import { taskStatusKey, TaskStatus } from '/@/enums'
 import { formatDateTime } from '/@/utils/format'
-import type { Task, TaskAttachment, TaskDetail } from '/@/types/domain'
+import type { Task, TaskAttachment, TaskDetail, TaskScheduleChangeType } from '/@/types/domain'
 import { buildTaskPayload } from '../workflow'
 
 const props = defineProps<{
@@ -35,7 +35,17 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const attachments = computed(() => props.detail.attachments || [])
 const comments = computed(() => props.detail.comments || [])
 const subtasks = computed(() => props.detail.subtasks || [])
+const scheduleHistory = computed(() => [...(props.detail.scheduleHistory || [])]
+  .sort((left, right) => right.createdAt.localeCompare(left.createdAt)))
 const canAddSubtask = computed(() => props.canManage && !props.detail.parentId && props.detail.status !== DONE_TASK_STATUS)
+
+function formatScheduleDate(value?: string | null) {
+  return value || t('task.scheduleState.noDueDate')
+}
+
+function scheduleChangeLabel(changeType: TaskScheduleChangeType) {
+  return t(`task.scheduleChange.${changeType.toLowerCase()}`)
+}
 
 function fileSize(size: number) {
   if (size < 1024) return `${size} B`
@@ -244,6 +254,20 @@ async function onDownload(item: TaskAttachment) {
       <p v-else-if="!detail.parentId" class="task-work-panel__empty">{{ $t('task.noSubtasks') }}</p>
     </section>
 
+    <section v-if="scheduleHistory.length">
+      <h3>{{ $t('task.rescheduleHistory') }} <span>{{ scheduleHistory.length }}</span></h3>
+      <div class="task-work-panel__list">
+        <div v-for="item in scheduleHistory" :key="item.id" class="task-work-panel__item task-work-panel__schedule-history">
+          <span>{{ formatScheduleDate(item.previousDueDate) }} → {{ formatScheduleDate(item.nextDueDate) }}</span>
+          <span class="task-work-panel__schedule-history-meta">
+            <strong>{{ scheduleChangeLabel(item.changeType) }}</strong>
+            <small>{{ item.operatorName || '—' }}</small>
+            <small>{{ formatDateTime(item.createdAt) }}</small>
+          </span>
+        </div>
+      </div>
+    </section>
+
     <section>
       <h3>{{ $t('task.comments') }} <span>{{ comments.length }}</span></h3>
       <div v-if="canWriteComment" class="task-work-panel__row">
@@ -376,6 +400,21 @@ async function onDownload(item: TaskAttachment) {
 .task-work-panel__item--block {
   flex-direction: column;
 }
+.task-work-panel__schedule-history {
+  align-items: center;
+}
+.task-work-panel__schedule-history-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--pms-text-faint);
+  font-size: 12px;
+}
+.task-work-panel__schedule-history-meta strong {
+  color: var(--pms-text);
+  font-weight: 500;
+}
 .task-work-panel__meta {
   display: flex;
   gap: 8px;
@@ -401,5 +440,7 @@ async function onDownload(item: TaskAttachment) {
   .task-work-panel__subtask-date { flex: 1 1 142px; }
   .task-work-panel__status { flex: 1 1 96px; }
   .task-work-panel__subtask-controls { width: 100%; }
+  .task-work-panel__schedule-history { align-items: flex-start; flex-direction: column; }
+  .task-work-panel__schedule-history-meta { justify-content: flex-start; }
 }
 </style>

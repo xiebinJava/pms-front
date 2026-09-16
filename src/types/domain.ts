@@ -137,6 +137,7 @@ export interface Role {
 }
 
 export type TaskScheduleState = 'NO_DUE_DATE' | 'DUE_TODAY' | 'ON_TIME' | 'OVERDUE' | 'COMPLETED'
+export type TaskScheduleChangeType = 'SET' | 'RESCHEDULED' | 'MOVED_EARLIER' | 'CLEARED'
 
 export interface Task {
   id: number
@@ -177,10 +178,21 @@ export interface TaskAttachment {
   canDelete?: boolean
 }
 
+export interface TaskScheduleHistory {
+  id: number
+  taskId: number
+  previousDueDate?: string | null
+  nextDueDate?: string | null
+  changeType: TaskScheduleChangeType
+  operatorName?: string
+  createdAt: string
+}
+
 export interface TaskDetail extends Task {
   subtasks: Task[]
   comments: Comment[]
   attachments: TaskAttachment[]
+  scheduleHistory?: TaskScheduleHistory[]
 }
 
 export interface Milestone {
