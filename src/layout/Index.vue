@@ -12,6 +12,7 @@ import { formatDateTime } from '/@/utils/format'
 import type { SearchResult, UserNotification } from '/@/types/domain'
 import { canSearch, firstSearchHit, NOTIFICATIONS_CHANGED_EVENT, notificationRoute, searchHitRoute } from './chrome'
 import { notificationTypeClass, notificationTypeKey } from '/@/views/notifications/notification-center'
+import { installDshAuthBridge } from '/@/integration/dsh-auth-bridge'
 
 const route = useRoute()
 const router = useRouter()
@@ -35,8 +36,10 @@ const notifyOpen = ref(false)
 const notifyLoading = ref(false)
 const notifications = ref<UserNotification[]>([])
 const unreadCount = ref(0)
+const isEmbedded = computed(() => route.query.embed === '1' || (typeof window !== 'undefined' && window.self !== window.top))
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 let unreadTimer: ReturnType<typeof setInterval> | null = null
+let stopDshAuthBridge: (() => void) | null = null
 
 const emptySearch = (): SearchResult => ({ projects: [], tasks: [], comments: [] })
 const can = (permission: string) => userStore.can(permission)
@@ -46,7 +49,6 @@ const searchHasHits = computed(() => Boolean(
   || searchResult.value.comments.length,
 ))
 const canReadProjects = computed(() => can('project:read'))
-
 const selectedKeys = computed(() => {
   if (route.path.startsWith('/dashboard')) return ['dashboard']
   if (route.path.startsWith('/feedback')) return ['feedback']
@@ -64,7 +66,7 @@ const selectedKeys = computed(() => {
   return []
 })
 
-const canConfig = computed(() => ['admin:user:read', 'admin:org:read', 'admin:role:read', 'admin:audit:read', 'admin:import:write', 'admin:workflow:read'].some(can))
+const canConfig = computed(() => ['admin:user:read', 'admin:org:read', 'admin:role:read', 'admin:audit:read', 'admin:import:write', 'admin:workflow:read', 'admin:workflow:write'].some(can))
 
 const menuRoutes: Record<string, string> = {
   dashboard: '/dashboard',
@@ -215,6 +217,7 @@ function onNotificationsChanged() {
 }
 
 onMounted(async () => {
+  if (isEmbedded.value) stopDshAuthBridge = installDshAuthBridge()
   window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, onNotificationsChanged)
   if (userStore.token && !userStore.user) {
     try {
@@ -230,6 +233,8 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  stopDshAuthBridge?.()
+  stopDshAuthBridge = null
   if (searchTimer) clearTimeout(searchTimer)
   if (unreadTimer) clearInterval(unreadTimer)
   window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, onNotificationsChanged)
@@ -238,7 +243,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="pms-shell">
+  <div class="pms-shell" :class="{ 'pms-shell--embedded': isEmbedded }">
     <a class="pms-skip-link" href="#pms-main-content">{{ $t('nav.skipToContent') }}</a>
     <header class="pms-topbar">
       <div class="pms-topbar__left">
@@ -450,5 +455,6 @@ onBeforeUnmount(() => {
         <a-form-item :label="$t('layout.confirmPassword')"><a-input-password v-model:value="passwordForm.confirmPassword" /></a-form-item>
       </a-form>
     </a-modal>
+
   </div>
 </template>
