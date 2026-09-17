@@ -463,7 +463,7 @@ const zhCN = {
     rescheduleHistory: '排期历史',
     scheduleChange: {
       set: '设置截止日期',
-      rescheduled: '改期',
+      rescheduled: '延期',
       movedEarlier: '提前',
       cleared: '清除截止日期',
     },
