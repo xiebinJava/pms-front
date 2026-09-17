@@ -94,6 +94,11 @@ const form = reactive({
 })
 const rules = computed(() => ({ title: [{ required: true, message: t('task.titleRequired') }] }))
 
+function scheduleLabel(state: Task['scheduleState'], days = 0) {
+  const key = scheduleLabelKey(state)
+  return state === 'OVERDUE' ? t(key, { days }, days) : t(key)
+}
+
 const nodeReadOnly = computed(() => props.node.permissions?.readOnly ?? isNodeReadOnly(props.node.status))
 const taskScope = computed(() => ({
   nodeId: props.nodeId,
@@ -395,7 +400,7 @@ defineExpose({ openCreateForRequirement, refreshRequirements })
                 class="pms-task-schedule-badge"
                 :class="`pms-task-schedule-badge--${scheduleTone(task.scheduleState)}`"
               >
-                {{ $t(scheduleLabelKey(task.scheduleState), task.scheduleState === 'OVERDUE' ? { days: task.overdueDays ?? 0 } : {}) }}
+                {{ scheduleLabel(task.scheduleState, task.overdueDays) }}
               </span>
             </span>
           </div>
@@ -465,7 +470,7 @@ defineExpose({ openCreateForRequirement, refreshRequirements })
         <a-form-item :label="$t('task.dueDate')">
           <a-date-picker v-model:value="form.dueDate" :disabled="!canEditModal" value-format="YYYY-MM-DD" :placeholder="$t('task.dueDate')" style="width: 100%" />
           <div class="pms-task-schedule-summary" :class="`pms-task-schedule-summary--${scheduleTone(editingTask?.scheduleState)}`">
-            {{ $t(scheduleLabelKey(editingTask?.scheduleState), editingTask?.scheduleState === 'OVERDUE' ? { days: editingTask.overdueDays ?? 0 } : {}) }}
+            {{ scheduleLabel(editingTask?.scheduleState, editingTask?.overdueDays) }}
           </div>
         </a-form-item>
       </div>

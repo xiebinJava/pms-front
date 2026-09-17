@@ -458,7 +458,7 @@ const enUS: MessageSchema = {
       noDueDate: 'No due date',
       dueToday: 'Due today',
       onTime: 'On time',
-      overdue: 'Overdue {days} days',
+      overdue: 'Overdue {days} day | Overdue {days} days',
       completed: 'Completed',
     },
     rescheduleHistory: 'Schedule history',
