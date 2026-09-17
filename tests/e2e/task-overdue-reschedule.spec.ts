@@ -192,6 +192,7 @@ async function mockScheduleApi(page: Page) {
   return { updateCalls, unexpectedApiRequests }
 }
 
+test.skip(liveBackendEnabled, 'The live backend suite covers schedule derivation when E2E credentials are available')
 test('task due-date state and reschedule history stay consistent', async ({ page }) => {
   const { updateCalls, unexpectedApiRequests } = await mockScheduleApi(page)
   await page.clock.install({ time: new Date('2026-09-16T12:00:00+08:00') })
@@ -239,6 +240,7 @@ test('task due-date state and reschedule history stay consistent', async ({ page
   expect(unexpectedApiRequests).toEqual([])
 })
 
+test.skip(liveBackendEnabled, 'The live backend suite covers schedule derivation when E2E credentials are available')
 test('timeline and calendar show overdue tasks without dependency lines, including English copy', async ({ page }) => {
   const { updateCalls, unexpectedApiRequests } = await mockScheduleApi(page)
   await page.clock.install({ time: new Date('2026-09-16T12:00:00+08:00') })
@@ -364,10 +366,11 @@ test.describe('live backend schedule projection', () => {
     await createLiveTask(page, dueTodayTitle, today)
     await createLiveTask(page, onTimeTitle, shiftDate(today, 1))
 
-    await expect.poll(() => taskResponses.flat().filter(item => typeof item.title === 'string' && item.title.startsWith(prefix)).length, {
+    const latestTasks = () => taskResponses.at(-1) || []
+    await expect.poll(() => latestTasks().filter(item => typeof item.title === 'string' && item.title.startsWith(prefix)).length, {
       timeout: 15_000,
     }).toBe(3)
-    const created = taskResponses.flat().filter(item => typeof item.title === 'string' && item.title.startsWith(prefix))
+    const created = latestTasks().filter(item => typeof item.title === 'string' && item.title.startsWith(prefix))
     expect(created.find(item => item.title === overdueTitle)).toEqual(expect.objectContaining({ status: 0, dueDate: shiftDate(today, -2), scheduleState: 'OVERDUE', overdueDays: 2 }))
     expect(created.find(item => item.title === dueTodayTitle)).toEqual(expect.objectContaining({ status: 0, dueDate: today, scheduleState: 'DUE_TODAY', overdueDays: 0 }))
     expect(created.find(item => item.title === onTimeTitle)).toEqual(expect.objectContaining({ status: 0, dueDate: shiftDate(today, 1), scheduleState: 'ON_TIME', overdueDays: 0 }))
