@@ -221,6 +221,7 @@ function onRange(bar: { kind: 'project' | 'node'; refId: number; nodeId?: number
 }
 .cal-chip--iteration-plan { color: var(--pms-warning); background: var(--pms-warning-soft); }
 .cal-chip--task { color: var(--pms-primary); background: var(--pms-primary-soft); }
+.cal-chip--due-today { color: var(--pms-warning); background: var(--pms-warning-soft); }
 .cal-chip--overdue { color: var(--pms-danger); background: var(--pms-danger-soft); }
 .cal-more { color: var(--pms-text-faint); font-size: 10px; }
 @media (max-width: 720px) {

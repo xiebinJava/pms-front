@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
 import type { NodeIterationPlan, Project, ProjectNode, Task } from '/@/types/domain'
 
-export type ScheduleTone = 'project' | 'active' | 'completed' | 'overdue' | 'locked' | 'terminated' | 'iteration-plan' | 'task'
+export type ScheduleTone = 'project' | 'active' | 'due-today' | 'completed' | 'overdue' | 'locked' | 'terminated' | 'iteration-plan' | 'task'
 
 export interface TimelineDay {
   date: string
@@ -134,6 +134,7 @@ export function nodeScheduleTone(status?: number): ScheduleTone {
 export function taskMarkerTone(task: Pick<Task, 'status' | 'scheduleState'>): ScheduleTone {
   if (task.status === 2 || task.scheduleState === 'COMPLETED') return 'completed'
   if (task.scheduleState === 'OVERDUE') return 'overdue'
+  if (task.scheduleState === 'DUE_TODAY') return 'due-today'
   if (task.status === 1) return 'active'
   return 'task'
 }

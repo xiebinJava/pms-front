@@ -791,6 +791,7 @@ watch(() => model.value.window.start, () => {
 .gantt-mark--task { border-radius: 50%; }
 .gantt-mark--task.gantt-mark--task { background: color-mix(in srgb, var(--pms-primary) 72%, #fff); }
 .gantt-mark--task.gantt-mark--active { background: var(--pms-status-active); }
+.gantt-mark--task.gantt-mark--due-today { background: var(--pms-warning); }
 .gantt-mark--task.gantt-mark--overdue { background: var(--pms-danger); }
 .gantt-mark--task.gantt-mark--completed { background: var(--pms-success); }
 .gantt__today-line {

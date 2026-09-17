@@ -250,11 +250,13 @@ test('timeline and calendar show overdue tasks without dependency lines, includi
   const overdueMarker = page.locator('.gantt-mark--task.gantt-mark--overdue')
   await expect(overdueMarker).toHaveCount(1)
   await expect(overdueMarker).toHaveAttribute('aria-label', '逾期任务')
+  await expect(page.locator('.gantt-mark--task.gantt-mark--due-today')).toHaveCount(1)
   await expect(page.locator('.gantt-mark--task.gantt-mark--completed')).toHaveCount(0)
   await expect(page.locator('.gantt [class*="dependency"], .gantt [data-dependency]')).toHaveCount(0)
 
   await page.getByRole('tab', { name: '日历' }).click()
   await expect(page.locator('.cal-chip--overdue')).toHaveText('逾期任务')
+  await expect(page.locator('.cal-chip--due-today')).toHaveText('今日任务')
   await expect(page.locator('.cal [class*="dependency"], .cal [data-dependency]')).toHaveCount(0)
 
   await page.locator('.pms-task-card', { hasText: '逾期任务' }).click()

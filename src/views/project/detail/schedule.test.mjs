@@ -79,6 +79,7 @@ test('overdue unfinished tasks use overdue timeline markers and retain their ser
   const tasks = [
     { id: 11, title: 'Past due', dueDate: '2026-09-14', status: 1, scheduleState: 'OVERDUE', overdueDays: 2, nodeId: 2 },
     { id: 12, title: 'Finished', dueDate: '2026-09-14', status: 2, scheduleState: 'OVERDUE', overdueDays: 2, nodeId: 2 },
+    { id: 13, title: 'Due today', dueDate: '2026-09-16', status: 0, scheduleState: 'DUE_TODAY', overdueDays: 0, nodeId: 2 },
   ]
   const model = buildScheduleModel({
     today: '2026-09-16',
@@ -97,13 +98,16 @@ test('overdue unfinished tasks use overdue timeline markers and retain their ser
 
   assert.equal(taskMarkerTone(tasks[0]), 'overdue')
   assert.equal(taskMarkerTone(tasks[1]), 'completed')
+  assert.equal(taskMarkerTone(tasks[2]), 'due-today')
   assert.deepEqual(markers?.map(({ refId, tone, overdueDays }) => ({ refId, tone, overdueDays })), [
     { refId: 11, tone: 'overdue', overdueDays: 2 },
     { refId: 12, tone: 'completed', overdueDays: 2 },
+    { refId: 13, tone: 'due-today', overdueDays: 0 },
   ])
   assert.deepEqual(events.filter((event) => event.kind === 'task').map(({ refId, tone, overdueDays }) => ({ refId, tone, overdueDays })), [
     { refId: 11, tone: 'overdue', overdueDays: 2 },
     { refId: 12, tone: 'completed', overdueDays: 2 },
+    { refId: 13, tone: 'due-today', overdueDays: 0 },
   ])
 })
 
