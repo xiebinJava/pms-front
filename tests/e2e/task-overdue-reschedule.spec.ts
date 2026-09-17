@@ -192,8 +192,8 @@ async function mockScheduleApi(page: Page) {
   return { updateCalls, unexpectedApiRequests }
 }
 
-test.skip(liveBackendEnabled, 'The live backend suite covers schedule derivation when E2E credentials are available')
 test('task due-date state and reschedule history stay consistent', async ({ page }) => {
+  test.skip(liveBackendEnabled, 'The live backend suite covers schedule derivation when E2E credentials are available')
   const { updateCalls, unexpectedApiRequests } = await mockScheduleApi(page)
   await page.clock.install({ time: new Date('2026-09-16T12:00:00+08:00') })
   await page.goto('/projects/24')
@@ -240,8 +240,8 @@ test('task due-date state and reschedule history stay consistent', async ({ page
   expect(unexpectedApiRequests).toEqual([])
 })
 
-test.skip(liveBackendEnabled, 'The live backend suite covers schedule derivation when E2E credentials are available')
 test('timeline and calendar show overdue tasks without dependency lines, including English copy', async ({ page }) => {
+  test.skip(liveBackendEnabled, 'The live backend suite covers schedule derivation when E2E credentials are available')
   const { updateCalls, unexpectedApiRequests } = await mockScheduleApi(page)
   await page.clock.install({ time: new Date('2026-09-16T12:00:00+08:00') })
   await page.goto('/projects/24')
