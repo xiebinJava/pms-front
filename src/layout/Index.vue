@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { BellOutlined, BookOutlined, CloudUploadOutlined, DashboardOutlined, DownOutlined, ExperimentOutlined, LineChartOutlined, LogoutOutlined, MenuOutlined, ProjectOutlined, SearchOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, MessageOutlined, NodeIndexOutlined } from '@ant-design/icons-vue'
@@ -13,6 +13,8 @@ import type { SearchResult, UserNotification } from '/@/types/domain'
 import { canSearch, firstSearchHit, NOTIFICATIONS_CHANGED_EVENT, notificationRoute, searchHitRoute } from './chrome'
 import { notificationTypeClass, notificationTypeKey } from '/@/views/notifications/notification-center'
 import { installDshAuthBridge } from '/@/integration/dsh-auth-bridge'
+import { installDshContextBridge, type DshContextBridgeController } from '/@/integration/dsh-context-bridge'
+import { installDshRefreshBridge } from '/@/integration/dsh-refresh-bridge'
 
 const route = useRoute()
 const router = useRouter()
@@ -36,10 +38,17 @@ const notifyOpen = ref(false)
 const notifyLoading = ref(false)
 const notifications = ref<UserNotification[]>([])
 const unreadCount = ref(0)
-const isEmbedded = computed(() => route.query.embed === '1' || (typeof window !== 'undefined' && window.self !== window.top))
+// Being rendered in an iframe is enough to enable the DSH auth bridge, but it
+// must not hide PMS navigation. The full PMS page is the business workspace;
+// compact chrome is an explicit opt-in via `?embed=1` only.
+const isDshFrame = computed(() => typeof window !== 'undefined' && window.self !== window.top)
+const isEmbedded = computed(() => route.query.embed === '1')
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 let unreadTimer: ReturnType<typeof setInterval> | null = null
 let stopDshAuthBridge: (() => void) | null = null
+let stopDshRefreshBridge: (() => void) | null = null
+let dshContextBridge: DshContextBridgeController | null = null
+let stopDshContextRouteWatch: (() => void) | null = null
 
 const emptySearch = (): SearchResult => ({ projects: [], tasks: [], comments: [] })
 const can = (permission: string) => userStore.can(permission)
@@ -217,7 +226,17 @@ function onNotificationsChanged() {
 }
 
 onMounted(async () => {
-  if (isEmbedded.value) stopDshAuthBridge = installDshAuthBridge()
+  if (isDshFrame.value) {
+    stopDshAuthBridge = installDshAuthBridge()
+    stopDshRefreshBridge = installDshRefreshBridge()
+    dshContextBridge = installDshContextBridge(() => ({
+      path: route.path,
+      fullPath: route.fullPath,
+      params: route.params,
+      query: route.query,
+    }))
+    stopDshContextRouteWatch = watch(() => route.fullPath, () => dshContextBridge?.sync())
+  }
   window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, onNotificationsChanged)
   if (userStore.token && !userStore.user) {
     try {
@@ -235,6 +254,12 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   stopDshAuthBridge?.()
   stopDshAuthBridge = null
+  stopDshRefreshBridge?.()
+  stopDshRefreshBridge = null
+  stopDshContextRouteWatch?.()
+  stopDshContextRouteWatch = null
+  dshContextBridge?.stop()
+  dshContextBridge = null
   if (searchTimer) clearTimeout(searchTimer)
   if (unreadTimer) clearInterval(unreadTimer)
   window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, onNotificationsChanged)

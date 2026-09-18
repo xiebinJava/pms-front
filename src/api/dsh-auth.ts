@@ -4,6 +4,12 @@ export const DSH_AUTH_AGENT_ID = 'project_assistant'
 export const DSH_AUTH_SCOPES = [
   'pms:project:read',
   'pms:task:read',
+  'pms:query:read',
+  'pms:task:write',
+  'pms:command:preview',
+  'pms:command:execute',
+  'pms:workflow:write',
+  'pms:project:write',
   'pms:workspace:embed',
 ] as const
 

@@ -105,6 +105,12 @@ test('supports a chrome-free embedded workspace mode for the DSH right pane', ()
   assert.match(styleSource, /\.pms-shell--embedded \.pms-main-content/)
 })
 
+test('keeps the full PMS shell in a DSH iframe while still installing the auth bridge', () => {
+  assert.match(source, /const isDshFrame = computed\(\(\) =>[\s\S]*window\.self !== window\.top/)
+  assert.match(source, /const isEmbedded = computed\(\(\) => route\.query\.embed === '1'\)/)
+  assert.match(source, /if \(isDshFrame\.value\) \{[\s\S]*stopDshAuthBridge = installDshAuthBridge\(\)/)
+  assert.doesNotMatch(source, /if \(isEmbedded\.value\)\s+stopDshAuthBridge = installDshAuthBridge\(\)/)
+})
 test('keeps the PMS navigation available inside the embedded DSH workspace', () => {
   assert.doesNotMatch(styleSource, /\.pms-shell--embedded \.pms-sidebar,/)
   assert.match(styleSource, /\.pms-shell--embedded \.pms-sidebar-scrim/)
