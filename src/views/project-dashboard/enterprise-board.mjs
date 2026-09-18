@@ -2,6 +2,7 @@ const PHASES = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'TERMINATED', 'UNKNOW
 const HEALTH = ['HEALTHY', 'WATCH', 'CRITICAL', 'UNKNOWN']
 const LEVELS = [3, 2, 1, 0]
 const PRIORITY = { CRITICAL: 0, WATCH: 1, UNKNOWN: 2, HEALTHY: 3, COMPLETED: 4, TERMINATED: 5 }
+const ORG_CHART_PHASES = ['IN_PROGRESS', 'NOT_STARTED', 'COMPLETED', 'TERMINATED', 'UNKNOWN']
 
 function knownLevel(value) {
   if (value === null || value === undefined || value === '') return 'UNKNOWN'
@@ -108,6 +109,15 @@ export function summarizeBoard(items) {
   return summary
 }
 
+export function overviewMetricCards(summary) {
+  return [
+    { key: 'total', value: summary.total, filter: 'ALL', tone: 'blue' },
+    { key: 'notStarted', value: summary.phases.NOT_STARTED, filter: 'NOT_STARTED', tone: 'neutral' },
+    { key: 'inProgress', value: summary.phases.IN_PROGRESS, filter: 'IN_PROGRESS', tone: 'active' },
+    { key: 'completed', value: summary.phases.COMPLETED, filter: 'COMPLETED', tone: 'success' },
+  ]
+}
+
 export function buildOrgComparison(items, orgUnits = [], selectedOrgId = 'ALL') {
   const byId = new Map()
   const indexTree = (nodes, parentId = null, ancestors = []) => {
@@ -163,6 +173,30 @@ export function buildOrgComparison(items, orgUnits = [], selectedOrgId = 'ALL') 
     group.levels[knownLevel(item.project?.projectLevel)] += 1
   }
   return [...groups.values()].sort((left, right) => right.total - left.total || left.name.localeCompare(right.name, 'zh-CN'))
+}
+
+export function buildOrgColumnChart(groups) {
+  const source = Array.isArray(groups) ? groups : []
+  const largestGroup = source.reduce((max, group) => Math.max(max, Number(group.total) || 0), 0)
+  const axisMax = Math.max(4, Math.ceil(largestGroup / 4) * 4)
+
+  return {
+    axisMax,
+    ticks: [axisMax, axisMax * 0.75, axisMax * 0.5, axisMax * 0.25, 0],
+    groups: source.map((group) => {
+      const total = Math.max(0, Number(group.total) || 0)
+      return {
+        ...group,
+        total,
+        barHeightPercent: total / axisMax * 100,
+        segments: ORG_CHART_PHASES.flatMap((phase) => {
+          const count = Math.max(0, Number(group.phases?.[phase]) || 0)
+          if (!count) return []
+          return [{ phase, count, sharePercent: total ? count / total * 100 : 0 }]
+        }),
+      }
+    }),
+  }
 }
 
 export function upcomingNodes(items, asOfDate, limit = 6) {

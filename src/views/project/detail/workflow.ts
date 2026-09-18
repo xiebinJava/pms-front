@@ -66,12 +66,24 @@ function stripUsernameSuffix(value: string, username?: string): string {
 }
 
 /** 统一清理后端历史格式，避免“中文名（英文名） (英文名)”重复展示。 */
-export function normalizePersonDisplayLabel(value?: string): string | undefined {
-  let text = value?.trim()
+export function normalizePersonDisplayLabel(value?: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  let text = value.trim()
   if (!text) return undefined
   text = text.replace(/\s*（([^（）]+)）\s*\(\1\)$/i, '（$1）')
   text = text.replace(/^(.+?)\s*\(([^()]+)\)$/, '$1（$2）')
   return text.trim()
+}
+
+/** tagRender labels may be VNodes; use them only when they are plain text. */
+export function resolvePersonSelectLabel(
+  value: number | string,
+  renderedLabel: unknown,
+  optionLabel?: unknown,
+): string {
+  return normalizePersonDisplayLabel(renderedLabel)
+    || normalizePersonDisplayLabel(optionLabel)
+    || formatPersonLabel({ id: Number(value) })
 }
 
 export function formatPersonLabel(user: {
@@ -98,11 +110,11 @@ export function formatPersonLabel(user: {
 }
 
 export function getPersonDisplay(
-  option?: { label?: string; avatar?: string },
+  option?: { label?: unknown; avatar?: string },
   fallback?: string,
 ): { label: string; avatar?: string } {
   return {
-    label: normalizePersonDisplayLabel(option?.label || fallback) || '待确认',
+    label: normalizePersonDisplayLabel(option?.label) || normalizePersonDisplayLabel(fallback) || '待确认',
     avatar: option?.avatar,
   }
 }
@@ -199,11 +211,18 @@ export function listPersonSelectOptions(input: {
   keyword?: string
   recent?: PersonOption[]
   fallback?: PersonOption[]
+  options?: PersonOption[]
   searchResults?: PersonOption[]
   random?: () => number
 }): PersonOption[] {
   if (input.keyword?.trim()) return [...(input.searchResults || [])]
-  return pickFallbackPeople(input.recent || [], input.fallback || [], RECENT_PERSON_LIMIT, input.random)
+  const preferred = new Map<number, PersonOption>()
+  for (const option of [...(input.recent || []), ...(input.options || [])]) {
+    if (!isPersonOption(option) || preferred.has(option.value)) continue
+    preferred.set(option.value, option)
+    if (preferred.size >= RECENT_PERSON_LIMIT) break
+  }
+  return pickFallbackPeople([...preferred.values()], input.fallback || [], RECENT_PERSON_LIMIT, input.random)
 }
 
 export const NOTE_ASSIGNED_PROJECT_MEMBER = 'noteAssignedProjectMember'
@@ -458,6 +477,15 @@ export function getFlowNodeState(status: number): FlowNodeState {
 export function getNodeProgress(doneCount: number, totalCount: number): number {
   if (totalCount <= 0) return 0
   return Math.round((doneCount / totalCount) * 100)
+}
+
+/** Keep unloaded and empty nodes distinct from nodes with tasks at 0% completion. */
+export function getCurrentNodeTaskProgress(
+  summary: { done: number; total: number } | null | undefined,
+): number | null | undefined {
+  if (!summary) return undefined
+  if (summary.total <= 0) return null
+  return getNodeProgress(summary.done, summary.total)
 }
 
 /** Choose a useful node when the detail page first opens. */

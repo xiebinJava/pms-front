@@ -118,6 +118,7 @@ const canManageModal = computed(() => modalState.editingId == null
   : Boolean(editingTask.value?.permissions?.canDelete))
 let loadSequence = 0
 let detailSequence = 0
+let focusSequence = 0
 
 const requirementOptions = computed(() => requirements.value
   .filter((requirement) => requirement.id != null)
@@ -137,12 +138,13 @@ function emitTaskProgress(list: Task[] = tasks.value) {
 
 async function loadAll() {
   const sequence = ++loadSequence
+  focusSequence += 1
   const requestedNodeId = props.nodeId
   // Drop the previous node's cards immediately so a slow/failed reload cannot
   // leave another node's tasks visible on the board.
   tasks.value = []
   requirements.value = []
-  emitTaskProgress([])
+  // The cleared array is a loading state, not an authoritative empty summary.
   modalState.open = false
   detail.value = null
   // First paint uses a full spinner; later node switches keep the board chrome
@@ -180,16 +182,28 @@ async function loadDetail(taskId: number) {
   detail.value = loaded
 }
 
-async function maybeOpenFocusedTask() {
-  if (!props.focusTaskId || consumedFocusId.value === props.focusTaskId) return
+async function maybeOpenFocusedTask(taskId = props.focusTaskId) {
+  if (!taskId || consumedFocusId.value === taskId) return
+  const requestSequence = ++focusSequence
+  const requestedProjectId = props.projectId
+  const requestedNodeId = props.nodeId
   try {
-    const focused = await getTask(props.focusTaskId)
-    if (focused.nodeId && focused.nodeId !== props.nodeId) return
-    consumedFocusId.value = props.focusTaskId
+    const focused = await getTask(taskId)
+    if (
+      requestSequence !== focusSequence
+      || props.focusTaskId !== taskId
+      || props.projectId !== requestedProjectId
+      || props.nodeId !== requestedNodeId
+      || focused.projectId !== requestedProjectId
+      || focused.nodeId !== requestedNodeId
+    ) return
+    consumedFocusId.value = taskId
     openEdit(focused)
     emit('focused')
   } catch {
-    consumedFocusId.value = props.focusTaskId
+    if (requestSequence === focusSequence && props.focusTaskId === taskId) {
+      consumedFocusId.value = taskId
+    }
   }
 }
 
@@ -330,6 +344,14 @@ function onDelete(task: Task) {
 }
 
 onMounted(loadAll)
+watch(() => props.focusTaskId, (taskId) => {
+  if (!taskId) {
+    consumedFocusId.value = null
+    return
+  }
+  if (!hasLoadedOnce.value || consumedFocusId.value === taskId) return
+  void maybeOpenFocusedTask()
+})
 watch(taskScope, (next, previous) => {
   if (!shouldReloadNodeTasks(previous, next)) return
   modalState.open = false

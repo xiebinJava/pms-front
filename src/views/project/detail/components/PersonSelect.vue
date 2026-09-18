@@ -9,13 +9,13 @@ import {
   getSinglePersonSelection,
   isSelectableAccount,
   listPersonSelectOptions,
-  normalizePersonDisplayLabel,
   NOTE_ASSIGNED_PROJECT_MEMBER,
   REMEMBER_PERSON_OPTION,
   pickFallbackPeople,
   readRecentPeople,
   rememberRecentPeople,
   RECENT_PERSON_LIMIT,
+  resolvePersonSelectLabel,
 } from '../workflow'
 import type { PersonOption } from '../workflow'
 import type { User } from '/@/types/domain'
@@ -79,6 +79,7 @@ const selectedValues = computed<number[]>(() => {
 const dropdownOptions = computed(() => {
   const listed = listPersonSelectOptions({
     keyword: searchKeyword.value,
+    options: props.options,
     recent: openOptions.value,
     fallback: fallbackPool.value,
     searchResults: extraOptions.value,
@@ -124,9 +125,8 @@ function findOption(value: number | string): PersonOption | undefined {
   return labelOptions.value.find((option) => option.value === Number(value))
 }
 
-function getLabel(value: number | string, label?: string): string {
-  return normalizePersonDisplayLabel(label || findOption(value)?.label)
-    || formatPersonLabel({ id: Number(value) })
+function getLabel(value: number | string, label?: unknown): string {
+  return resolvePersonSelectLabel(value, label, findOption(value)?.label)
 }
 
 function getAvatar(value: number | string): string | undefined {
@@ -287,7 +287,7 @@ onBeforeUnmount(() => {
   >
     <template #option="{ value, label }">
       <span class="person-select__option">
-        <a-avatar :src="getAvatar(value)" :size="20">{{ getInitials(String(label)) }}</a-avatar>
+        <a-avatar :src="getAvatar(value)" :size="20">{{ getInitials(getLabel(value, label)) }}</a-avatar>
         <span>{{ getLabel(value, label) }}</span>
       </span>
     </template>
@@ -315,7 +315,7 @@ onBeforeUnmount(() => {
   column-gap: 4px;
 }
 .person-select :deep(.ant-select-selection-overflow-item:not(.ant-select-selection-overflow-item-suffix)) {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   max-width: 100%;
 }

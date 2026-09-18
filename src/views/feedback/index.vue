@@ -259,7 +259,7 @@ onMounted(() => { void load(); void loadAuxiliaryData() })
               <div class="pms-table-subtext">{{ record.ticketNo }}<span v-if="record.contextModule"> · {{ record.contextModule }}</span></div>
             </template>
             <template v-else-if="column.key === 'feedbackType'">{{ typeLabel(record.feedbackType) }}</template>
-            <template v-else-if="column.key === 'priority'"><a-tag :color="priorityColor(record.priority)">{{ priorityLabel(record.priority) }}</a-tag></template>
+            <template v-else-if="column.key === 'priority'"><a-tag :color="priorityColor(record.priority)" class="pms-priority-tag" :class="{ 'pms-priority-tag--urgent': record.priority === 'URGENT' }">{{ priorityLabel(record.priority) }}</a-tag></template>
             <template v-else-if="column.key === 'status'"><a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag></template>
             <template v-else-if="column.key === 'reporterName'">{{ record.reporterName || $t('common.unset') }}</template>
             <template v-else-if="column.key === 'assigneeName'">{{ record.assigneeName || $t('common.unset') }}</template>
@@ -297,7 +297,7 @@ onMounted(() => { void load(); void loadAuxiliaryData() })
             <div><span class="feedback-ticket-no">{{ detail.ticketNo }}</span><h2>{{ detail.title }}</h2></div>
             <a-tag :color="statusColor(detail.status)">{{ statusLabel(detail.status) }}</a-tag>
           </div>
-          <div class="feedback-detail-meta"><a-tag>{{ typeLabel(detail.feedbackType) }}</a-tag><a-tag :color="priorityColor(detail.priority)">{{ priorityLabel(detail.priority) }}</a-tag><span>{{ formatDateTime(detail.createdAt) }}</span></div>
+          <div class="feedback-detail-meta"><a-tag>{{ typeLabel(detail.feedbackType) }}</a-tag><a-tag :color="priorityColor(detail.priority)" class="pms-priority-tag" :class="{ 'pms-priority-tag--urgent': detail.priority === 'URGENT' }">{{ priorityLabel(detail.priority) }}</a-tag><span>{{ formatDateTime(detail.createdAt) }}</span></div>
           <a-typography-paragraph class="feedback-content">{{ detail.content }}</a-typography-paragraph>
           <a-descriptions :column="1" size="small" bordered>
             <a-descriptions-item :label="$t('feedback.reporter')">{{ detail.reporterName || $t('common.unset') }}</a-descriptions-item>

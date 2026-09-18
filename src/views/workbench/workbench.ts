@@ -1,4 +1,4 @@
-import type { Project, Task } from '/@/types/domain'
+import type { Project, ProjectActionItem, Task } from '/@/types/domain'
 
 export interface WorkbenchTask extends Task {
   projectName: string
@@ -20,6 +20,13 @@ export interface WorkbenchSummary {
   dueSoonTaskCount: number
   overdueTaskCount: number
   participatingProjectCount: number
+}
+
+export interface WorkbenchActionCenter {
+  totalCount: number
+  criticalCount: number
+  warningCount: number
+  items: ProjectActionItem[]
 }
 
 const DONE_STATUS = 2

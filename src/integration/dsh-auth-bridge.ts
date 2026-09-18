@@ -18,13 +18,16 @@ type DshAuthRequestMessage = DshAuthorizationCodeRequest & {
   requestId: string
 }
 
-export function resolveParentOrigin(referrer: string): string {
-  if (!referrer) return ''
-  try {
-    return new URL(referrer).origin
-  } catch {
-    return ''
+export function resolveParentOrigin(referrer: string, ancestorOrigin = ''): string {
+  for (const candidate of [referrer, ancestorOrigin]) {
+    if (!candidate) continue
+    try {
+      return new URL(candidate).origin
+    } catch {
+      // Try the next browser-provided source of the embedding origin.
+    }
   }
+  return ''
 }
 
 function isValidRequest(value: unknown): value is DshAuthRequestMessage {
@@ -42,7 +45,7 @@ function isValidRequest(value: unknown): value is DshAuthRequestMessage {
 
 export function installDshAuthBridge(): () => void {
   const win = window
-  const parentOrigin = resolveParentOrigin(document.referrer)
+  const parentOrigin = resolveParentOrigin(document.referrer, window.location.ancestorOrigins?.[0] || '')
   if (!parentOrigin || win.parent === win) return () => undefined
 
   const onMessage = (event: MessageEvent<unknown>) => {
@@ -63,6 +66,7 @@ export function installDshAuthBridge(): () => void {
         requestId: request.requestId,
         authorizationCode: response.authorizationCode,
         expiresInSeconds: response.expiresInSeconds,
+        agentId: request.agentId || DSH_AUTH_AGENT_ID,
         scopes: response.scopes,
       }, parentOrigin)
     }).catch(() => {

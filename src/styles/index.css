@@ -139,7 +139,7 @@ textarea:focus-visible {
 }
 .pms-primary-button .anticon { font-size: var(--pms-font-size-body); }
 .pms-priority-tag { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 30px; font-weight: 600; border-radius: 5px; }
-.pms-priority-tag--urgent { color: #fff !important; background: #f5222d !important; border-color: #f5222d !important; box-shadow: 0 0 0 2px rgb(245 34 45 / 12%); }
+.pms-priority-tag--urgent { color: var(--pms-danger) !important; background: var(--pms-danger-soft) !important; border-color: color-mix(in srgb, var(--pms-danger) 28%, var(--pms-border)) !important; box-shadow: none; }
 .pms-comment-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--pms-border); }
 .pms-comment-item:last-child { border-bottom: 0; }
 .pms-comment-item__body { min-width: 0; flex: 1; }

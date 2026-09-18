@@ -14,14 +14,18 @@ import {
 import { getWorkbench } from '/@/api/workbench'
 import { priorityKey, projectStatusKey, projectStatusTagColor, taskStatusKey, taskStatusTagColor, priorityTagColor } from '/@/enums'
 import type { Project } from '/@/types/domain'
+import type { ProjectActionItem } from '/@/types/domain'
 import { formatDate, formatDateTime } from '/@/utils/format'
 import { getProjectManagerDisplay } from '/@/views/project/detail/workflow'
 import PmsPageHeader from '/@/components/PmsPageHeader.vue'
 import {
   type WorkbenchActivity,
+  type WorkbenchActionCenter,
   type WorkbenchSummary,
   type WorkbenchTask,
 } from './workbench'
+import WorkbenchActionCenterPanel from './WorkbenchActionCenter.vue'
+import { buildAttentionRoute } from '/@/views/project/detail/project-attention.mjs'
 
 const emptySummary = (): WorkbenchSummary => ({
   pendingTaskCount: 0,
@@ -36,6 +40,7 @@ const { t } = useI18n()
 const projects = ref<Project[]>([])
 const myTasks = ref<WorkbenchTask[]>([])
 const recentActivities = ref<WorkbenchActivity[]>([])
+const actionCenter = ref<WorkbenchActionCenter | undefined>()
 const summary = ref<WorkbenchSummary>(emptySummary())
 const loading = ref(false)
 const errorMessage = ref('')
@@ -64,6 +69,10 @@ function openTask(task: WorkbenchTask) {
   router.push({ path: `/projects/${task.projectId}`, query: { task: String(task.id) } })
 }
 
+function openAction(item: ProjectActionItem) {
+  void router.push(buildAttentionRoute(item))
+}
+
 async function loadData() {
   loading.value = true
   errorMessage.value = ''
@@ -74,6 +83,7 @@ async function loadData() {
     myTasks.value = payload.tasks || []
     projects.value = payload.projects || []
     recentActivities.value = payload.activities || []
+    actionCenter.value = payload.actionCenter
   } catch (error) {
     errorMessage.value = getErrorMessage(error, t('workbench.loadFailed'))
   } finally {
@@ -131,6 +141,12 @@ onMounted(loadData)
         </div>
       </section>
 
+      <WorkbenchActionCenterPanel
+        :action-center="actionCenter"
+        :has-assigned-tasks="myTasks.length > 0"
+        @action="openAction"
+      />
+
       <div class="workbench-content-grid">
         <section class="workbench-panel pms-panel" aria-labelledby="workbench-tasks-title">
           <div class="workbench-panel__header">
@@ -158,7 +174,13 @@ onMounted(loadData)
                 <a-tag v-if="task.scheduleState === 'OVERDUE'" class="workbench-overdue-tag">
                   {{ $t('workbench.overdueDays', task.overdueDays ?? 0) }}
                 </a-tag>
-                <a-tag :color="priorityTagColor[task.priority]">{{ $t(priorityKey(task.priority)) }}</a-tag>
+                <a-tag
+                  :color="priorityTagColor[task.priority]"
+                  class="pms-priority-tag"
+                  :class="{ 'pms-priority-tag--urgent': task.priority === 3 }"
+                >
+                  {{ $t(priorityKey(task.priority)) }}
+                </a-tag>
                 <small>{{ formatDate(task.dueDate) }}</small>
               </span>
             </button>

@@ -48,6 +48,44 @@ export interface Project {
   createdAt: string
   updatedAt: string
   permissions?: ProjectPermissions
+  readiness?: ProjectReadiness
+  attentionSummary?: ProjectAttentionSummary
+}
+
+export interface ProjectActionItem {
+  type: string
+  severity: 'CRITICAL' | 'WARNING' | 'INFO' | string
+  projectId: number
+  projectName?: string
+  nodeId?: number
+  nodeName?: string
+  nodeSort?: number
+  taskId?: number
+  taskName?: string
+  title: string
+  description?: string
+  dueDate?: string
+  overdueDays?: number
+  actionLabel?: string
+  actionTarget?: string
+  canAct: boolean
+}
+
+export interface ProjectReadiness {
+  completedCount: number
+  totalCount: number
+  percent: number
+  criticalCount: number
+  warningCount: number
+  items: ProjectActionItem[]
+  nextAction?: ProjectActionItem
+}
+
+export interface ProjectAttentionSummary {
+  criticalCount: number
+  warningCount: number
+  overdueTaskCount: number
+  currentNodeIssueCount: number
 }
 
 export interface ProjectPermissions {

@@ -7,13 +7,15 @@ import { useI18n } from 'vue-i18n'
 import {
   PlusOutlined, EyeOutlined, SaveOutlined, SendOutlined, ArrowUpOutlined, ArrowDownOutlined, DeleteOutlined,
   CloseOutlined, FileTextOutlined, AlignLeftOutlined, FieldNumberOutlined, CheckCircleOutlined, DownOutlined,
-  UnorderedListOutlined, UserOutlined, TeamOutlined, CalendarOutlined, SwapOutlined, PaperClipOutlined, CheckOutlined,
+  UnorderedListOutlined, UserOutlined, TeamOutlined, CalendarOutlined, SwapOutlined, PaperClipOutlined, CheckOutlined, InfoCircleOutlined,
 } from '@ant-design/icons-vue'
 import PmsPageHeader from '/@/components/PmsPageHeader.vue'
 import { useUserStore } from '/@/store/user'
 import {
   createWorkflowProjectType,
   createWorkflowTemplate,
+  archiveWorkflowTemplate,
+  archiveWorkflowTemplateVersion,
   getWorkflowTemplate,
   listWorkflowProjectTypes,
   listWorkflowTemplates,
@@ -21,11 +23,13 @@ import {
   saveWorkflowTemplateDraft,
   setWorkflowDefault,
 } from '/@/api/admin-workflow'
-import type { ProjectType, WorkflowContentOrderItem, WorkflowFieldBinding, WorkflowFieldDefinition, WorkflowFieldType, WorkflowNodeDefinitionV2, WorkflowTemplateDefinitionV2, WorkflowTemplateSummary } from '/@/types/workflow'
+import type { ProjectType, WorkflowContentOrderItem, WorkflowFieldBinding, WorkflowFieldDefinition, WorkflowFieldType, WorkflowNodeDefinitionV2, WorkflowTemplateDefinitionV2, WorkflowTemplateSummary, WorkflowTemplateVersionSummary } from '/@/types/workflow'
+import { isWorkflowFieldFullWidth } from '/@/utils/workflow-field-layout.mjs'
 import {
   FIXED_NODE_BLOCKS,
   addWorkflowField,
   createWorkflowNode,
+  generateNextProjectTypeCode,
   moveWorkflowContentItem,
   moveWorkflowField,
   moveWorkflowNode,
@@ -50,9 +54,11 @@ const templateDescription = ref('')
 const definition = ref<WorkflowTemplateDefinitionV2>({ schemaVersion: 2, nodes: [] })
 const dirty = ref(false)
 const dragKey = ref<string>()
+const deleteHoverKey = ref<string>()
 const contentDragItem = ref<WorkflowContentOrderItem>()
 const fieldDragKey = ref<string>()
 const previewOpen = ref(false)
+const versionModalOpen = ref(false)
 const typeModalOpen = ref(false)
 const mobileInspectorOpen = ref(false)
 const mobileInspectorPanel = ref<HTMLElement>()
@@ -94,6 +100,15 @@ const availableBindings = computed(() => Object.entries(PROJECT_FIELD_BINDINGS)
   .filter(([, binding]) => !currentNode.value?.fields.some((field) => field.binding === binding.binding)))
 const selectedNodeIndex = computed(() => definition.value.nodes.findIndex((node) => node.key === selectedNodeKey.value))
 const publishedVersion = computed(() => selectedTemplateSummary.value?.publishedVersionNo)
+const workflowVersions = computed(() => [...(selectedTemplateSummary.value?.versions || [])]
+  .sort((left, right) => right.versionNo - left.versionNo))
+
+function defaultVersionLabel(template: WorkflowTemplateSummary): string {
+  const versionNo = template.publishedVersions?.find((version) => version.id === template.defaultTemplateVersionId)?.versionNo
+  return versionNo == null
+    ? t('admin.workflow.default')
+    : t('admin.workflow.defaultVersion', { version: versionNo })
+}
 
 function contentItemLabel(contentItem: WorkflowContentOrderItem): string {
   if (contentItem === 'fields') return t('admin.workflow.fieldsSection')
@@ -194,8 +209,9 @@ function upsertTemplateSummary(template: WorkflowTemplateSummary) {
     publishedVersionNo: template.publishedVersionNo,
     publishedVersionId: template.publishedVersionId,
     publishedVersions: template.publishedVersions ?? existing?.publishedVersions,
+    versions: template.versions ?? existing?.versions,
     defaultTemplateVersionId: template.defaultTemplateVersionId ?? existing?.defaultTemplateVersionId,
-    defaultTemplate: existing?.defaultTemplate ?? false,
+    defaultTemplate: template.defaultTemplate ?? existing?.defaultTemplate ?? false,
   }
   if (existingIndex >= 0) {
     templates.value = templates.value.map((item, index) => index === existingIndex ? next : item)
@@ -485,6 +501,11 @@ function updateFieldVisibility(field: WorkflowFieldDefinition, visible: boolean)
   markDirty()
 }
 
+function updateFieldWidth(field: WorkflowFieldDefinition, fullWidth: boolean) {
+  field.fullWidth = fullWidth
+  markDirty()
+}
+
 async function saveDraft(): Promise<boolean> {
   if (saving.value || loading.value) return false
   if (!selectedTypeId.value || !templateName.value.trim() || !definition.value.nodes.length) {
@@ -561,6 +582,10 @@ async function setAsDefault() {
     templates.value = templates.value.map((template) => ({
       ...template,
       defaultTemplateVersionId: updatedType.defaultTemplateVersionId,
+      versions: template.versions?.map((version) => ({
+        ...version,
+        isDefault: version.id === updatedType.defaultTemplateVersionId,
+      })),
       defaultTemplate: template.publishedVersions?.some((version) => version.id === versionId)
         ?? template.id === templateId,
     }))
@@ -577,6 +602,115 @@ async function setAsDefault() {
   finally { saving.value = false }
 }
 
+function confirmAction(title: string, content: string, okText: string, danger = false): Promise<boolean> {
+  return new Promise<boolean>((resolve) => Modal.confirm({
+    title,
+    content,
+    okText,
+    okType: danger ? 'danger' : 'primary',
+    cancelText: t('common.cancel'),
+    onOk: () => resolve(true),
+    onCancel: () => resolve(false),
+  }))
+}
+
+async function setVersionAsDefault(version: WorkflowTemplateVersionSummary) {
+  if (!canWrite.value || saving.value || loading.value || version.status !== 'PUBLISHED' || version.isDefault) return
+  const typeId = selectedTypeId.value
+  const templateId = selectedTemplateId.value
+  if (!typeId || !templateId) return
+  const confirmed = await confirmAction(
+    t('admin.workflow.setDefaultVersionTitle', { version: version.versionNo }),
+    t('admin.workflow.setDefaultVersionContent', { version: version.versionNo }),
+    t('admin.workflow.setDefaultVersion'),
+  )
+  if (!confirmed) return
+  saving.value = true
+  try {
+    const updatedType = await setWorkflowDefault(typeId, version.id)
+    types.value = types.value.map((type) => type.id === typeId ? updatedType : type)
+    templates.value = templates.value.map((template) => ({
+      ...template,
+      defaultTemplateVersionId: updatedType.defaultTemplateVersionId,
+      versions: template.versions?.map((item) => ({
+        ...item,
+        isDefault: item.id === updatedType.defaultTemplateVersionId,
+      })),
+      defaultTemplate: template.publishedVersions?.some((item) => item.id === updatedType.defaultTemplateVersionId) ?? false,
+    }))
+    message.success(t('admin.workflow.defaultUpdated'))
+    try {
+      const refreshedTemplates = await listWorkflowTemplates(typeId)
+      if (selectedTypeId.value === typeId && selectedTemplateId.value === templateId) templates.value = refreshedTemplates
+    } catch {
+      message.warning(t('admin.workflow.defaultUpdatedRefreshFailed'))
+    }
+  } catch (error) { message.error((error as Error).message || t('admin.workflow.defaultFailed')) }
+  finally { saving.value = false }
+}
+
+async function archiveVersion(version: WorkflowTemplateVersionSummary) {
+  if (!canWrite.value || saving.value || loading.value || version.status !== 'PUBLISHED' || version.isDefault) return
+  const templateId = selectedTemplateId.value
+  const typeId = selectedTypeId.value
+  if (!templateId || !typeId) return
+  const preserveLocalEdits = dirty.value
+  const confirmed = await confirmAction(
+    t('admin.workflow.archiveVersionTitle', { version: version.versionNo }),
+    t('admin.workflow.archiveVersionContent'),
+    t('admin.workflow.archiveVersion'),
+    true,
+  )
+  if (!confirmed) return
+  saving.value = true
+  try {
+    const updated = await archiveWorkflowTemplateVersion(templateId, version.id)
+    upsertTemplateSummary(updated)
+    try {
+      const refreshedTemplates = await listWorkflowTemplates(typeId)
+      if (selectedTypeId.value === typeId && selectedTemplateId.value === templateId) templates.value = refreshedTemplates
+    } catch {
+      message.warning(t('admin.workflow.defaultUpdatedRefreshFailed'))
+    }
+    message.success(t('admin.workflow.versionArchived'))
+    if (selectedTypeId.value === typeId && selectedTemplateId.value === templateId) {
+      if (preserveLocalEdits) {
+        message.warning(t('admin.workflow.versionArchivedWithUnsavedEdits'))
+      } else {
+        saving.value = false
+        await selectTemplate(templateId)
+      }
+    }
+  } catch (error) { message.error((error as Error).message || t('admin.workflow.versionArchiveFailed')) }
+  finally { saving.value = false }
+}
+
+async function archiveSelectedTemplate() {
+  if (!canWrite.value || saving.value || loading.value) return
+  const template = selectedTemplateSummary.value
+  const typeId = selectedTypeId.value
+  if (!template || !typeId || template.code === 'current-process') return
+  const confirmed = await confirmAction(
+    t('admin.workflow.archiveTemplateTitle', { name: template.name }),
+    t('admin.workflow.archiveTemplateContent'),
+    t('admin.workflow.archiveTemplate'),
+    true,
+  )
+  if (!confirmed) return
+  saving.value = true
+  try {
+    await archiveWorkflowTemplate(template.id)
+    dirty.value = false
+    templates.value = []
+    clearEditor()
+    versionModalOpen.value = false
+    message.success(t('admin.workflow.templateArchived'))
+    saving.value = false
+    await loadTemplates()
+  } catch (error) { message.error((error as Error).message || t('admin.workflow.templateArchiveFailed')) }
+  finally { saving.value = false }
+}
+
 async function saveType() {
   if (!typeForm.code.trim() || !typeForm.name.trim()) { message.warning(t('admin.workflow.typeRequired')); return }
   if (!(await confirmDiscard())) return
@@ -588,21 +722,26 @@ async function saveType() {
   } catch (error) { message.error((error as Error).message || t('admin.workflow.typeSaveFailed')) }
 }
 
+function openTypeModal() {
+  Object.assign(typeForm, {
+    code: generateNextProjectTypeCode(types.value.map((type) => type.code)),
+    name: '',
+    description: '',
+  })
+  typeModalOpen.value = true
+}
+
 function componentLabel(key: string) { return t(`admin.workflow.componentLabels.${key}`) }
 function fieldTypeLabel(type: WorkflowFieldType) { return t(`admin.workflow.fieldTypes.${type}`) }
 function bindingLabel(binding: WorkflowFieldBinding) { return t(`admin.workflow.bindingLabels.${binding}`) }
 function fieldTypeIcon(type: WorkflowFieldType): Component { return FIELD_TYPE_ICONS[type] }
+function visibleFieldCount(node: WorkflowNodeDefinitionV2) { return node.fields.filter((field) => field.visible !== false).length }
 function setFieldOptionsFromEvent(field: WorkflowFieldDefinition, event: unknown) {
   setFieldOptions(field, String((event as { target?: { value?: string } })?.target?.value || ''))
 }
 function checkboxChecked(event: unknown): boolean {
   return Boolean((event as { target?: { checked?: boolean } })?.target?.checked)
 }
-function moveByKeyboard(node: WorkflowNodeDefinitionV2, delta: number) {
-  const index = definition.value.nodes.findIndex((item) => item.key === node.key)
-  reorder(node.key, Math.max(0, Math.min(definition.value.nodes.length - 1, index + delta)))
-}
-
 onMounted(async () => {
   loading.value = true
   try { await loadTypes() }
@@ -632,15 +771,38 @@ onMounted(async () => {
         <a-spin :spinning="loading">
           <template v-if="selectedTypeId">
             <section class="workflow-template-bar" data-testid="workflow-template-bar">
-              <div class="template-current">
-                <span class="template-current__eyebrow">{{ $t('admin.workflow.currentTemplate') }}</span>
-                <div class="template-current__name"><a-input v-model:value="templateName" :placeholder="$t('admin.workflow.templateName')" :disabled="!canWrite" :aria-label="$t('admin.workflow.templateName')" @input="markDirty" /><a-tag v-if="selectedTemplateSummary?.defaultTemplate" color="blue">{{ $t('admin.workflow.default') }}</a-tag><a-tag v-if="dirty" color="orange">{{ $t('admin.workflow.unsaved') }}</a-tag><a-tag v-else-if="publishedVersion" color="green">{{ $t('admin.workflow.publishedVersion', { version: publishedVersion }) }}</a-tag></div>
-                <a-input v-model:value="templateDescription" class="template-current__description" :placeholder="$t('admin.workflow.templateDescription')" :disabled="!canWrite" :aria-label="$t('admin.workflow.templateDescription')" @input="markDirty" />
-              </div>
               <div class="template-selectors">
-                <label class="template-selector"><span>{{ $t('admin.workflow.projectTypes') }}</span><div class="template-selector__control"><a-select :value="selectedTypeId" @change="changeProjectType(Number($event))"><a-select-option v-for="type in types" :key="type.id" :value="type.id">{{ type.name }}</a-select-option></a-select><a-button v-if="canWrite" size="small" :aria-label="$t('admin.workflow.addType')" @click="typeModalOpen = true"><PlusOutlined /></a-button></div></label>
-                <label class="template-selector"><span>{{ $t('admin.workflow.templates') }}</span><div class="template-selector__control"><a-select :value="selectedTemplateId ?? undefined" :disabled="!templates.length" :placeholder="$t('admin.workflow.noTemplates')" @change="selectTemplate(Number($event))"><a-select-option v-for="template in templates" :key="template.id" :value="template.id">{{ template.name }}{{ template.defaultTemplate ? ` · ${$t('admin.workflow.default')}` : '' }}</a-select-option></a-select><a-button v-if="canWrite" size="small" :aria-label="$t('admin.workflow.newTemplate')" @click="newTemplate"><PlusOutlined /></a-button></div></label>
-                <a-button v-if="canWrite && selectedTemplateSummary?.publishedVersionId && !selectedTemplateSummary.defaultTemplate" size="small" :disabled="dirty" @click="setAsDefault">{{ $t('admin.workflow.setDefault') }}</a-button>
+                <div class="template-current">
+                  <div class="template-current__heading">
+                    <span class="template-current__eyebrow">{{ $t('admin.workflow.currentTemplate') }}</span>
+                    <div class="template-current__status">
+                      <a-tag v-if="selectedTemplateSummary?.defaultTemplate" color="blue">{{ defaultVersionLabel(selectedTemplateSummary) }}</a-tag>
+                      <a-tag v-if="dirty" color="orange">{{ $t('admin.workflow.unsaved') }}</a-tag>
+                      <a-tag v-else-if="selectedTemplateSummary?.draftVersionNo" color="orange">{{ $t('admin.workflow.draftVersion', { version: selectedTemplateSummary.draftVersionNo }) }}</a-tag>
+                      <a-tag v-if="publishedVersion" color="green">{{ $t('admin.workflow.publishedVersion', { version: publishedVersion }) }}</a-tag>
+                    </div>
+                  </div>
+                  <div class="template-current__name"><a-input v-model:value="templateName" :placeholder="$t('admin.workflow.templateName')" :disabled="!canWrite" :aria-label="$t('admin.workflow.templateName')" @input="markDirty" /></div>
+                </div>
+                <div class="template-selector template-selector--type">
+                  <div class="template-selector__heading"><span>{{ $t('admin.workflow.projectTypes') }}</span></div>
+                  <div class="template-selector__control"><a-select :value="selectedTypeId" @change="changeProjectType(Number($event))" :aria-label="$t('admin.workflow.projectTypes')"><a-select-option v-for="type in types" :key="type.id" :value="type.id">{{ type.name }}</a-select-option></a-select><a-button v-if="canWrite" size="small" :aria-label="$t('admin.workflow.addType')" @click="openTypeModal"><PlusOutlined /></a-button></div>
+                </div>
+                <div class="template-selector template-selector--workflow">
+                  <div class="template-selector__heading">
+                    <span>{{ $t('admin.workflow.templates') }}</span>
+                    <div class="template-selector__heading-actions">
+                      <a-button v-if="canWrite && selectedTemplateId" size="small" data-testid="workflow-version-manager" @click="versionModalOpen = true">{{ $t('admin.workflow.versionManager') }}</a-button>
+                      <a-button v-if="canWrite && selectedTemplateSummary?.publishedVersionId && selectedTemplateSummary.defaultTemplateVersionId !== selectedTemplateSummary.publishedVersionId" class="template-selector__default-action" size="small" :disabled="dirty" @click="setAsDefault">{{ $t('admin.workflow.setDefault') }}</a-button>
+                      <a-button v-if="canWrite && selectedTemplateSummary && selectedTemplateSummary.code !== 'current-process' && !selectedTemplateSummary.defaultTemplate" size="small" danger data-testid="archive-workflow-template" @click="archiveSelectedTemplate">{{ $t('admin.workflow.archiveTemplate') }}</a-button>
+                    </div>
+                  </div>
+                  <div class="template-selector__control"><a-select :value="selectedTemplateId ?? undefined" :aria-label="$t('admin.workflow.templates')" :disabled="!templates.length" :placeholder="$t('admin.workflow.noTemplates')" @change="selectTemplate(Number($event))"><a-select-option v-for="template in templates" :key="template.id" :value="template.id">{{ template.name }}{{ template.defaultTemplate ? ` · ${defaultVersionLabel(template)}` : '' }}</a-select-option></a-select><a-button v-if="canWrite" size="small" :aria-label="$t('admin.workflow.newTemplate')" @click="newTemplate"><PlusOutlined /></a-button></div>
+                </div>
+              </div>
+              <div class="workflow-template-version-guidance" role="note" data-testid="workflow-template-version-guidance">
+                <InfoCircleOutlined aria-hidden="true" />
+                <span>{{ $t('admin.workflow.versionGuidance') }}</span>
               </div>
             </section>
 
@@ -655,20 +817,17 @@ onMounted(async () => {
                     <div v-if="index" class="workflow-connector" aria-hidden="true"><span /></div>
                     <article
                       class="workflow-node-card"
-                      :class="{ selected: selectedNodeKey === node.key, dragging: dragKey === node.key }"
+                      :class="{ selected: selectedNodeKey === node.key, dragging: dragKey === node.key, 'delete-hovered': deleteHoverKey === node.key }"
                       :draggable="canWrite"
-                      @dragstart="dragKey = node.key"
+                      @click="selectNode(node.key)"
+                      @dragstart.stop="dragKey = node.key"
+                      @dragend.stop="dragKey = undefined"
                       @dragover.prevent
                       @drop.prevent="onDrop(index)"
-                      @dragend="dragKey = undefined"
                     >
                       <span class="stage-index">{{ String(index + 1).padStart(2, '0') }}</span>
-                      <button type="button" class="workflow-node-card__copy workflow-node-select" :aria-pressed="selectedNodeKey === node.key" :aria-label="node.name || $t('admin.workflow.unnamedNode')" @click="selectNode(node.key)"><strong>{{ node.name || $t('admin.workflow.unnamedNode') }}</strong><small>{{ $t('admin.workflow.fieldCount', { count: node.fields.filter((field) => field.visible !== false).length }) }}</small></button>
-                      <div class="node-card-tools" @click.stop>
-                        <a-button size="small" :disabled="!canWrite || index === 0" :aria-label="$t('admin.workflow.moveUp')" @click="moveByKeyboard(node, -1)"><ArrowUpOutlined /></a-button>
-                        <a-button size="small" :disabled="!canWrite || index === definition.nodes.length - 1" :aria-label="$t('admin.workflow.moveDown')" @click="moveByKeyboard(node, 1)"><ArrowDownOutlined /></a-button>
-                        <a-button size="small" danger :disabled="!canWrite || definition.nodes.length <= 1" :aria-label="$t('admin.workflow.removeNode')" @click="removeNode(node)"><DeleteOutlined /></a-button>
-                      </div>
+                      <button type="button" class="workflow-node-card__copy workflow-node-select" :aria-pressed="selectedNodeKey === node.key" :aria-label="node.name || $t('admin.workflow.unnamedNode')" @click="selectNode(node.key)"><strong>{{ node.name || $t('admin.workflow.unnamedNode') }}</strong><span class="workflow-node-card__meta"><span class="workflow-node-card__stat" :class="{ 'workflow-node-card__stat--empty': visibleFieldCount(node) === 0 }">{{ $t('admin.workflow.fieldCount', { count: visibleFieldCount(node) }) }}</span></span></button>
+                      <button type="button" class="workflow-node-card__remove" :disabled="!canWrite || definition.nodes.length <= 1" :aria-label="$t('admin.workflow.removeNode')" :title="$t('admin.workflow.removeNode')" @mouseenter="deleteHoverKey = node.key" @mouseleave="deleteHoverKey = undefined" @click.stop="removeNode(node)"><DeleteOutlined /></button>
                     </article>
                   </template>
                 </div>
@@ -711,7 +870,7 @@ onMounted(async () => {
                       <section v-if="contentItem === 'fields' || contentItem === 'legacy-custom-fields'" class="designer-content-item designer-fields-section" :data-content-item="contentItem" :draggable="canWrite" @dragstart="contentDragItem = contentItem" @dragover.prevent @drop.prevent="onContentDrop(contentIndex)" @dragend="contentDragItem = undefined">
                         <div class="designer-content-heading"><div><strong>{{ contentItemLabel(contentItem) }}</strong><small>{{ $t('admin.workflow.individualFieldHint') }}</small></div><div class="designer-fields-section__tools"><span>{{ fieldsForContentItem(currentNode, contentItem, true).filter((field) => field.visible !== false).length }} / {{ fieldsForContentItem(currentNode, contentItem, true).length }}</span><a-button size="small" type="text" :disabled="!canWrite || contentIndex === 0" :data-testid="`move-workflow-section-up-${contentItem}`" :aria-label="`${$t('admin.workflow.moveUp')}：${contentItemLabel(contentItem)}`" @click="moveContentItem(contentItem, -1)"><ArrowUpOutlined /></a-button><a-button size="small" type="text" :disabled="!canWrite || contentIndex === currentNode.contentOrder.length - 1" :data-testid="`move-workflow-section-down-${contentItem}`" :aria-label="`${$t('admin.workflow.moveDown')}：${contentItemLabel(contentItem)}`" @click="moveContentItem(contentItem, 1)"><ArrowDownOutlined /></a-button></div></div>
                         <div class="designer-field-grid">
-                          <article v-for="field in fieldsForContentItem(currentNode, contentItem, true)" :key="field.key" class="designer-field-card" :class="{ selected: selectedFieldKey === field.key, 'is-hidden': field.visible === false }" data-testid="designer-field-card" :data-field-key="field.key" :aria-label="`${field.label}，${fieldTypeLabel(field.type)}`" role="group" :draggable="canWrite" @dragstart.stop="fieldDragKey = field.key" @dragover.prevent @drop.prevent.stop="onFieldDrop(fieldIndex(field.key))" @dragend.stop="fieldDragKey = undefined">
+                          <article v-for="field in fieldsForContentItem(currentNode, contentItem, true)" :key="field.key" class="designer-field-card" :class="{ selected: selectedFieldKey === field.key, 'is-hidden': field.visible === false, 'designer-field-card--wide': isWorkflowFieldFullWidth(field) }" data-testid="designer-field-card" :data-field-key="field.key" :aria-label="`${field.label}，${fieldTypeLabel(field.type)}`" role="group" :draggable="canWrite" @dragstart.stop="fieldDragKey = field.key" @dragover.prevent @drop.prevent.stop="onFieldDrop(fieldIndex(field.key))" @dragend.stop="fieldDragKey = undefined">
                             <div class="designer-field-card__top"><span>{{ fieldTypeLabel(field.type) }}</span><a-tag v-if="field.visible === false" color="default">{{ $t('admin.workflow.hidden') }}</a-tag><span v-else-if="field.binding" class="designer-field-binding">{{ $t('admin.workflow.projectBinding') }}</span><a-tag v-else-if="field.required" color="red">{{ $t('admin.workflow.required') }}</a-tag></div>
                             <div class="designer-field-card__name"><button type="button" class="designer-field-select" :aria-pressed="selectedFieldKey === field.key" aria-controls="workflow-inspector-panel" :aria-label="`${field.label}，${fieldTypeLabel(field.type)}`" @click="selectField(field.key, $event)"><strong>{{ field.label || $t('admin.workflow.unnamedField') }}</strong><em v-if="field.required">*</em></button><div class="designer-field-card__actions"><a-button size="small" type="text" :disabled="!canWrite || fieldIndexInContentItem(field.key, contentItem) === 0" :data-testid="`move-workflow-field-${field.key}-up`" :aria-label="`${$t('admin.workflow.moveUp')}：${field.label}`" @click.stop="moveField(field.key, -1, contentItem)"><ArrowUpOutlined /></a-button><a-button size="small" type="text" :disabled="!canWrite || fieldIndexInContentItem(field.key, contentItem) === fieldsForContentItem(currentNode, contentItem, true).length - 1" :data-testid="`move-workflow-field-${field.key}-down`" :aria-label="`${$t('admin.workflow.moveDown')}：${field.label}`" @click.stop="moveField(field.key, 1, contentItem)"><ArrowDownOutlined /></a-button></div></div>
                             <small class="designer-field-card__key">{{ field.binding ? bindingLabel(field.binding) : `${$t('admin.workflow.nodeField')} · ${field.key}` }}</small>
@@ -750,7 +909,8 @@ onMounted(async () => {
                     <a-form-item :label="$t('admin.workflow.fieldKey')"><a-input :value="selectedField.key" disabled /></a-form-item>
                     <a-form-item :label="selectedField.binding ? $t('admin.workflow.binding') : $t('admin.workflow.fieldType')"><a-input v-if="selectedField.binding" :value="`${bindingLabel(selectedField.binding)} · ${fieldTypeLabel(selectedField.type)}`" disabled /><a-select v-else :value="selectedField.type" :disabled="!canWrite" @change="updateFieldType(selectedField, $event)"><a-select-option v-for="type in fieldTypes" :key="type" :value="type">{{ fieldTypeLabel(type) }}</a-select-option></a-select></a-form-item>
                     <a-form-item v-if="['RADIO', 'SINGLE_SELECT', 'MULTI_SELECT'].includes(selectedField.type)" :label="$t('admin.workflow.fieldOptions')"><a-textarea id="workflow-field-options" :value="selectedField.options.join(', ')" :disabled="!canWrite" :placeholder="$t('admin.workflow.optionsComma')" :rows="3" @change="setFieldOptionsFromEvent(selectedField, $event)" /></a-form-item>
-                    <div class="designer-property-switches"><a-checkbox :checked="selectedField.visible !== false" :disabled="!canWrite" @change="updateFieldVisibility(selectedField, checkboxChecked($event))">{{ $t('admin.workflow.visible') }}</a-checkbox><a-checkbox id="workflow-field-required" v-model:checked="selectedField.required" :disabled="!canWrite || selectedField.visible === false" @change="markDirty">{{ $t('admin.workflow.required') }}</a-checkbox></div>
+                    <div class="designer-property-switches"><a-checkbox :checked="selectedField.visible !== false" :disabled="!canWrite" @change="updateFieldVisibility(selectedField, checkboxChecked($event))">{{ $t('admin.workflow.visible') }}</a-checkbox><a-checkbox id="workflow-field-required" v-model:checked="selectedField.required" :disabled="!canWrite || selectedField.visible === false" @change="markDirty">{{ $t('admin.workflow.required') }}</a-checkbox><a-checkbox id="workflow-field-full-width" :checked="isWorkflowFieldFullWidth(selectedField)" :disabled="!canWrite" @change="updateFieldWidth(selectedField, checkboxChecked($event))">{{ $t('admin.workflow.fullWidth') }}</a-checkbox></div>
+                    <small class="designer-field-width-hint">{{ $t('admin.workflow.fieldWidthHint') }}</small>
                     <a-button v-if="canWrite" block danger class="designer-remove-field" @click="removeField(selectedField.key)"><DeleteOutlined /> {{ $t('admin.workflow.removeField') }}</a-button>
                   </a-form>
                   <a-form v-else layout="vertical" class="designer-property-form">
@@ -766,7 +926,7 @@ onMounted(async () => {
 
             <a-empty v-if="!currentNode" :description="$t('admin.workflow.chooseOrCreate')" />
           </template>
-          <a-empty v-else :description="$t('admin.workflow.noTypes')"><a-button v-if="canWrite" type="primary" @click="typeModalOpen = true">{{ $t('admin.workflow.addType') }}</a-button></a-empty>
+          <a-empty v-else :description="$t('admin.workflow.noTypes')"><a-button v-if="canWrite" type="primary" @click="openTypeModal">{{ $t('admin.workflow.addType') }}</a-button></a-empty>
         </a-spin>
       </div>
 
@@ -776,6 +936,29 @@ onMounted(async () => {
 
     <a-modal v-model:open="typeModalOpen" :title="$t('admin.workflow.addType')" :ok-text="$t('common.save')" :cancel-text="$t('common.cancel')" @ok="saveType">
       <a-form layout="vertical"><a-form-item :label="$t('admin.workflow.typeCode')"><a-input v-model:value="typeForm.code" placeholder="e.g. product" /></a-form-item><a-form-item :label="$t('admin.workflow.typeName')"><a-input v-model:value="typeForm.name" /></a-form-item><a-form-item :label="$t('admin.workflow.typeDescription')"><a-textarea v-model:value="typeForm.description" :rows="2" /></a-form-item></a-form>
+    </a-modal>
+
+    <a-modal v-model:open="versionModalOpen" :title="$t('admin.workflow.versionManager')" width="680px" :footer="null" data-testid="workflow-version-modal">
+      <div class="workflow-version-manager">
+        <p class="workflow-version-manager__description">{{ $t('admin.workflow.versionManagerDescription') }}</p>
+        <div v-if="workflowVersions.length" class="workflow-version-list">
+          <article v-for="version in workflowVersions" :key="version.id" class="workflow-version-row" :data-version-id="version.id">
+            <div class="workflow-version-row__summary">
+              <strong>v{{ version.versionNo }}</strong>
+              <a-tag v-if="version.isDefault" color="blue">{{ $t('admin.workflow.default') }}</a-tag>
+              <a-tag v-if="version.status === 'ARCHIVED'">{{ $t('admin.workflow.archivedVersion') }}</a-tag>
+              <a-tag v-else-if="version.status === 'PUBLISHED'" color="green">{{ $t('admin.workflow.publishedVersionStatus') }}</a-tag>
+              <a-tag v-else-if="version.status === 'DRAFT'" color="orange">{{ $t('admin.workflow.draftVersionStatus') }}</a-tag>
+            </div>
+            <div class="workflow-version-row__actions">
+              <a-button v-if="canWrite && version.status === 'PUBLISHED' && !version.isDefault" size="small" :disabled="saving || loading" @click="setVersionAsDefault(version)">{{ $t('admin.workflow.setDefaultVersion') }}</a-button>
+              <a-button v-if="canWrite && version.status === 'PUBLISHED' && !version.isDefault" size="small" danger :disabled="saving || loading" @click="archiveVersion(version)">{{ $t('admin.workflow.archiveVersion') }}</a-button>
+            </div>
+          </article>
+        </div>
+        <a-empty v-else :description="$t('admin.workflow.noWorkflowVersions')" />
+        <div class="workflow-version-manager__footer"><a-button @click="versionModalOpen = false">{{ $t('admin.workflow.versionManagerClose') }}</a-button></div>
+      </div>
     </a-modal>
   </section>
 </template>
@@ -814,6 +997,7 @@ onMounted(async () => {
 .workflow-node-card:hover { transform: translateY(-1px); }
 .workflow-node-card:focus-visible { outline: 0; box-shadow: var(--pms-focus-ring), var(--pms-shadow-sm); }
 .workflow-node-card.selected { border-color: var(--pms-primary); box-shadow: 0 0 0 3px var(--pms-primary-soft); }
+.workflow-node-card.delete-hovered { border-color: var(--pms-danger); box-shadow: 0 0 0 3px var(--pms-danger-soft); }
 .workflow-node-card.dragging { opacity: .5; }
 .workflow-node-card__top { display: flex; align-items: center; justify-content: space-between; gap: var(--pms-space-2); margin-bottom: var(--pms-space-3); }
 .stage-index { display: grid; width: 32px; height: 32px; flex: 0 0 32px; place-items: center; color: var(--pms-primary); background: var(--pms-primary-soft); border-radius: 50%; font-size: var(--pms-font-size-caption); font-weight: 750; }
@@ -822,8 +1006,6 @@ onMounted(async () => {
 .workflow-node-card p { min-height: 38px; margin: var(--pms-space-2) 0 var(--pms-space-3); color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
 .node-component-chips { display: flex; flex-wrap: wrap; gap: var(--pms-space-2); min-height: 22px; }
 .node-component-chips :deep(.ant-tag) { margin: 0; font-size: var(--pms-font-size-caption); }
-.node-card-tools { display: flex; gap: var(--pms-space-2); margin-top: auto; padding-top: var(--pms-space-3); }
-.node-card-tools :deep(.ant-btn) { width: 32px; min-width: 32px; height: var(--pms-control-height-compact); min-height: var(--pms-control-height-compact); padding: 0; border-radius: var(--pms-radius-sm); }
 .workflow-connector { position: relative; flex: 0 0 var(--pms-space-8); height: 1px; background: var(--pms-border-strong); }
 .workflow-connector span { position: absolute; top: -4px; right: 0; width: 8px; height: 8px; border-top: 1px solid var(--pms-border-strong); border-right: 1px solid var(--pms-border-strong); transform: rotate(45deg); }
 .fixed-blocks { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pms-space-2); padding-top: var(--pms-space-3); border-top: 1px solid var(--pms-border); }
@@ -921,36 +1103,62 @@ onMounted(async () => {
 }
 
 .workflow-editor { min-width: 0; padding: 0; background: transparent; border: 0; box-shadow: none; }
-.workflow-template-bar { display: grid; grid-template-columns: minmax(240px, .9fr) minmax(480px, 1.6fr); align-items: center; gap: var(--pms-space-5); margin-bottom: var(--pms-space-4); padding: var(--pms-space-4); background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); box-shadow: var(--pms-shadow-sm); }
+.workflow-template-bar { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: var(--pms-space-3); margin-bottom: var(--pms-space-4); padding: var(--pms-space-4); background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); box-shadow: var(--pms-shadow-sm); }
 .template-current { display: grid; min-width: 0; gap: var(--pms-space-2); }
-.template-current__eyebrow, .template-selector > span { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); font-weight: 650; }
+.template-current__heading { display: flex; min-width: 0; min-height: 36px; align-items: center; flex-wrap: wrap; gap: var(--pms-space-2); }
+.template-current__eyebrow, .template-selector__heading > span { display: flex; min-height: 24px; align-items: center; color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); font-weight: 650; }
+.template-current__status { display: flex; align-items: center; flex-wrap: wrap; gap: var(--pms-space-1); }
+.template-current__status :deep(.ant-tag) { margin-inline-end: 0; }
 .template-current__name { display: flex; align-items: center; gap: var(--pms-space-2); min-width: 0; }
 .template-current__name :deep(.ant-input) { min-width: 0; color: var(--pms-text); font-size: var(--pms-font-size-body); font-weight: 650; }
-.template-current__description { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
-.template-selectors { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(180px, 1.1fr) auto; align-items: end; gap: var(--pms-space-3); }
+.template-selectors { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr) minmax(0, 1.15fr); align-items: start; gap: var(--pms-space-3); }
 .template-selector { display: grid; min-width: 0; gap: var(--pms-space-2); }
+.template-selector__heading { display: flex; min-width: 0; min-height: 36px; align-items: center; justify-content: space-between; gap: var(--pms-space-2); }
+.template-selector__heading-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: var(--pms-space-1); }
+.template-selector__default-action { flex: 0 0 auto; white-space: nowrap; }
 .template-selector__control { display: flex; align-items: center; gap: var(--pms-space-2); min-width: 0; }
 .template-selector__control :deep(.ant-select) { flex: 1; min-width: 0; }
+.workflow-template-version-guidance { display: flex; grid-column: 1 / -1; align-items: flex-start; gap: var(--pms-space-2); padding: var(--pms-space-3); color: var(--pms-text-muted); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
+.workflow-template-version-guidance :deep(.anticon) { flex: 0 0 auto; color: var(--pms-primary); }
+.workflow-version-manager { display: grid; gap: var(--pms-space-3); }
+.workflow-version-manager__description { margin: 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
+.workflow-version-list { display: grid; max-height: min(56vh, 520px); overflow: auto; border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); }
+.workflow-version-row { display: flex; align-items: center; justify-content: space-between; gap: var(--pms-space-3); min-width: 0; padding: var(--pms-space-3); background: var(--pms-surface); }
+.workflow-version-row + .workflow-version-row { border-top: 1px solid var(--pms-border); }
+.workflow-version-row__summary, .workflow-version-row__actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--pms-space-2); }
+.workflow-version-row__summary { min-width: 120px; }
+.workflow-version-row__summary strong { color: var(--pms-text); font-size: var(--pms-font-size-body); }
+.workflow-version-row__summary :deep(.ant-tag) { margin-inline-end: 0; }
+.workflow-version-row__actions { justify-content: flex-end; }
+.workflow-version-manager__footer { display: flex; justify-content: flex-end; padding-top: var(--pms-space-2); }
 .workflow-canvas-panel { padding: var(--pms-space-4); background: var(--pms-surface); }
 .canvas-caption { align-items: center; margin-bottom: var(--pms-space-2); }
 .workflow-canvas-scroll { padding-bottom: var(--pms-space-3); }
-.workflow-node-card { display: flex; flex: 0 0 184px; flex-direction: row; align-items: center; gap: var(--pms-space-3); min-height: 62px; padding: var(--pms-space-3); }
-.workflow-node-card strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--pms-font-size-compact); }
-.workflow-node-card__copy { display: grid; flex: 1; min-width: 0; gap: var(--pms-space-2); }
-.workflow-node-select { padding: 0; color: inherit; text-align: left; background: transparent; border: 0; cursor: pointer; font: inherit; }
+.workflow-node-card { display: grid; grid-template-columns: 28px minmax(0, 1fr) 24px; grid-template-rows: auto; flex: 0 0 196px; align-items: start; column-gap: var(--pms-space-2); height: 84px; min-height: 84px; padding: var(--pms-space-3); cursor: grab; }
+.workflow-node-card:active { cursor: grabbing; }
+.workflow-node-card strong { display: -webkit-box; overflow: hidden; color: var(--pms-text); text-overflow: ellipsis; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-tight); }
+.workflow-node-card__copy { display: grid; grid-column: 2; grid-row: 1; align-self: start; width: 100%; min-width: 0; gap: var(--pms-space-2); }
+.workflow-node-select { padding: 0; color: inherit; text-align: left; background: transparent; border: 0; cursor: grab; font: inherit; }
+.workflow-node-select:active { cursor: grabbing; }
 .workflow-node-select:focus-visible { outline: 0; border-radius: var(--pms-radius-sm); box-shadow: var(--pms-focus-ring); }
-.workflow-node-card__copy small { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
-.stage-index { width: 28px; height: 28px; flex-basis: 28px; }
-.node-card-tools { position: absolute; top: 50%; right: var(--pms-space-2); display: flex; flex: 0 0 auto; gap: 0; margin: 0; padding: 0; background: var(--pms-surface); opacity: 0; pointer-events: none; transform: translateY(-50%); transition: opacity var(--pms-motion-fast) ease; }
-.workflow-node-card:hover .node-card-tools, .workflow-node-card:focus-within .node-card-tools { opacity: 1; pointer-events: auto; }
-.node-card-tools :deep(.ant-btn) { width: 32px; min-width: 32px; height: 32px; min-height: 32px; }
+.stage-index { grid-column: 1; grid-row: 1; width: 28px; height: 28px; flex-basis: 28px; }
+.workflow-node-card__remove { position: absolute; top: -6px; right: -6px; z-index: 1; display: grid; width: 12px; min-width: 12px; height: 12px; padding: 0; place-items: center; color: var(--pms-text-faint); background: transparent; border: 0; border-radius: 0; cursor: pointer; opacity: 0; visibility: hidden; pointer-events: none; transition: color var(--pms-motion-fast) ease, opacity var(--pms-motion-fast) ease; }
+.workflow-node-card:hover .workflow-node-card__remove { opacity: 1; visibility: visible; pointer-events: auto; }
+.workflow-node-card__remove:focus-visible { opacity: 1; visibility: visible; pointer-events: auto; }
+.workflow-node-card__remove:hover { color: var(--pms-danger); background: transparent; }
+.workflow-node-card__remove:focus-visible { outline: 0; box-shadow: var(--pms-focus-ring); }
+.workflow-node-card__remove:disabled { cursor: not-allowed; opacity: .45; }
+.workflow-node-card__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pms-space-1); margin-top: var(--pms-space-2); }
+.workflow-node-card__stat { display: inline-flex; max-width: 100%; align-items: center; min-height: 20px; padding: 0 var(--pms-space-1); overflow: hidden; color: var(--pms-text-muted); background: var(--pms-surface-muted); border-radius: var(--pms-radius-sm); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-normal); white-space: nowrap; }
+.workflow-node-card__stat--empty { color: var(--pms-text-faint); }
+.workflow-node-card__stat--workbench { color: var(--pms-primary); background: var(--pms-primary-soft); }
 .workflow-connector { flex-basis: var(--pms-space-5); }
 .workflow-node-designer { margin-top: var(--pms-space-4); padding: var(--pms-space-4); background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); box-shadow: var(--pms-shadow-sm); }
 .designer-node-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--pms-space-4); margin-bottom: var(--pms-space-4); padding: 0 0 var(--pms-space-3); border-bottom: 1px solid var(--pms-border); }
 .designer-node-heading__copy > span { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
 .designer-node-heading h2 { margin: var(--pms-space-2) 0; color: var(--pms-text); font-size: var(--pms-font-size-title); line-height: var(--pms-line-height-tight); }
 .designer-node-heading p { margin: 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
-.designer-grid { display: grid; grid-template-columns: minmax(168px, .72fr) minmax(340px, 2.25fr) minmax(224px, .96fr); align-items: start; gap: var(--pms-space-3); }
+.designer-grid { display: grid; grid-template-columns: minmax(168px, .72fr) minmax(340px, 2.25fr) minmax(196px, .82fr); align-items: start; gap: var(--pms-space-3); }
 .designer-panel { min-width: 0; padding: var(--pms-space-3); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); }
 .designer-panel-heading { display: flex; flex-direction: column; gap: var(--pms-space-2); margin-bottom: var(--pms-space-3); }
 .designer-panel-heading h3 { margin: 0; color: var(--pms-text); font-size: var(--pms-font-size-section); font-weight: 700; line-height: var(--pms-line-height-tight); }
@@ -996,6 +1204,7 @@ onMounted(async () => {
 .designer-fields-section__tools > span { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
 .designer-fields-section__tools :deep(.ant-btn), .designer-field-card__actions :deep(.ant-btn) { width: 32px; min-width: 32px; height: 32px; padding: 0; }
 .designer-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--pms-space-2); }
+.designer-field-card--wide { grid-column: 1 / -1; }
 .designer-field-card { display: grid; align-content: start; gap: var(--pms-space-2); min-width: 0; padding: var(--pms-space-3); background: transparent; border: 0; border-bottom: 1px solid var(--pms-border); border-radius: 0; cursor: grab; transition: background-color var(--pms-motion-fast) ease, box-shadow var(--pms-motion-fast) ease; }
 .designer-field-card:hover { background: var(--pms-surface-muted); }
 .designer-field-card.selected { background: var(--pms-primary-soft); box-shadow: inset 3px 0 0 var(--pms-primary); }
@@ -1019,7 +1228,7 @@ onMounted(async () => {
 .designer-workbench-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--pms-space-3); }
 .designer-workbench-card p { margin: var(--pms-space-2) 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-normal); }
 .designer-workbench-actions { display: flex; gap: var(--pms-space-2); }
-.designer-inspector { position: sticky; top: calc(var(--pms-topbar-height) + var(--pms-space-3)); }
+.designer-inspector { position: sticky; top: calc(var(--pms-topbar-height) + var(--pms-space-3)); padding: var(--pms-space-2); }
 .designer-inspector .designer-panel-heading { flex-direction: row; align-items: flex-start; justify-content: space-between; gap: var(--pms-space-2); padding-bottom: var(--pms-space-3); border-bottom: 1px solid var(--pms-border); }
 .designer-inspector .designer-panel-heading p { margin: var(--pms-space-2) 0 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); }
 .designer-inspector__heading-actions { display: flex; align-items: center; gap: var(--pms-space-2); }
@@ -1031,6 +1240,7 @@ onMounted(async () => {
 .designer-property-form :deep(.ant-form-item-extra), .designer-property-form small { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-normal); }
 .designer-property-switches { display: grid; gap: var(--pms-space-3); margin: var(--pms-space-2) 0 var(--pms-space-4); padding: var(--pms-space-3) 0; border-top: 1px solid var(--pms-border); border-bottom: 1px solid var(--pms-border); }
 .designer-property-switches :deep(.ant-checkbox-wrapper) { color: var(--pms-text); font-size: var(--pms-font-size-compact); }
+.designer-field-width-hint { display: block; margin: 0 0 var(--pms-space-3); color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
 .designer-remove-field { font-size: var(--pms-font-size-compact); }
 .designer-task-board { display: grid; gap: var(--pms-space-2); margin-top: var(--pms-space-3); border-style: solid; }
 .designer-task-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--pms-space-2); }
@@ -1039,14 +1249,12 @@ onMounted(async () => {
 .designer-task-columns small { color: var(--pms-primary); font-size: var(--pms-font-size-caption); white-space: nowrap; }
 .workflow-admin-page :deep(.ant-empty) { margin: var(--pms-space-3) 0; }
 @media (max-width: 1200px) {
-  .workflow-template-bar { grid-template-columns: minmax(200px, .8fr) minmax(0, 1.4fr); gap: var(--pms-space-3); }
-  .template-selectors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .template-selectors > .ant-btn { grid-column: 1 / -1; justify-self: end; }
-  .designer-grid { grid-template-columns: minmax(150px, .7fr) minmax(300px, 2fr) minmax(200px, .9fr); }
+  .template-selectors { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr) minmax(0, 1fr); gap: var(--pms-space-2); }
+  .designer-grid { grid-template-columns: minmax(150px, .7fr) minmax(300px, 2fr) minmax(180px, .82fr); }
 }
 @media (max-width: 980px) {
-  .workflow-template-bar { grid-template-columns: minmax(0, 1fr); }
   .template-selectors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .template-selectors > .template-current { grid-column: 1 / -1; }
   .designer-grid { grid-template-columns: minmax(155px, 220px) minmax(0, 1fr); }
   .designer-inspector { position: static; grid-column: 1 / -1; }
 }
@@ -1054,12 +1262,13 @@ onMounted(async () => {
   .workflow-editor { padding: 0; }
   .workflow-admin-page :deep(.workflow-page-actions) { width: 100%; justify-content: flex-start; }
   .workflow-template-bar { padding: var(--pms-space-3); }
-  .template-current__name { flex-wrap: wrap; }
+  .template-current__heading { align-items: flex-start; }
+  .workflow-version-row { align-items: flex-start; flex-direction: column; }
+  .workflow-version-row__actions { justify-content: flex-start; }
   .template-selectors { grid-template-columns: minmax(0, 1fr); }
-  .template-selectors > .ant-btn { grid-column: auto; justify-self: start; }
+  .template-selectors > .template-current { grid-column: auto; }
   .workflow-canvas-panel { padding: var(--pms-space-3); }
-  .workflow-node-card { flex-basis: 220px; min-height: 92px; padding-bottom: var(--pms-space-8); }
-  .node-card-tools { top: auto; right: var(--pms-space-2); bottom: var(--pms-space-2); opacity: 1; pointer-events: auto; transform: none; }
+  .workflow-node-card { flex-basis: 220px; min-height: 84px; padding-bottom: var(--pms-space-3); }
   .workflow-node-designer { padding: var(--pms-space-3); }
   .designer-grid { grid-template-columns: minmax(0, 1fr); }
   .designer-palette { position: static; max-height: none; }
@@ -1069,7 +1278,7 @@ onMounted(async () => {
   .designer-canvas-heading__actions { width: 100%; justify-content: space-between; }
   .designer-fixed-grid, .designer-field-grid { grid-template-columns: minmax(0, 1fr); }
   .designer-task-columns { grid-template-columns: minmax(0, 1fr); }
-  .designer-inspector { position: fixed; z-index: 1100; left: 50%; bottom: 0; width: min(640px, calc(100vw - var(--pms-space-8))); max-height: min(72vh, 620px); overflow: auto; grid-column: auto; border-radius: var(--pms-radius) var(--pms-radius) 0 0; box-shadow: 0 -12px 32px rgb(16 34 63 / 18%); visibility: hidden; transform: translate(-50%, calc(100% + var(--pms-space-3))); transition: transform var(--pms-motion-fast) ease, visibility 0s linear var(--pms-motion-fast); }
+  .designer-inspector { position: fixed; z-index: 1100; left: 50%; bottom: 0; width: min(520px, calc(100vw - var(--pms-space-8))); max-height: min(60vh, 520px); overflow: auto; grid-column: auto; border-radius: var(--pms-radius) var(--pms-radius) 0 0; box-shadow: 0 -12px 32px rgb(16 34 63 / 18%); visibility: hidden; transform: translate(-50%, calc(100% + var(--pms-space-3))); transition: transform var(--pms-motion-fast) ease, visibility 0s linear var(--pms-motion-fast); }
   .designer-inspector:not(.designer-inspector--mobile-open) { visibility: hidden; }
   .designer-inspector--mobile-open { visibility: visible; transform: translate(-50%, 0); transition-delay: 0s; }
   .designer-inspector__close { display: inline-flex; }

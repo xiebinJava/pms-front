@@ -28,6 +28,8 @@ import {
   getProjectOverallProgress,
   getProjectProfileFields,
   getPersonDisplay,
+  normalizePersonDisplayLabel,
+  resolvePersonSelectLabel,
   getSinglePersonSelection,
   listPersonSelectOptions,
   pickFallbackPeople,
@@ -46,6 +48,7 @@ import {
   shouldAutoSaveProfile,
   sortTasksByPriority,
 } from './workflow.ts'
+import * as workflow from './workflow.ts'
 import {
   getProjectStatusLabel,
   milestoneStatusTagColor,
@@ -84,6 +87,17 @@ test('project collaboration controls consume backend capabilities', () => {
   assert.match(kanban, /Boolean\(props\.node\.permissions\?\.canManageTasks\)/)
 })
 
+test('refreshes project-level person pickers when collaboration members change', () => {
+  const members = fs.readFileSync(path.join(detailRoot, 'components/Members.vue'), 'utf8')
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+
+  assert.match(members, /members-changed/)
+  assert.match(members, /await addMember\([\s\S]*?emit\('members-changed'\)/)
+  assert.match(members, /await removeMember\([\s\S]*?emit\('members-changed'\)/)
+  assert.match(detail, /@members-changed="onProjectMembersChanged"/)
+  assert.match(detail, /function onProjectMembersChanged\(/)
+})
+
 test('subtasks expose an editable status control backed by task capabilities', () => {
   const workPanel = fs.readFileSync(path.join(detailRoot, 'components/TaskWorkPanel.vue'), 'utf8')
   assert.match(workPanel, /TaskStatus\.options\(\)/)
@@ -119,14 +133,25 @@ test('project detail header uses the compact lifecycle menu and separates progre
   assert.doesNotMatch(detail, /detail\.editProject/)
   assert.match(detail, /pms-project-badge--level/)
   assert.match(detail, /pms-project-badge--priority/)
-  assert.match(detail, /detail\.nodeProgress/)
+  assert.match(detail, /detail\.currentNodeTaskProgress/)
   assert.match(detail, /detail\.nodeTaskCountSummary/)
+  assert.match(detail, /detail\.noNodeTasks/)
   assert.match(detail, /project-header__insight-submetric-value/)
-  assert.match(detail, /currentNodeProgress/)
+  assert.match(detail, /currentNodeTaskProgress/)
   assert.match(detail, /task-progress/)
   assert.doesNotMatch(detail, /project-header__insight--node/)
   assert.doesNotMatch(detail, /project-header__insight--health/)
   assert.ok(detail.indexOf("detail.businessLine") < detail.indexOf("detail.projectPeriod"))
+})
+
+test('project detail keeps project lifecycle actions in the project header', () => {
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  const nodeActions = detail.match(/<div class="node-detail-actions">([\s\S]*?)<\/div>/)?.[1] || ''
+  const projectHeader = detail.match(/<div class="project-header__actions">([\s\S]*?)<\/div>/)?.[1] || ''
+
+  assert.doesNotMatch(nodeActions, /project-header__more|MoreOutlined/)
+  assert.match(projectHeader, /project-header__more/)
+  assert.match(projectHeader, /MoreOutlined/)
 })
 
 test('completed flow state uses the soft success treatment from the design system', () => {
@@ -262,6 +287,19 @@ test('calculates project progress from completed nodes', () => {
   assert.equal(getNodeProgress(3, 9), 33)
   assert.equal(getNodeProgress(9, 9), 100)
   assert.equal(getNodeProgress(0, 0), 0)
+})
+
+test('keeps current-node task progress unknown until its summary is loaded', () => {
+  assert.equal(workflow.getCurrentNodeTaskProgress?.(null), undefined)
+})
+
+test('does not report a current-node task percentage when the loaded node has no tasks', () => {
+  assert.equal(workflow.getCurrentNodeTaskProgress?.({ done: 0, total: 0 }), null)
+})
+
+test('calculates progress from tasks in the current node', () => {
+  assert.equal(workflow.getCurrentNodeTaskProgress?.({ done: 2, total: 5 }), 40)
+  assert.equal(workflow.getCurrentNodeTaskProgress?.({ done: 5, total: 5 }), 100)
 })
 
 test('maps every project status to the shared visual tone and color', () => {
@@ -574,6 +612,22 @@ test('normalizes duplicate preformatted person display labels', () => {
   })
 })
 
+test('ignores render-node labels instead of calling string methods on them', () => {
+  assert.equal(normalizePersonDisplayLabel({ type: 'span', children: '张伟（alex.zhang）' }), undefined)
+})
+
+test('uses the selected option text when a person tag renderer supplies a VNode', () => {
+  const renderedLabel = { type: 'span', children: 'rendered person label' }
+
+  assert.equal(resolvePersonSelectLabel(42, renderedLabel, '张伟(alex.zhang)'), '张伟（alex.zhang）')
+  assert.equal(resolvePersonSelectLabel(42, '郑琳 (Alice.Zheng)', '张伟（alex.zhang）'), '郑琳（Alice.Zheng）')
+  assert.equal(resolvePersonSelectLabel(42, renderedLabel), '用户 42')
+  assert.deepEqual(getPersonDisplay({ label: renderedLabel, avatar: '/avatar.png' }, '张伟(alex.zhang)'), {
+    label: '张伟（alex.zhang）',
+    avatar: '/avatar.png',
+  })
+})
+
 test('prefers the selected person label over the stale project fallback', () => {
   assert.deepEqual(getPersonDisplay({ label: '张三(zhangsan)', avatar: '/avatar.png' }, '管理员'), {
     label: '张三（zhangsan）',
@@ -642,6 +696,19 @@ test('fills an empty or short recent list with random people up to six', () => {
     fallback: pool,
     random: () => 0,
   }), filled)
+})
+
+test('keeps explicitly supplied project people selectable when remote suggestions are empty', () => {
+  const projectMember = { value: 21, label: '管理员（admin）' }
+  const projectManager = { value: 34, label: '张伟（alex.zhang）' }
+
+  assert.deepEqual(listPersonSelectOptions({
+    keyword: '',
+    options: [projectMember, projectManager],
+    recent: [],
+    fallback: [],
+    random: () => 0,
+  }), [projectMember, projectManager])
 })
 
 test('only activated accounts can be picked from search', () => {

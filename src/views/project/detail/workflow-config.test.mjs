@@ -49,22 +49,33 @@ test('node navigation waits for custom field persistence before replacing the ed
   assert.match(activateNode, /transitionActiveNode/)
   assert.match(activateNode, /savePendingWorkflowCustomFields/)
   assert.match(savePending, /workflowCustomFieldsRef, legacyWorkflowCustomFieldsRef/)
-  assert.match(customFields, /defineExpose\(\{ flushAutoSave, saveIfDirty: save \}\)/)
+  assert.match(customFields, /defineExpose\(\{ flushAutoSave, saveIfDirty \}\)/)
   assert.match(detailPage, /onBeforeRouteLeave\(async \(\) => \{[\s\S]*?savePendingProjectChanges\(\)/)
-  assert.match(customFields, /:disabled="!canEdit \|\| readOnly \|\| saving"/)
+  assert.match(customFields, /:disabled="!canEdit \|\| readOnly"/)
+  assert.match(customFields, /if \(editRevision === savedRevision\)[\s\S]*?dirty\.value = false/)
   assert.match(customFields, /watch\(\(\) => \[props\.projectId, props\.nodeId\], loadValues/)
   assert.match(customFields, /if \(activeSave\) return activeSave/)
 })
 
-test('the workflow field save action persists bound project profile values and custom values together', () => {
+test('workflow fields autosave on blur and no longer expose a manual save button', () => {
   const detailPage = readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
   const customFields = readFileSync(new URL('./components/WorkflowCustomFields.vue', import.meta.url), 'utf8')
-  assert.match(customFields, /defineEmits<\{\s*\(event: 'save-requested'\): void\s*\}>/)
-  assert.match(customFields, /@click="emit\('save-requested'\)"/)
-  assert.match(customFields, /:disabled="!dirty && !hasPendingProfileChanges"/)
-  assert.match(detailPage, /:has-pending-profile-changes="profileDirty"/)
-  assert.match(detailPage, /function onWorkflowFieldsSaveRequested\(\)\s*\{\s*void savePendingProjectChanges\(\)\s*\}/)
-  assert.equal((detailPage.match(/@save-requested="onWorkflowFieldsSaveRequested"/g) || []).length, 2)
+  assert.doesNotMatch(customFields, /workflow-custom-fields__header/)
+  assert.doesNotMatch(customFields, /detail\.workflowFields\.(?:title|hint)/)
+  assert.doesNotMatch(customFields, /<a-button[^>]*@click="emit\('save-requested'\)"/)
+  assert.match(customFields, /@focusout\.capture="onFieldFocusOut"/)
+  assert.match(customFields, /shouldAutoSaveOnBlur\(dirty\.value/)
+  assert.match(detailPage, /@focusout\.capture="onProfileFocusOut"/)
+  assert.match(detailPage, /shouldAutoSaveOnBlur\(profileDirty\.value/)
+  assert.doesNotMatch(detailPage, /@save-requested="onWorkflowFieldsSaveRequested"/)
+})
+
+test('blur autosave waits while focus is inside a picker overlay', async () => {
+  const { shouldAutoSaveOnBlur } = await import('./workflow-config.mjs')
+  assert.equal(typeof shouldAutoSaveOnBlur, 'function')
+  assert.equal(shouldAutoSaveOnBlur(true, false), true)
+  assert.equal(shouldAutoSaveOnBlur(false, false), false)
+  assert.equal(shouldAutoSaveOnBlur(true, true), false)
 })
 
 test('project parameter changes save custom fields even when the route component is reused', () => {
@@ -217,8 +228,8 @@ test('optional required fields can be saved as a draft and checked when completi
   const saveBlock = source.slice(source.indexOf('async function save()'), source.indexOf('async function flushAutoSave()'))
   const completionBlock = source.slice(source.indexOf('async function flushAutoSave()'), source.indexOf('async function onFileSelected'))
   assert.doesNotMatch(saveBlock, /validateRequired\(\)/)
-  assert.match(completionBlock, /if \(dirty\.value && !\(await save\(\)\)\) return false/)
-  assert.ok(completionBlock.indexOf('return validateRequired()') > completionBlock.indexOf('save()'))
+  assert.match(completionBlock, /if \(!\(await saveIfDirty\(\)\)\) return false/)
+  assert.ok(completionBlock.indexOf('return validateRequired()') > completionBlock.indexOf('saveIfDirty()'))
 })
 
 test('requirement refresh eligibility follows component identity on custom-key nodes', async () => {
@@ -251,5 +262,6 @@ test('removing an attachment preserves other unsaved node field values', async (
   assert.match(deletion, /removeWorkflowAttachmentState/)
   assert.match(deletion, /const unsavedValues = \{ \.\.\.values\.value \}/)
   assert.ok(deletion.indexOf('await loadValues()') < deletion.indexOf('removeWorkflowAttachmentState'))
-  assert.match(deletion, /dirty\.value = true/)
+  assert.match(deletion, /markDirty\(\)/)
+  assert.match(deletion, /await saveIfDirty\(\)/)
 })

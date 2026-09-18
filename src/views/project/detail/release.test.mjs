@@ -3,7 +3,9 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { isReleaseComplete } from './release.ts'
+import * as releasePresentation from './release.ts'
+
+const { isReleaseComplete } = releasePresentation
 
 const completeState = {
   releaseVersion: 'v2.6.0',
@@ -20,6 +22,19 @@ const completeState = {
   observationItems: '重点观察订单错误率。',
   emergencyContact: '值班电话 400-000-0000',
 }
+
+test('completed release nodes show completed instead of ready when release data is complete', () => {
+  assert.equal(releasePresentation.getReleaseWorkbenchStatus?.({ nodeStatus: 2, completionReady: true }), 'completed')
+})
+
+test('terminated release nodes do not show a completion-ready label', () => {
+  assert.equal(releasePresentation.getReleaseWorkbenchStatus?.({ nodeStatus: 3, completionReady: true }), 'terminated')
+})
+
+test('active release nodes show ready only when required release data is complete', () => {
+  assert.equal(releasePresentation.getReleaseWorkbenchStatus?.({ nodeStatus: 1, completionReady: true }), 'ready')
+  assert.equal(releasePresentation.getReleaseWorkbenchStatus?.({ nodeStatus: 1, completionReady: false }), 'draft')
+})
 
 test('release completion requires release information, decision, and handover fields', () => {
   assert.equal(isReleaseComplete(completeState), true)

@@ -56,6 +56,14 @@ export function setWorkflowDefault(projectTypeId: number, templateVersionId: num
   return http.put(`/admin/workflow-config/project-types/${projectTypeId}/default-template`, { templateVersionId })
 }
 
+export function archiveWorkflowTemplateVersion(templateId: number, versionId: number): Promise<WorkflowTemplateSummary> {
+  return http.post(`/admin/workflow-config/templates/${templateId}/versions/${versionId}/archive`)
+}
+
+export function archiveWorkflowTemplate(templateId: number): Promise<void> {
+  return http.delete(`/admin/workflow-config/templates/${templateId}`)
+}
+
 export function getNodeFieldValues(projectId: number | string, nodeId: number): Promise<WorkflowNodeFieldValues> {
   return http.get(`/projects/${projectId}/nodes/${nodeId}/fields`)
 }

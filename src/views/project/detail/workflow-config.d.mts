@@ -19,6 +19,7 @@ export function transitionActiveNode<T>(
   savePendingChanges: () => Promise<boolean | void> | boolean | void,
   selectNode: (nodeId: T) => void,
 ): Promise<boolean>
+export function shouldAutoSaveOnBlur(dirty: boolean, focusInsideOverlay: boolean): boolean
 export function visibleProjectFields(fields?: WorkflowProjectFieldDefinition[] | null): WorkflowProjectFieldDefinition[]
 export function nodeWorkflowFields(node: {
   components?: string[]

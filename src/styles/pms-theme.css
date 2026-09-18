@@ -13,6 +13,26 @@
 body { font-family: var(--pms-font-family); background: var(--pms-bg); }
 
 .pms-shell { min-height: 100vh; background: var(--pms-bg); }
+.pms-shell--embedded { min-height: 100vh; width: 100%; }
+.pms-shell--embedded .pms-skip-link,
+.pms-shell--embedded .pms-topbar,
+.pms-shell--embedded .pms-sidebar-scrim { display: none !important; }
+.pms-shell--embedded .pms-shell-body { min-height: 100vh; }
+.pms-shell--embedded .pms-sidebar {
+  position: sticky;
+  top: 0;
+  left: auto;
+  width: var(--pms-sidebar-width);
+  height: 100vh;
+  flex: 0 0 var(--pms-sidebar-width);
+  transform: none;
+}
+.pms-shell--embedded .pms-main-content {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: none;
+  padding: 22px 24px 40px;
+}
 .pms-interactive-surface {
   transition:
     border-color var(--pms-motion-fast) ease,
@@ -353,7 +373,6 @@ body { font-family: var(--pms-font-family); background: var(--pms-bg); }
 .pms-modal .ant-modal-header { border-bottom-color: var(--pms-border); }
 .pms-modal .ant-modal-title { color: var(--pms-text); font-size: 15px; font-weight: 700; }
 .pms-modal .ant-modal-footer { border-top-color: var(--pms-border); }
-
 .pms-org-workspace {
   min-height: calc(100vh - var(--pms-topbar-height) - 150px);
   overflow: hidden;

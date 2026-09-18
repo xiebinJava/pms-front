@@ -15,6 +15,7 @@ const props = withDefaults(defineProps<{ projectId: number; canManage?: boolean;
   canManage: false,
   revision: 0,
 })
+const emit = defineEmits<{ (event: 'members-changed'): void }>()
 const { t } = useI18n()
 
 const list = ref<ProjectMember[]>([])
@@ -56,7 +57,7 @@ async function onSave() {
   await addMember(props.projectId, { userId: form.userId as number, role: form.role })
   message.success(t('member.added'))
   modalState.open = false
-  loadData()
+  emit('members-changed')
 }
 
 function onRemove(record: ProjectMember) {
@@ -70,7 +71,7 @@ function onRemove(record: ProjectMember) {
     onOk: async () => {
       await removeMember(props.projectId, record.id)
       message.success(t('member.removed'))
-      loadData()
+      emit('members-changed')
     },
   })
 }

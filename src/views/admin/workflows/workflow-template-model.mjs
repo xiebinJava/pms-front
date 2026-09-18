@@ -11,6 +11,14 @@ export const DEFAULT_PROJECT_BASIC_INFO_FIELDS = Object.freeze([
   { key: 'followers', label: '关注人', visible: true, required: false },
 ])
 
+export function generateNextProjectTypeCode(existingCodes = []) {
+  const usedCodes = new Set((Array.isArray(existingCodes) ? existingCodes : [])
+    .map((code) => String(code ?? '').trim()))
+  let sequence = 1
+  while (usedCodes.has(String(sequence).padStart(4, '0'))) sequence += 1
+  return String(sequence).padStart(4, '0')
+}
+
 export function createUniqueWorkflowKey(existingKeys, requestedKey, fallback = 'field') {
   const base = String(requestedKey || fallback)
     .trim()
@@ -33,7 +41,7 @@ function moveByKey(items, key, toIndex) {
   return next
 }
 
-export function addWorkflowField(node, { key, label = '新字段', type = 'TEXT', required = false, options = [], visible = true, binding = null } = {}) {
+export function addWorkflowField(node, { key, label = '新字段', type = 'TEXT', required = false, options = [], visible = true, binding = null, fullWidth = false } = {}) {
   const fields = Array.isArray(node.fields) ? node.fields : []
   const field = {
     key: createUniqueWorkflowKey(fields.map((item) => item.key), key || label),
@@ -43,6 +51,7 @@ export function addWorkflowField(node, { key, label = '新字段', type = 'TEXT'
     options: [...options],
     visible,
     binding,
+    fullWidth,
   }
   const contentOrder = Array.isArray(node.contentOrder) ? [...node.contentOrder] : []
   if (!contentOrder.includes('legacy-custom-fields') && !contentOrder.includes('fields')) contentOrder.push('fields')

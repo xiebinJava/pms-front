@@ -9,7 +9,7 @@ const routerSource = fs.readFileSync(new URL('../router/index.ts', import.meta.u
 test('configuration menu is wired to router navigation', () => {
   assert.match(source, /@click="handleMenuClick"/)
   assert.match(source, /function handleMenuClick\(/)
-  for (const path of ['/admin/users', '/admin/org', '/admin/roles', '/admin/import', '/admin/audit']) {
+  for (const path of ['/admin/users', '/admin/org', '/admin/roles', '/admin/import', '/admin/workflows', '/admin/audit']) {
     assert.match(source, new RegExp(`['"]${path}['"]`))
   }
 })
@@ -96,6 +96,19 @@ test('provides a keyboard skip target for the shell content', () => {
   assert.match(source, /<main id="pms-main-content" class="pms-main-content">/)
   assert.match(styleSource, /\.pms-skip-link\s*\{/)
   assert.match(styleSource, /\.pms-skip-link:focus-visible\s*\{/)
+})
+
+test('supports a chrome-free embedded workspace mode for the DSH right pane', () => {
+  assert.match(source, /isEmbedded = computed\(\(\) => route\.query\.embed === '1'/)
+  assert.match(source, /class="pms-shell" :class="\{ 'pms-shell--embedded': isEmbedded \}"/)
+  assert.match(styleSource, /\.pms-shell--embedded \.pms-topbar/)
+  assert.match(styleSource, /\.pms-shell--embedded \.pms-main-content/)
+})
+
+test('keeps the PMS navigation available inside the embedded DSH workspace', () => {
+  assert.doesNotMatch(styleSource, /\.pms-shell--embedded \.pms-sidebar,/)
+  assert.match(styleSource, /\.pms-shell--embedded \.pms-sidebar-scrim/)
+  assert.match(source, /<aside class="pms-sidebar"/)
 })
 
 test('marks the active page for assistive technology', () => {

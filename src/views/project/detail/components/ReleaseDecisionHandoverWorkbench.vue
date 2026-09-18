@@ -5,11 +5,12 @@ import { message } from 'ant-design-vue'
 import { apiErrorMessage } from '/@/plugins/http'
 import { getNodeRelease, saveNodeRelease } from '/@/api/node-release'
 import type { NodeRelease, NodeReleaseDecisionResult, NodeReleaseType, NodeReleaseUpdate } from '/@/types/domain'
-import { isReleaseComplete } from '../release'
+import { getReleaseWorkbenchStatus, isReleaseComplete } from '../release'
 
 const props = defineProps<{
   projectId: number
   nodeId: number
+  nodeStatus: number
   nodeReadOnly: boolean
   canEdit: boolean
 }>()
@@ -43,6 +44,10 @@ function emptyState(): NodeRelease {
 const state = reactive<NodeRelease>(emptyState())
 const editable = computed(() => Boolean(props.canEdit && !props.nodeReadOnly && state.canEdit && !loading.value))
 const completionReady = computed(() => isReleaseComplete(state))
+const workbenchStatus = computed(() => getReleaseWorkbenchStatus({
+  nodeStatus: props.nodeStatus,
+  completionReady: completionReady.value,
+}))
 const releaseTypeOptions = computed(() => [
   { value: 'GRAY' as NodeReleaseType, label: t('detail.release.types.gray') },
   { value: 'FULL' as NodeReleaseType, label: t('detail.release.types.full') },
@@ -168,7 +173,9 @@ watch(() => [props.projectId, props.nodeId], () => { void load() }, { immediate:
       <div>
         <div class="release-workbench__title-row">
           <h3>{{ $t('detail.release.title') }}</h3>
-          <a-tag v-if="completionReady" color="green">{{ $t('detail.release.ready') }}</a-tag>
+          <a-tag v-if="workbenchStatus === 'completed'" color="green">{{ $t('detail.release.completed') }}</a-tag>
+          <a-tag v-else-if="workbenchStatus === 'terminated'" color="red">{{ $t('detail.release.terminated') }}</a-tag>
+          <a-tag v-else-if="workbenchStatus === 'ready'" color="green">{{ $t('detail.release.ready') }}</a-tag>
           <a-tag v-else color="orange">{{ $t('detail.release.draft') }}</a-tag>
         </div>
       </div>

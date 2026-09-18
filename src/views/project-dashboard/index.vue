@@ -9,7 +9,7 @@ import { apiErrorMessage } from '/@/plugins/http'
 import type { OrgUnit } from '/@/types/domain'
 import { formatDate, formatDateTime } from '/@/utils/format'
 import PmsPageHeader from '/@/components/PmsPageHeader.vue'
-import { buildOrgComparison, filterBoardProjects, percentage, summarizeBoard, upcomingNodes, workflowProgress } from './enterprise-board.mjs'
+import { buildOrgColumnChart, buildOrgComparison, filterBoardProjects, overviewMetricCards, percentage, summarizeBoard, upcomingNodes, workflowProgress } from './enterprise-board.mjs'
 import './enterprise-board.css'
 
 type PhaseFilter = BoardPhase | 'ALL'
@@ -55,6 +55,7 @@ const visibleProjects = computed(() => filterBoardProjects(board.value?.projects
 }))
 const summary = computed(() => summarizeBoard(visibleProjects.value))
 const orgComparison = computed(() => buildOrgComparison(visibleProjects.value, orgTree.value, filters.orgUnitId))
+const orgColumnChart = computed(() => buildOrgColumnChart(orgComparison.value))
 const nearNodes = computed(() => upcomingNodes(visibleProjects.value, board.value?.asOfDate || ''))
 const lastPage = computed(() => Math.max(1, Math.ceil(visibleProjects.value.length / pageSize)))
 const pageProjects = computed(() => visibleProjects.value.slice((page.value - 1) * pageSize, page.value * pageSize))
@@ -63,14 +64,10 @@ const attentionProjects = computed(() => visibleProjects.value.filter((item) => 
   && (item.health === 'CRITICAL' || item.health === 'WATCH' || item.health === 'UNKNOWN')
 )).slice(0, 4))
 const hasFilters = computed(() => filters.orgUnitId !== 'ALL' || filters.phase !== 'ALL' || filters.health !== 'ALL' || filters.level !== 'ALL' || Boolean(filters.query.trim()))
-const overviewCards = computed(() => [
-  { key: 'total', label: t('enterpriseBoard.metrics.total'), value: summary.value.total, filter: 'ALL', tone: 'blue' },
-  { key: 'notStarted', label: t('enterpriseBoard.metrics.notStarted'), value: summary.value.phases.NOT_STARTED, filter: 'NOT_STARTED', tone: 'neutral' },
-  { key: 'inProgress', label: t('enterpriseBoard.metrics.inProgress'), value: summary.value.phases.IN_PROGRESS, filter: 'IN_PROGRESS', tone: 'active' },
-  { key: 'completed', label: t('enterpriseBoard.metrics.completed'), value: summary.value.phases.COMPLETED, filter: 'COMPLETED', tone: 'success' },
-  { key: 'terminated', label: t('enterpriseBoard.metrics.terminated'), value: summary.value.phases.TERMINATED, filter: 'TERMINATED', tone: 'danger' },
-  { key: 'attention', label: t('enterpriseBoard.metrics.attention'), value: summary.value.attention, filter: 'ATTENTION', tone: 'warning' },
-])
+const overviewCards = computed(() => overviewMetricCards(summary.value).map(card => ({
+  ...card,
+  label: t(`enterpriseBoard.metrics.${card.key}`),
+})))
 const healthItems = computed(() => [
   { key: 'CRITICAL', count: summary.value.health.CRITICAL, tone: 'danger' },
   { key: 'WATCH', count: summary.value.health.WATCH, tone: 'warning' },
@@ -218,9 +215,13 @@ function healthSignals(item: EnterpriseProjectBoardItem) {
   if (item.highRiskCount) signals.push(t('enterpriseBoard.risk', { count: item.highRiskCount }))
   if (item.mediumRiskCount) signals.push(t('enterpriseBoard.mediumRisk', { count: item.mediumRiskCount }))
   if (item.progressVariance != null && item.progressVariance <= -8) signals.push(t('enterpriseBoard.scheduleLag', { value: Math.abs(item.progressVariance) }))
-  const issue = item.dataIssues?.[0]
-  if (issue) signals.push(t(`enterpriseBoard.issues.${issue}`))
   return signals.slice(0, 3)
+}
+function healthSignalLabel(item: EnterpriseProjectBoardItem) {
+  const signal = healthSignals(item)[0]
+  if (signal) return signal
+  const issue = item.dataIssues?.[0]
+  return issue ? t(`enterpriseBoard.issues.${issue}`) : ''
 }
 function orgBarLabel(group: { name: string; total: number; phases: Record<string, number> }) {
   const phases = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'TERMINATED', 'UNKNOWN']
@@ -241,8 +242,14 @@ watch(() => filters.orgUnitId, (value, previous) => {
 watch(filters, () => { page.value = 1; if (mounted) syncQuery() }, { deep: true })
 watch(lastPage, total => { if (page.value > total) page.value = total })
 
-onMounted(() => { Object.assign(filters, queryFromRoute()); mounted = true; void loadData() })
-onBeforeUnmount(() => { loadGeneration += 1 })
+onMounted(() => {
+  Object.assign(filters, queryFromRoute())
+  mounted = true
+  void loadData()
+})
+onBeforeUnmount(() => {
+  loadGeneration += 1
+})
 </script>
 
 <template>
@@ -277,7 +284,7 @@ onBeforeUnmount(() => { loadGeneration += 1 })
           <a-select-option value="ATTENTION">{{ t('enterpriseBoard.health.ATTENTION') }}</a-select-option>
           <a-select-option v-for="health in ['CRITICAL','WATCH','HEALTHY','UNKNOWN']" :key="health" :value="health">{{ t(`enterpriseBoard.health.${health}`) }}</a-select-option>
         </a-select>
-        <a-input v-model:value="filters.query" allow-clear :placeholder="t('enterpriseBoard.filters.search')" :aria-label="t('enterpriseBoard.filters.search')" />
+        <a-input v-model:value="filters.query" class="pms-filter-control" allow-clear :placeholder="t('enterpriseBoard.filters.search')" :aria-label="t('enterpriseBoard.filters.search')" />
       </div>
       <div v-if="orgTreeUnavailable" class="enterprise-board__org-warning" role="status"><WarningOutlined /><span>{{ t('enterpriseBoard.orgUnavailable') }}</span><a-button size="small" @click="loadData">{{ t('common.retry') }}</a-button></div>
       <div v-if="activeFilterLabels.length" class="enterprise-board__filter-tags" aria-live="polite"><span>{{ t('enterpriseBoard.filters.active') }}:</span><a-tag v-for="label in activeFilterLabels" :key="label">{{ label }}</a-tag></div>
@@ -288,10 +295,15 @@ onBeforeUnmount(() => { loadGeneration += 1 })
 
     <template v-else-if="board">
       <section class="enterprise-board__kpis" :aria-label="t('enterpriseBoard.title')">
-        <button v-for="card in overviewCards" :key="card.key" class="enterprise-board__kpi pms-panel" :class="[`enterprise-board__kpi--${card.tone}`, { 'is-active': card.filter !== 'ALL' && (card.filter === 'ATTENTION' ? filters.health === 'ATTENTION' : filters.phase === card.filter) }]" type="button" :aria-pressed="card.filter === 'ATTENTION' ? filters.health === 'ATTENTION' : card.filter === 'ALL' ? filters.phase === 'ALL' : filters.phase === card.filter" @click="card.filter === 'ATTENTION' ? (filters.health = filters.health === 'ATTENTION' ? 'ALL' : 'ATTENTION') : setPhase(card.filter)">
+        <button v-for="card in overviewCards" :key="card.key" class="enterprise-board__kpi pms-panel" :class="[`enterprise-board__kpi--${card.tone}`, { 'is-active': card.filter === 'ALL' ? filters.phase === 'ALL' : filters.phase === card.filter }]" type="button" :aria-pressed="card.filter === 'ALL' ? filters.phase === 'ALL' : filters.phase === card.filter" @click="setPhase(card.filter)">
           <span class="enterprise-board__kpi-label">{{ card.label }}</span><strong>{{ card.value }}</strong><span class="enterprise-board__kpi-mark" aria-hidden="true"></span>
         </button>
       </section>
+      <div class="enterprise-board__kpi-secondary-row">
+        <button type="button" class="enterprise-board__kpi-secondary" :class="{ 'is-active': filters.phase === 'TERMINATED' }" :aria-pressed="filters.phase === 'TERMINATED'" @click="setPhase('TERMINATED')">
+          <span>{{ t('enterpriseBoard.metrics.terminated') }}</span><strong>{{ summary.phases.TERMINATED }}</strong>
+        </button>
+      </div>
 
       <section class="enterprise-board__analysis-grid">
         <article class="enterprise-board__panel pms-panel enterprise-board__health-panel">
@@ -318,14 +330,38 @@ onBeforeUnmount(() => { loadGeneration += 1 })
       <section class="enterprise-board__analysis-grid enterprise-board__analysis-grid--lower">
         <article class="enterprise-board__panel pms-panel enterprise-board__org-panel">
           <header class="enterprise-board__panel-header"><div><h2>{{ t('enterpriseBoard.orgSection') }}</h2><p>{{ t('enterpriseBoard.orgDescription') }}</p></div></header>
-          <div v-if="orgComparison.length" class="enterprise-board__org-list">
-            <div v-for="group in orgComparison.slice(0, 7)" :key="`${group.id ?? 'unassigned'}-${group.name}`" class="enterprise-board__org-row">
-              <button type="button" class="enterprise-board__org-name" :disabled="group.id == null" :title="group.id == null ? group.name : t('enterpriseBoard.scopeOrg')" @click="openOrg(group.id)">{{ group.name }}<RightOutlined v-if="group.id != null" /></button>
-              <button type="button" class="enterprise-board__org-bar" :aria-label="orgBarLabel(group)" :disabled="group.id == null" @click="group.id != null && openOrg(group.id)"><span v-for="segment in ['IN_PROGRESS','NOT_STARTED','COMPLETED','TERMINATED','UNKNOWN']" :key="segment" :class="`phase-${segment.toLowerCase()}`" :style="{ width: `${percentage(group.phases[segment], group.total) ?? 0}%` }" :title="`${t(`enterpriseBoard.phases.${segment}`)}: ${group.phases[segment]}`"></span></button>
-              <strong>{{ group.total }}</strong>
+          <div v-if="orgColumnChart.groups.length" class="enterprise-board__org-chart">
+            <div class="enterprise-board__org-chart-axis" aria-hidden="true">
+              <span v-for="tick in orgColumnChart.ticks" :key="tick" class="enterprise-board__org-chart-axis-tick">{{ tick }}</span>
             </div>
-            <div class="enterprise-board__org-legend"><span v-for="phase in ['IN_PROGRESS','NOT_STARTED','COMPLETED','TERMINATED','UNKNOWN']" :key="phase" :class="`phase-${phase.toLowerCase()}`"><i></i>{{ t(`enterpriseBoard.phases.${phase}`) }}</span></div>
+            <div class="enterprise-board__org-chart-scroll">
+              <div class="enterprise-board__org-chart-canvas" :style="{ minWidth: `${Math.max(orgColumnChart.groups.length * 76, 280)}px` }">
+                <div class="enterprise-board__org-chart-grid" aria-hidden="true"><span v-for="tick in orgColumnChart.ticks" :key="tick"></span></div>
+                <div class="enterprise-board__org-chart-columns">
+                  <button
+                    v-for="group in orgColumnChart.groups"
+                    :key="`${group.id ?? 'unassigned'}-${group.name}`"
+                    type="button"
+                    class="enterprise-board__org-column"
+                    :style="{ '--org-column-height': `${group.barHeightPercent}%` }"
+                    :aria-label="orgBarLabel(group)"
+                    :disabled="group.id == null"
+                    :title="orgBarLabel(group)"
+                    @click="group.id != null && openOrg(group.id)"
+                  >
+                    <span class="enterprise-board__org-column-plot">
+                      <strong class="enterprise-board__org-column-total">{{ group.total }}</strong>
+                      <span class="enterprise-board__org-column-stack">
+                        <span v-for="segment in group.segments" :key="segment.phase" class="enterprise-board__org-column-segment" :class="`phase-${segment.phase.toLowerCase()}`" :style="{ height: `${segment.sharePercent}%` }" :title="`${t(`enterpriseBoard.phases.${segment.phase}`)}: ${segment.count}`"></span>
+                      </span>
+                    </span>
+                    <span class="enterprise-board__org-column-label" :title="group.name">{{ group.name }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
+          <div v-if="orgColumnChart.groups.length" class="enterprise-board__org-legend"><span v-for="phase in ['IN_PROGRESS','NOT_STARTED','COMPLETED','TERMINATED','UNKNOWN']" :key="phase" :class="`phase-${phase.toLowerCase()}`"><i></i>{{ t(`enterpriseBoard.phases.${phase}`) }}</span></div>
           <p v-else class="enterprise-board__panel-empty">{{ t('enterpriseBoard.noOrgData') }}</p>
         </article>
 
@@ -351,7 +387,7 @@ onBeforeUnmount(() => { loadGeneration += 1 })
               <td>{{ item.project.orgUnitName || '—' }}</td><td>{{ t(`enterpriseBoard.levels.${item.project.projectLevel ?? 'UNKNOWN'}`) }}</td><td>{{ item.project.projectManagerName || '—' }}</td>
               <td><span :class="['enterprise-board__status-tag', `tone-${phaseTone(item.phase)}`]">{{ t(`enterpriseBoard.phases.${item.phase}`) }}</span><small v-if="item.project.currentNodeName" class="enterprise-board__node-name">{{ item.project.currentNodeName }}</small></td>
               <td><span class="enterprise-board__progress"><i><b :style="{ width: nodeProgressText(item) }"></b></i><strong>{{ nodeProgressText(item) }}</strong></span></td>
-              <td><span :class="['enterprise-board__status-tag', `tone-${healthTone(item.health)}`]">{{ t(`enterpriseBoard.health.${item.health}`) }}</span><small v-for="signal in healthSignals(item).slice(0, 1)" :key="signal" class="enterprise-board__node-name">{{ signal }}</small></td>
+              <td><span :class="['enterprise-board__status-tag', `tone-${healthTone(item.health)}`]">{{ t(`enterpriseBoard.health.${item.health}`) }}</span><small v-if="healthSignalLabel(item)" class="enterprise-board__node-name">{{ healthSignalLabel(item) }}</small><small v-if="item.project.attentionSummary && (item.project.attentionSummary.criticalCount || item.project.attentionSummary.warningCount)" class="enterprise-board__node-name enterprise-board__attention-summary">{{ item.project.attentionSummary.criticalCount ? t('project.attentionCriticalCount', { count: item.project.attentionSummary.criticalCount }) : '' }}<template v-if="item.project.attentionSummary.criticalCount && item.project.attentionSummary.warningCount"> · </template>{{ item.project.attentionSummary.warningCount ? t('project.attentionWarningCount', { count: item.project.attentionSummary.warningCount }) : '' }}</small></td>
               <td>{{ item.project.endDate ? formatDate(item.project.endDate) : '—' }}</td>
             </tr></tbody>
           </table>

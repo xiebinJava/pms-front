@@ -21,15 +21,51 @@ test('workflow layout spacing comes from the documented PMS spacing scale', () =
   assert.ok(spacingValues.every((value) => spacingScale.has(value)), `unexpected spacing values: ${spacingValues.filter((value) => !spacingScale.has(value)).join(', ')}`)
 })
 
-test('workflow node actions retain compact-size pointer targets', () => {
-  const tools = style.match(/\.node-card-tools\s+:deep\(\.ant-btn\)\s*\{([^}]+)\}/)?.[1] || ''
-  const compactTools = [...style.matchAll(/\.node-card-tools\s*\{([^}]+)\}/g)]
-    .map((match) => match[1])
-    .find((block) => block.includes('pointer-events: none')) || ''
-  assert.match(tools, /min-width:\s*32px/)
-  assert.match(tools, /min-height:\s*(?:32px|var\(--pms-control-height-compact\))/)
-  assert.match(compactTools, /position:\s*absolute/)
-  assert.match(compactTools, /pointer-events:\s*none/)
+test('workflow nodes use the whole card as the drag surface and keep a top-right delete control', () => {
+  assert.match(template, /class="workflow-node-card"[^>]*:draggable="canWrite"[^>]*@dragstart\.stop="dragKey = node\.key"[^>]*@dragend\.stop="dragKey = undefined"/)
+  assert.match(template, /class="workflow-node-card__remove"[^>]*@click\.stop="removeNode\(node\)"/)
+  assert.match(template, /class="workflow-node-card__remove"[\s\S]*?<DeleteOutlined \/>/)
+  assert.doesNotMatch(template.match(/class="workflow-node-card__remove"[\s\S]*?<\/button>/)?.[0] || '', /CloseOutlined/)
+  assert.match(template, /class="workflow-node-card__meta"[\s\S]*visibleFieldCount\(node\)/)
+  assert.doesNotMatch(template, /workflow-node-card__stat--workbench/)
+  assert.doesNotMatch(source, /configuredWorkbenchCount/)
+  assert.doesNotMatch(template, /class="node-card-tools"/)
+  assert.doesNotMatch(template, /workflow-node-drag-handle|HolderOutlined/)
+  assert.doesNotMatch(source, /function moveByKeyboard\(/)
+})
+
+test('workflow node cards only enter the danger state when the delete control is hovered', () => {
+  const cardHover = style.match(/\.workflow-node-card:hover\s*\{([^}]+)\}/)?.[1] || ''
+  const deleteHover = style.match(/\.workflow-node-card\.delete-hovered\s*\{([^}]+)\}/)?.[1] || ''
+  const removeButton = style.match(/\.workflow-node-card__remove\s*\{([^}]+)\}/)?.[1] || ''
+  const removeHover = style.match(/\.workflow-node-card__remove:hover\s*\{([^}]+)\}/)?.[1] || ''
+  const removeReveal = style.match(/\.workflow-node-card:hover\s+\.workflow-node-card__remove\s*\{([^}]+)\}/)?.[1] || ''
+  assert.match(template, /'delete-hovered': deleteHoverKey === node\.key/)
+  assert.match(template, /class="workflow-node-card__remove"[^>]*@mouseenter="deleteHoverKey = node\.key"[^>]*@mouseleave="deleteHoverKey = undefined"/)
+  assert.doesNotMatch(cardHover, /border-color:\s*var\(--pms-danger\)/)
+  assert.match(deleteHover, /border-color:\s*var\(--pms-danger\)/)
+  assert.match(removeButton, /width:\s*12px/)
+  assert.match(removeButton, /height:\s*12px/)
+  assert.match(removeButton, /background:\s*transparent/)
+  assert.match(removeButton, /border:\s*0/)
+  assert.doesNotMatch(removeButton, /border-radius:\s*50%/)
+  assert.match(removeButton, /position:\s*absolute/)
+  assert.match(removeButton, /top:\s*-6px/)
+  assert.match(removeButton, /right:\s*-6px/)
+  assert.match(removeButton, /opacity:\s*0/)
+  assert.match(removeButton, /visibility:\s*hidden/)
+  assert.match(removeButton, /pointer-events:\s*none/)
+  assert.match(removeReveal, /opacity:\s*1/)
+  assert.match(removeReveal, /visibility:\s*visible/)
+  assert.match(removeReveal, /pointer-events:\s*auto/)
+  assert.match(removeHover, /color:\s*var\(--pms-danger\)/)
+  assert.match(removeHover, /background:\s*transparent/)
+})
+
+test('workflow node cards keep a uniform height regardless of title wrapping', () => {
+  const card = style.match(/\.workflow-node-card\s*\{([^}]+)\}/g)?.at(-1) || ''
+  assert.match(card, /height:\s*84px/)
+  assert.match(card, /min-height:\s*84px/)
 })
 
 test('workflow editor presents the node field palette, visual canvas, and property inspector', () => {
@@ -38,7 +74,7 @@ test('workflow editor presents the node field palette, visual canvas, and proper
   assert.match(template, /data-testid="designer-fixed-owner"[\s\S]*?data-testid="designer-fixed-schedule"[\s\S]*?data-testid="designer-fixed-task-board"/)
   assert.match(template, /<a-select :value="selectedTypeId" @change="changeProjectType/)
   assert.doesNotMatch(template, /<a-select :value="selectedTypeId" :disabled="!canWrite"/)
-  assert.match(style, /\.designer-grid\s*\{[^}]*grid-template-columns:\s*minmax\(168px,[^}]+minmax\(224px/)
+  assert.match(style, /\.designer-grid\s*\{[^}]*grid-template-columns:\s*minmax\(168px,[^}]+minmax\(196px/)
 })
 
 test('node metadata and selected field properties remain editable in the inspector', () => {
@@ -54,7 +90,7 @@ test('designer fields and inspector adapt to mobile widths', () => {
   const mobile = style.slice(mobileStart).match(/@media\s*\(max-width:\s*700px\)\s*\{([\s\S]*?)(?=@media|$)/)?.[1] || ''
   assert.match(mobile, /(?:\.designer-fixed-grid,\s*)?\.designer-field-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/)
   assert.match(mobile, /\.designer-inspector\s*\{[^}]*grid-column:\s*auto/)
-  assert.match(mobile, /\.node-card-tools\s*\{[^}]*opacity:\s*1[^}]*pointer-events:\s*auto/)
+  assert.match(mobile, /\.workflow-node-card\s*\{[^}]*padding-bottom:\s*var\(--pms-space-3\)/)
 })
 
 test('workflow editor normalizes legacy definitions before editing and persists schema v2', () => {
@@ -102,6 +138,11 @@ test('node and field selection use accessible buttons with selected state', () =
   assert.doesNotMatch(nodeHeading, /admin\.workflow\.nodeSettings/)
 })
 
+test('the whole workflow node card selects the node while drag and delete controls stay isolated', () => {
+  assert.match(template, /<article\s+[^>]*class="workflow-node-card"[^>]*:draggable="canWrite"[^>]*@click="selectNode\(node\.key\)"[^>]*@dragstart\.stop="dragKey = node\.key"[^>]*@dragend\.stop="dragKey = undefined"[^>]*>/)
+  assert.match(template, /class="workflow-node-card__remove"[^>]*@click\.stop="removeNode\(node\)"/)
+})
+
 test('inspector heading styles do not override the palette heading layout', () => {
   assert.match(style, /\.designer-inspector\s+\.designer-panel-heading\s*\{[^}]*flex-direction:\s*row/)
   assert.doesNotMatch(style, /(?:^|\})\s*\.designer-panel-heading\s*\{[^}]*flex-direction:\s*row/)
@@ -140,6 +181,16 @@ test('mobile field selection opens a dismissible inspector sheet and keeps it ou
   assert.match(template, /class="designer-field-select"[^>]*aria-controls="workflow-inspector-panel"/)
   assert.match(style, /@media \(max-width: 700px\)[\s\S]*?\.designer-inspector\s*\{[^}]*position:\s*fixed/)
   assert.match(style, /\.designer-inspector:not\(\.designer-inspector--mobile-open\)[\s\S]*?visibility:\s*hidden/)
+})
+
+test('inspector stays compact on desktop and mobile', () => {
+  const desktopInspector = style.match(/\.designer-grid\s*\{([^}]+)\}/)?.[1] || ''
+  assert.match(desktopInspector, /minmax\(196px,\s*\.82fr\)/)
+
+  const mobileStart = style.lastIndexOf('@media (max-width: 700px)')
+  const mobile = style.slice(mobileStart)
+  assert.match(mobile, /\.designer-inspector\s*\{[^}]*width:\s*min\(520px,/)
+  assert.match(mobile, /\.designer-inspector\s*\{[^}]*max-height:\s*min\(60vh,\s*520px\)/)
 })
 
 test('workflow header keeps primary save and publish actions together when actions wrap', () => {

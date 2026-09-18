@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
   ClockCircleOutlined,
-  ExclamationCircleOutlined,
   FlagOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -430,7 +429,27 @@ onMounted(async () => {
               {{ record.name }}
             </a>
             <div class="pms-table-subtext">{{ record.code }}</div>
-            <div v-if="record.currentNodeName" class="pms-table-subtext">{{ $t('project.currentNode') }}：{{ record.currentNodeName }}</div>
+            <div
+              class="pms-table-subtext"
+              :class="{ 'pms-project-current-node--empty': !record.currentNodeName }"
+              :aria-hidden="!record.currentNodeName"
+            >
+              {{ $t('project.currentNode') }}：<template v-if="record.currentNodeName">{{ record.currentNodeName }}</template>
+            </div>
+            <div
+              v-if="record.attentionSummary && (record.attentionSummary.criticalCount || record.attentionSummary.warningCount)"
+              class="pms-project-attention"
+            >
+              <span v-if="record.attentionSummary.criticalCount" class="pms-project-attention__critical">
+                {{ $t('project.attentionCriticalCount', { count: record.attentionSummary.criticalCount }) }}
+              </span>
+              <span v-if="record.attentionSummary.warningCount" class="pms-project-attention__warning">
+                {{ $t('project.attentionWarningCount', { count: record.attentionSummary.warningCount }) }}
+              </span>
+              <button type="button" class="pms-project-attention__link" @click.stop="router.push(`/projects/${record.id}`)">
+                {{ $t('project.attentionView') }}
+              </button>
+            </div>
           </template>
           <template v-else-if="column.key === 'projectLevel'">
             <span class="pms-project-badge pms-project-badge--level">{{ getProjectLevelCode(record.projectLevel) }} · {{ $t(projectLevelKey(record.projectLevel ?? 0)).replace(/\s*[（(][A-Z][）)]\s*$/, '') }}</span>
@@ -451,7 +470,6 @@ onMounted(async () => {
               class="pms-priority-tag"
               :class="{ 'pms-priority-tag--urgent': record.priority === 3 }"
             >
-              <ExclamationCircleOutlined v-if="record.priority === 3" />
               {{ $t(priorityKey(record.priority)) }}
             </a-tag>
           </template>
@@ -598,6 +616,13 @@ onMounted(async () => {
 .pms-project-link { color: var(--pms-text); font-weight: 650; cursor: pointer; }
 .pms-project-link:hover { color: var(--pms-primary); }
 .pms-table-subtext { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
+.pms-project-current-node--empty { visibility: hidden; }
+.pms-project-attention { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 4px; font-size: var(--pms-font-size-caption); }
+.pms-project-attention__critical, .pms-project-attention__warning { padding: 1px 5px; border-radius: 4px; }
+.pms-project-attention__critical { color: var(--pms-danger); background: var(--pms-danger-soft); }
+.pms-project-attention__warning { color: var(--pms-warning); background: var(--pms-warning-soft); }
+.pms-project-attention__link { padding: 0; color: var(--pms-primary); background: transparent; border: 0; cursor: pointer; font-size: inherit; }
+.pms-project-attention__link:hover { text-decoration: underline; }
 .pms-action-link { margin-right: 12px; color: var(--pms-primary); cursor: pointer; font-size: var(--pms-font-size-compact); font-weight: 650; }
 .pms-action-link:hover { color: var(--pms-primary-dark); text-decoration: underline; }
 .pms-action-link--danger { margin-right: 0; color: var(--pms-danger); }
@@ -629,6 +654,7 @@ onMounted(async () => {
 :deep(.ant-input:hover), :deep(.ant-select:hover .ant-select-selector) { border-color: var(--pms-border-strong) !important; }
 :deep(.ant-table-thead > tr > th) { color: var(--pms-text-faint); background: var(--pms-surface-muted); border-bottom-color: var(--pms-border); font-size: var(--pms-font-size-caption); font-weight: 750; }
 :deep(.ant-table-tbody > tr > td) { color: var(--pms-text-muted); border-bottom-color: var(--pms-border); font-size: 12.5px; }
+:deep(.pms-project-table-scroll .ant-table-tbody > tr > td) { height: 95px; }
 :deep(.ant-table-tbody > tr:hover > td) { background: var(--pms-surface-muted) !important; }
 :deep(.ant-modal-content) { border: 1px solid var(--pms-border); border-radius: var(--pms-radius); box-shadow: var(--pms-shadow-md); }
 

@@ -123,6 +123,10 @@ export async function transitionActiveNode(currentNodeId, nextNodeId, savePendin
   return true
 }
 
+export function shouldAutoSaveOnBlur(dirty, focusInsideOverlay) {
+  return dirty && !focusInsideOverlay
+}
+
 export function visibleProjectFields(fields) {
   const configured = Array.isArray(fields) ? fields : defaultProjectFields
   return configured.filter((field) => field.visible !== false)

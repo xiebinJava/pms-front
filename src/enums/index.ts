@@ -153,5 +153,5 @@ export const priorityTagColor: Record<number, string> = {
   0: 'default',
   1: 'blue',
   2: 'orange',
-  3: 'red',
+  3: 'orange',
 }

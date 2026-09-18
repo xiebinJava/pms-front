@@ -1,12 +1,28 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { filterBoardProjects, summarizeBoard, buildOrgComparison, upcomingNodes, percentage, workflowProgress } from './enterprise-board.mjs'
+import { filterBoardProjects, summarizeBoard, buildOrgComparison, buildOrgColumnChart, upcomingNodes, percentage, workflowProgress, overviewMetricCards } from './enterprise-board.mjs'
 
 const row = (id, overrides = {}) => ({
   project: { id, name: `项目${id}`, code: `PRJ-${id}`, projectLevel: 3, orgUnitId: 10, orgUnitName: '研发部', progress: 50 },
   phase: 'IN_PROGRESS', health: 'HEALTHY', nodeDataState: 'AVAILABLE', overdueNodeCount: 0, overdueDays: 0,
   openRiskCount: 0, highRiskCount: 0, mediumRiskCount: 0, dataIssues: [], nextNode: null,
   ...overrides,
+})
+
+test('overview uses four primary phase metrics and excludes secondary counts from the card strip', () => {
+  const cards = overviewMetricCards({
+    total: 10,
+    attention: 4,
+    phases: { NOT_STARTED: 1, IN_PROGRESS: 7, COMPLETED: 1, TERMINATED: 1 },
+  })
+
+  assert.deepEqual(cards, [
+    { key: 'total', value: 10, filter: 'ALL', tone: 'blue' },
+    { key: 'notStarted', value: 1, filter: 'NOT_STARTED', tone: 'neutral' },
+    { key: 'inProgress', value: 7, filter: 'IN_PROGRESS', tone: 'active' },
+    { key: 'completed', value: 1, filter: 'COMPLETED', tone: 'success' },
+  ])
+  assert.equal(cards.some(card => card.key === 'terminated' || card.key === 'attention'), false)
 })
 
 test('one filtered set drives phase counts, health distribution and level totals', () => {
@@ -68,6 +84,32 @@ test('organization comparison has stable sums and keeps unassigned projects', ()
   assert.equal(groups[0].phases.COMPLETED, 1)
   assert.equal(groups[1].id, null)
   assert.equal(groups[1].levels.UNKNOWN, 1)
+})
+
+test('organization columns share a count scale and stack only the phases present in each organization', () => {
+  const chart = buildOrgColumnChart([
+    {
+      id: 10, name: '研发中心', total: 7,
+      phases: { NOT_STARTED: 1, IN_PROGRESS: 5, COMPLETED: 1, TERMINATED: 0, UNKNOWN: 0 },
+    },
+    {
+      id: 20, name: 'PMO', total: 1,
+      phases: { NOT_STARTED: 0, IN_PROGRESS: 0, COMPLETED: 0, TERMINATED: 0, UNKNOWN: 1 },
+    },
+  ])
+
+  assert.deepEqual(chart.ticks, [8, 6, 4, 2, 0])
+  assert.deepEqual(chart.groups.map(group => [group.name, group.total, group.barHeightPercent]), [
+    ['研发中心', 7, 87.5],
+    ['PMO', 1, 12.5],
+  ])
+  assert.deepEqual(chart.groups[0].segments.map(({ phase, count }) => [phase, count]), [
+    ['IN_PROGRESS', 5],
+    ['NOT_STARTED', 1],
+    ['COMPLETED', 1],
+  ])
+  assert.equal(chart.groups[0].segments[0].sharePercent, 5 / 7 * 100)
+  assert.deepEqual(buildOrgColumnChart([]).groups, [])
 })
 
 test('organization comparison rolls projects into the selected unit children for accurate drilldown', () => {

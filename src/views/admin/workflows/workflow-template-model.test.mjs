@@ -12,6 +12,7 @@ import {
   removeWorkflowField,
   removeWorkflowNode,
 } from './workflow-template-model.mjs'
+import * as workflowTemplateModel from './workflow-template-model.mjs'
 
 const nodes = [
   { key: 'intake', name: '立项', components: [], fields: [], projectBasicInfo: false, projectBasicInfoFields: [] },
@@ -49,6 +50,15 @@ test('ships canonical project profile fields as configurable visibility/required
   assert.equal(DEFAULT_PROJECT_BASIC_INFO_FIELDS.find((field) => field.key === 'description').required, true)
 })
 
+test('generates the next unused zero-padded project type code', () => {
+  const generateCode = workflowTemplateModel.generateNextProjectTypeCode
+
+  assert.equal(typeof generateCode, 'function')
+  assert.equal(generateCode([]), '0001')
+  assert.equal(generateCode(['general', '0001', '0003']), '0002')
+  assert.equal(generateCode(['0001', '0002', '0003', '0004', '0005', '0006', '0007', '0008', '0009']), '0010')
+})
+
 test('adds fields with unique keys and creates the fields content item only when needed', () => {
   const node = { ...nodes[0], contentOrder: ['component:requirement-scope'], fields: [{ key: 'risk', label: '风险', type: 'TEXT', required: false, options: [] }] }
   const next = addWorkflowField(node, { key: 'risk', label: '风险说明', type: 'TEXTAREA' })
@@ -56,8 +66,17 @@ test('adds fields with unique keys and creates the fields content item only when
   assert.equal(next.fields.at(-1).key, 'risk-2')
   assert.equal(next.fields.at(-1).visible, true)
   assert.equal(next.fields.at(-1).binding, null)
+  assert.equal(next.fields.at(-1).fullWidth, false)
   assert.deepEqual(next.contentOrder, ['component:requirement-scope', 'fields'])
   assert.deepEqual(node.contentOrder, ['component:requirement-scope'])
+})
+
+test('new field layout is half-width by default and can be explicitly configured full-width', () => {
+  const halfWidth = addWorkflowField(nodes[0], { key: 'note', type: 'TEXTAREA' })
+  const fullWidth = addWorkflowField(nodes[0], { key: 'notice', type: 'TEXT', fullWidth: true })
+
+  assert.equal(halfWidth.fields[0].fullWidth, false)
+  assert.equal(fullWidth.fields[0].fullWidth, true)
 })
 
 test('moves fields and content items immutably and removes fields content after the last field is deleted', () => {

@@ -192,8 +192,6 @@ function applyServerMeta(next: NodeSolutionDesign) {
     if (next.decision.result !== undefined) state.decision.result = next.decision.result
   }
   emit('solution-status', state.decision.status)
-  lastPackageFingerprint = JSON.stringify(packagePayload())
-  lastDecisionFingerprint = JSON.stringify(decisionPayload())
 }
 
 async function load() {
@@ -238,10 +236,15 @@ function decisionPayload() {
 
 async function saveDraft(showSuccess = true): Promise<boolean> {
   if (!editable.value || saving.value) return false
+  const packageSnapshot = packagePayload()
   saving.value = true
   try {
-    const next = await saveNodeSolutionPackage(props.projectId, props.nodeId, packagePayload())
+    const next = await saveNodeSolutionPackage(props.projectId, props.nodeId, packageSnapshot)
     applyServerMeta(next)
+    lastPackageFingerprint = JSON.stringify({
+      ...packageSnapshot,
+      version: state.solutionPackage.version,
+    })
     emit('saved')
     if (showSuccess) message.success(t('detail.solutionDesign.saved'))
     return true
@@ -304,6 +307,10 @@ async function persistPackage() {
     const saved = await saveDraft(false)
     if (!saved) return
   }
+  if (JSON.stringify(packagePayload()) !== lastPackageFingerprint) {
+    schedulePackagePersistence(0)
+    return
+  }
   if (canSubmit.value) {
     const submitted = await submitPackage()
     if (submitted) scheduleDecisionPersistence(0)
@@ -328,10 +335,15 @@ function scheduleDecisionPersistence(eventOrDelay?: unknown) {
 
 async function saveDecisionDraft(): Promise<boolean> {
   if (!decisionEditable.value) return false
+  const decisionSnapshot = decisionPayload()
   decisionSaving.value = true
   try {
-    const next = await saveNodeSolutionDecisionDraft(props.projectId, props.nodeId, decisionPayload())
+    const next = await saveNodeSolutionDecisionDraft(props.projectId, props.nodeId, decisionSnapshot)
     applyServerMeta(next)
+    lastDecisionFingerprint = JSON.stringify({
+      ...decisionSnapshot,
+      version: state.decision.version,
+    })
     return true
   } catch (error) {
     message.error(apiErrorMessage(error, t('detail.solutionDesign.decision.saveFailed')))
@@ -351,6 +363,10 @@ async function persistDecision() {
   if (fingerprint !== lastDecisionFingerprint) {
     const saved = await saveDecisionDraft()
     if (!saved) return
+  }
+  if (JSON.stringify(decisionPayload()) !== lastDecisionFingerprint) {
+    scheduleDecisionPersistence(0)
+    return
   }
   if (shouldAutoConfirmDecision(
     props.canEdit && !props.nodeReadOnly,

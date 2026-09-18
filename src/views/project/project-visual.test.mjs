@@ -13,6 +13,31 @@ test('project list uses the shared page header and table panel', () => {
   assert.match(source, /pms-table-panel/)
 })
 
+test('priority tags display the label without a decorative urgency icon', () => {
+  const source = fs.readFileSync(path.join(root, 'views/project/list/index.vue'), 'utf8')
+  assert.match(source, /class="pms-priority-tag"/)
+  assert.doesNotMatch(source, /ExclamationCircleOutlined/)
+})
+
+test('urgent priority tags use a soft red treatment instead of saturated red', () => {
+  const projectList = fs.readFileSync(path.join(root, 'views/project/list/index.vue'), 'utf8')
+  const workbench = fs.readFileSync(path.join(root, 'views/workbench/index.vue'), 'utf8')
+  const feedback = fs.readFileSync(path.join(root, 'views/feedback/index.vue'), 'utf8')
+  const projectDetail = fs.readFileSync(path.join(root, 'views/project/detail/index.vue'), 'utf8')
+  const taskKanban = fs.readFileSync(path.join(root, 'views/project/detail/components/TaskKanban.vue'), 'utf8')
+  const globalStyles = fs.readFileSync(path.join(root, 'styles/index.css'), 'utf8')
+  const themeStyles = fs.readFileSync(path.join(root, 'styles/pms-theme.css'), 'utf8')
+  assert.match(projectList, /pms-priority-tag--urgent/)
+  assert.match(workbench, /pms-priority-tag--urgent/)
+  assert.match(feedback, /pms-priority-tag--urgent/)
+  assert.match(projectDetail, /pms-project-badge--priority-urgent/)
+  assert.match(taskKanban, /pms-project-badge--priority-urgent/)
+  assert.match(globalStyles, /\.pms-priority-tag--urgent\s*\{[^}]*color:\s*var\(--pms-danger\)[^}]*background:\s*var\(--pms-danger-soft\)/)
+  assert.match(globalStyles, /\.pms-priority-tag--urgent\s*\{[^}]*box-shadow:\s*none/)
+  assert.match(themeStyles, /\.pms-project-badge--priority-urgent\s*\{[^}]*color:\s*var\(--pms-danger\)[^}]*background:\s*var\(--pms-danger-soft\)/)
+  assert.doesNotMatch(globalStyles, /\.pms-priority-tag--urgent\s*\{[^}]*#f5222d/)
+})
+
 test('project detail cards use the shared panel visual layer', () => {
   const source = fs.readFileSync(path.join(root, 'views/project/detail/index.vue'), 'utf8')
   assert.match(source, /pms-detail-panel/)

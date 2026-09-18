@@ -9,6 +9,7 @@ export interface WorkflowFieldDefinition {
   options: string[]
   visible?: boolean
   binding?: WorkflowFieldBinding | null
+  fullWidth?: boolean | null
 }
 
 export interface WorkflowProjectFieldDefinition {
@@ -77,6 +78,7 @@ export interface WorkflowTemplateSummary {
   publishedVersionNo?: number
   publishedVersionId?: number
   publishedVersions?: WorkflowTemplateVersionSummary[]
+  versions?: WorkflowTemplateVersionSummary[]
   defaultTemplateVersionId?: number
   defaultTemplate?: boolean
 }
@@ -84,6 +86,8 @@ export interface WorkflowTemplateSummary {
 export interface WorkflowTemplateVersionSummary {
   id: number
   versionNo: number
+  status?: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED' | string
+  isDefault?: boolean
 }
 
 export interface WorkflowTemplate extends WorkflowTemplateSummary {

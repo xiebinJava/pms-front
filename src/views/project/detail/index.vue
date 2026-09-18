@@ -35,6 +35,7 @@ import {
   getNodeOwnerDisplay,
   getPersonDisplay,
   getProjectManagerDisplay,
+  getCurrentNodeTaskProgress,
   getNodeProgress,
   getNodeStatusMeta,
   getOrgUnitPath,
@@ -64,9 +65,11 @@ import ReleaseDecisionHandoverWorkbench from './components/ReleaseDecisionHandov
 import ValueReviewWorkbench from './components/ValueReviewWorkbench.vue'
 import KnowledgeStandardWorkbench from './components/KnowledgeStandardWorkbench.vue'
 import WorkflowCustomFields from './components/WorkflowCustomFields.vue'
-import { missingConfiguredProjectFields, nodeHasComponent, nodeWorkflowContentOrder, nodeWorkflowFields, transitionActiveNode } from './workflow-config.mjs'
+import ProjectReadinessCard from './components/ProjectReadinessCard.vue'
+import { buildAttentionRoute } from './project-attention.mjs'
+import { missingConfiguredProjectFields, nodeHasComponent, nodeWorkflowContentOrder, nodeWorkflowFields, shouldAutoSaveOnBlur, transitionActiveNode } from './workflow-config.mjs'
 import type { PersonOption } from './workflow'
-import type { NodeIterationPlan, NodeRequirement, OrgUnit, Project, ProjectMember, ProjectNode, Task, User } from '/@/types/domain'
+import type { NodeIterationPlan, NodeRequirement, OrgUnit, Project, ProjectActionItem, ProjectMember, ProjectNode, Task, User } from '/@/types/domain'
 
 const route = useRoute()
 const router = useRouter()
@@ -97,7 +100,9 @@ const profileSaving = ref(false)
 const membersRevision = ref(0)
 const knownMemberIds = ref<number[]>([])
 let profileSavePromise: Promise<void> | null = null
+let profileBlurSaveRequested = false
 let projectLoadSequence = 0
+let readinessRefreshSequence = 0
 let scheduleLoadSequence = 0
 let assignedMemberRefreshTimer: ReturnType<typeof setTimeout> | undefined
 const profileContainer = ref<HTMLElement | null>(null)
@@ -126,7 +131,7 @@ const scheduleTasks = ref<Task[]>([])
 const scheduleIterationPlans = ref<NodeIterationPlan[]>([])
 const scheduleLoading = ref(false)
 const scheduleLoaded = ref(false)
-const activeNodeTaskSummary = ref({ done: 0, total: 0 })
+const activeNodeTaskSummary = ref<{ done: number; total: number } | null>(null)
 const requirementScopeRef = ref<{
   refresh: () => Promise<void> | void
   flushAutoSave: () => Promise<boolean>
@@ -182,10 +187,7 @@ const activeNode = computed<ProjectNode | null>(
 )
 const doneNodeCount = computed(() => nodes.value.filter((node) => node.status === 2).length)
 const projectProgress = computed(() => getNodeProgress(doneNodeCount.value, nodes.value.length))
-const currentNodeProgress = computed(() => getNodeProgress(
-  activeNodeTaskSummary.value.done,
-  activeNodeTaskSummary.value.total,
-))
+const currentNodeTaskProgress = computed(() => getCurrentNodeTaskProgress(activeNodeTaskSummary.value))
 const activeNodeWorkflowFields = computed(() => nodeWorkflowFields(activeNode.value))
 const activeNodeFieldsSlot = computed(() => nodeWorkflowFields(activeNode.value, 'fields'))
 const activeNodeLegacyCustomFields = computed(() => nodeWorkflowFields(activeNode.value, 'legacy-custom-fields'))
@@ -319,10 +321,6 @@ async function savePendingProjectChanges(): Promise<boolean> {
   return savePendingWorkflowCustomFields()
 }
 
-function onWorkflowFieldsSaveRequested() {
-  void savePendingProjectChanges()
-}
-
 async function flushWorkflowCustomFields(): Promise<boolean> {
   for (const fieldsRef of [workflowCustomFieldsRef, legacyWorkflowCustomFieldsRef]) {
     if (await fieldsRef.value?.flushAutoSave() === false) return false
@@ -333,6 +331,7 @@ async function flushWorkflowCustomFields(): Promise<boolean> {
 async function loadData() {
   const requestProjectId = projectId.value
   const requestSequence = ++projectLoadSequence
+  readinessRefreshSequence += 1
   loading.value = true
   loadError.value = false
   try {
@@ -346,7 +345,7 @@ async function loadData() {
     if (requestSequence !== projectLoadSequence || requestProjectId !== projectId.value) return
     project.value = projectData
     nodes.value = nodeData
-    activeNodeTaskSummary.value = { done: 0, total: 0 }
+    activeNodeTaskSummary.value = null
     members.value = memberData
     followers.value = followerData
     orgTree.value = orgData
@@ -372,11 +371,21 @@ async function loadData() {
 }
 
 async function applyFocusTask() {
-  if (!focusTaskId.value) return
+  const requestedTaskId = focusTaskId.value
+  const requestedProjectId = projectId.value
+  if (!requestedTaskId) return
   try {
-    const task = await getTask(focusTaskId.value)
-    if (task.projectId !== projectId.value) return
-    if (task.nodeId) await activateNode(task.nodeId)
+    const task = await getTask(requestedTaskId)
+    if (
+      requestedTaskId !== focusTaskId.value
+      || requestedProjectId !== projectId.value
+      || task.projectId !== requestedProjectId
+    ) return
+    if (task.nodeId) {
+      const activated = await activateNode(task.nodeId)
+      if (!activated) return
+      if (requestedTaskId !== focusTaskId.value || requestedProjectId !== projectId.value) return
+    }
   } catch {
     // Keep the default node when the focused task is gone or unreadable.
   }
@@ -448,6 +457,8 @@ watch(activeSection, (section) => {
 
 watch(projectId, () => {
   projectLoadSequence += 1
+  readinessRefreshSequence += 1
+  scheduleSaveSequence += 1
   scheduleLoadSequence += 1
   project.value = null
   nodes.value = []
@@ -467,6 +478,10 @@ watch(focusNodeId, () => {
   void applyFocusNode()
 })
 
+watch(switchingNode, (switching) => {
+  if (!switching && focusTaskId.value) void applyFocusTask()
+})
+
 function onScheduleSelectNode(nodeId: number) {
   const node = nodes.value.find((item) => item.id === nodeId)
   if (node) void onSelectNode(node)
@@ -476,6 +491,23 @@ async function onScheduleOpenTask(taskId: number, nodeId?: number) {
   if (nodeId && !(await activateNode(nodeId))) return
   void router.replace({ query: { ...route.query, task: String(taskId) } })
   document.querySelector('.node-task-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function onAttentionAction(item: ProjectActionItem) {
+  void router.push(buildAttentionRoute(item))
+}
+
+async function refreshProjectReadiness() {
+  const requestProjectId = projectId.value
+  const requestSequence = ++readinessRefreshSequence
+  try {
+    const refreshedProject = await getProject(requestProjectId)
+    if (requestSequence !== readinessRefreshSequence || requestProjectId !== projectId.value) return
+    project.value = refreshedProject
+  } catch (error) {
+    if (requestSequence !== readinessRefreshSequence || requestProjectId !== projectId.value) return
+    message.warning(apiErrorMessage(error, t('detail.loadFailed')))
+  }
 }
 
 function resetProfileForm() {
@@ -501,7 +533,7 @@ watch(activeNode, (node) => {
 }, { immediate: true })
 
 watch(activeNodeId, () => {
-  activeNodeTaskSummary.value = { done: 0, total: 0 }
+  activeNodeTaskSummary.value = null
   requirementBaselineStatus.value = 0
   planBaselineStatus.value = 0
   acceptanceStatus.value = 0
@@ -512,6 +544,7 @@ watch(activeNodeId, () => {
 function onTaskProgress(payload: { projectId: number; nodeId: number; done: number; total: number }) {
   if (payload.projectId !== projectId.value || payload.nodeId !== activeNodeId.value) return
   activeNodeTaskSummary.value = { done: payload.done, total: payload.total }
+  void refreshProjectReadiness()
   if (nodeHasComponent(activeNode.value, 'requirement-scope')) void requirementScopeRef.value?.refresh()
 }
 
@@ -542,6 +575,12 @@ function onReleaseCompletionReady(ready: boolean) {
 
 function onValueReviewCompletionReady(ready: boolean) {
   valueReviewCompletionReady.value = ready
+}
+
+function onAiAssistantChanged(event: Event) {
+  const detail = (event as CustomEvent<{ refreshScopes?: string[] }>).detail
+  if (!detail?.refreshScopes?.some((scope) => scope === 'project-detail' || scope === 'task-board')) return
+  void loadData()
 }
 
 function formatUserOption(user: User): PersonOption {
@@ -632,6 +671,7 @@ async function persistDefaultNodeOwners(previousManagerId?: number) {
     const index = nodes.value.findIndex((node) => node.id === updated.id)
     if (index >= 0) nodes.value[index] = updated
   })
+  void refreshProjectReadiness()
 }
 
 function markMembersDirty() {
@@ -680,6 +720,12 @@ async function refreshMembers() {
   membersRevision.value += 1
 }
 
+function onProjectMembersChanged() {
+  void refreshMembers().catch((error) => {
+    message.error(apiErrorMessage(error, t('detail.loadFailed')))
+  })
+}
+
 function noteAssignedProjectMember() {
   if (assignedMemberRefreshTimer) clearTimeout(assignedMemberRefreshTimer)
   assignedMemberRefreshTimer = setTimeout(() => {
@@ -705,6 +751,7 @@ async function onNodeOwnerChange(ownerId: number | undefined) {
     })
     const index = nodes.value.findIndex((node) => node.id === updatedNode.id)
     if (index >= 0) nodes.value[index] = updatedNode
+    void refreshProjectReadiness()
     await refreshMembers()
     message.success(t('detail.ownerUpdated'))
   } catch (error) {
@@ -733,6 +780,7 @@ function isConflictError(error: unknown): boolean {
 }
 
 async function persistNodeSchedule(nodeId: number, next: string[]) {
+  const requestProjectId = projectId.value
   const index = nodes.value.findIndex((node) => node.id === nodeId)
   const current = index >= 0 ? nodes.value[index] : undefined
   if (!current) return
@@ -747,17 +795,19 @@ async function persistNodeSchedule(nodeId: number, next: string[]) {
   scheduleSavingNodeId.value = nodeId
   if (activeNodeId.value === nodeId) nodeScheduleSaving.value = true
   try {
-    const updated = await updateNodeSchedule(projectId.value, nodeId, {
+    const updated = await updateNodeSchedule(requestProjectId, nodeId, {
       ...nextDates,
       version: current.version ?? 0,
     })
-    if (sequence !== scheduleSaveSequence) return
+    if (sequence !== scheduleSaveSequence || requestProjectId !== projectId.value) return
     const updatedIndex = nodes.value.findIndex((node) => node.id === updated.id)
     if (updatedIndex >= 0) nodes.value[updatedIndex] = updated
     if (activeNodeId.value === nodeId) nodeSchedule.value = [updated.startDate, updated.endDate].filter(Boolean) as string[]
+    await refreshProjectReadiness()
+    if (sequence !== scheduleSaveSequence || requestProjectId !== projectId.value) return
     message.success(t('detail.scheduleUpdated'))
   } catch (error) {
-    if (sequence !== scheduleSaveSequence) return
+    if (sequence !== scheduleSaveSequence || requestProjectId !== projectId.value) return
     if (!isConflictError(error)) {
       const currentIndex = nodes.value.findIndex((node) => node.id === nodeId)
       if (currentIndex >= 0) nodes.value[currentIndex] = { ...nodes.value[currentIndex], ...previous }
@@ -814,6 +864,17 @@ function onDocumentPointerDown(event: PointerEvent) {
   }
 }
 
+function onProfileFocusOut() {
+  window.setTimeout(() => {
+    if (!shouldAutoSaveOnBlur(profileDirty.value, isProfileOverlayTarget(document.activeElement))) return
+    if (profileSaving.value) {
+      profileBlurSaveRequested = true
+      return
+    }
+    void onSaveProfile()
+  }, 0)
+}
+
 async function onSaveProfile() {
   if (!project.value || !profileDirty.value || profileSaving.value) return
   if (!canManageProject.value || activeNodeReadOnly.value) {
@@ -823,6 +884,7 @@ async function onSaveProfile() {
   }
   profileDirty.value = false
   profileSaving.value = true
+  let saveSucceeded = false
   const savePromise = (async () => {
     try {
       const payload: ProjectUpdatePayload = {
@@ -851,9 +913,10 @@ async function onSaveProfile() {
       pendingPreviousManagerId = undefined
       members.value = await getMembers(project.value.id)
       followers.value = await getFollowers(project.value.id)
-      resetProfileForm()
+      if (!profileDirty.value) resetProfileForm()
       syncProfileUserOptions()
       membersRevision.value += 1
+      saveSucceeded = true
     } catch (error) {
       profileDirty.value = true
       message.error(apiErrorMessage(error, t('detail.profileSaveFailed')))
@@ -866,6 +929,9 @@ async function onSaveProfile() {
     await savePromise
   } finally {
     if (profileSavePromise === savePromise) profileSavePromise = null
+    const saveLatest = saveSucceeded && profileBlurSaveRequested && profileDirty.value
+    profileBlurSaveRequested = false
+    if (saveLatest) window.setTimeout(() => void onSaveProfile(), 0)
   }
 }
 
@@ -1108,7 +1174,10 @@ onBeforeUnmount(() => {
             {{ $t(projectStatusKey(project.status)) }}
           </a-tag>
           <span class="pms-project-badge pms-project-badge--level">{{ getProjectLevelBadge(project.projectLevel) }}</span>
-          <span class="pms-project-badge pms-project-badge--priority">{{ getPriorityBadge(project.priority) }}</span>
+          <span
+            class="pms-project-badge pms-project-badge--priority"
+            :class="{ 'pms-project-badge--priority-urgent': project.priority === 3 }"
+          >{{ getPriorityBadge(project.priority) }}</span>
         </div>
         <div class="project-header__actions">
           <a-dropdown v-if="canTerminateProject || canRestoreProject" placement="bottomRight">
@@ -1154,12 +1223,20 @@ onBeforeUnmount(() => {
           <strong>{{ projectProgress }}%</strong>
           <small class="project-header__insight-details">
             <span class="project-header__insight-submetric">
-              {{ $t('detail.nodeProgress') }}
-              <strong class="project-header__insight-submetric-value">{{ currentNodeProgress }}%</strong>
-              <span class="project-header__insight-task-count">{{ $t('detail.nodeTaskCountSummary', { done: activeNodeTaskSummary.done, total: activeNodeTaskSummary.total }) }}</span>
+              {{ $t('detail.currentNodeTaskProgress') }}
+              <template v-if="currentNodeTaskProgress !== null && currentNodeTaskProgress !== undefined">
+                <strong class="project-header__insight-submetric-value">{{ currentNodeTaskProgress }}%</strong>
+                <span class="project-header__insight-task-count">{{ $t('detail.nodeTaskCountSummary', { done: activeNodeTaskSummary?.done ?? 0, total: activeNodeTaskSummary?.total ?? 0 }) }}</span>
+              </template>
+              <span v-else class="project-header__insight-task-count">{{ currentNodeTaskProgress === null ? $t('detail.noNodeTasks') : '—' }}</span>
             </span>
           </small>
         </div>
+        <ProjectReadinessCard
+          v-if="project.readiness"
+          :readiness="project.readiness"
+          @action="onAttentionAction"
+        />
       </div>
     </section>
 
@@ -1244,7 +1321,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="workflow-details-stack">
-       <div v-if="activeNodeFieldsSlot.length" ref="profileContainer" class="node-tab-profile" :style="customFieldsSlotStyle('fields')">
+       <div v-if="activeNodeFieldsSlot.length" ref="profileContainer" class="node-tab-profile" :style="customFieldsSlotStyle('fields')" @focusout.capture="onProfileFocusOut">
          <WorkflowCustomFields
            ref="workflowCustomFieldsRef"
            :key="`custom-fields-${activeNode.id}`"
@@ -1254,8 +1331,6 @@ onBeforeUnmount(() => {
            :person-options="nodeOwnerOptions"
            :can-edit="canEditActiveNode"
            :read-only="activeNodeReadOnly"
-           :has-pending-profile-changes="profileDirty"
-           @save-requested="onWorkflowFieldsSaveRequested"
          >
            <template #bound-field="{ field }">
              <a-textarea v-if="field.binding === 'project.description'" v-model:value="profileForm.description" :rows="4" :disabled="!canManageProject || activeNodeReadOnly" class="project-profile-control project-description-control" @input="markProfileDirty" />
@@ -1279,8 +1354,6 @@ onBeforeUnmount(() => {
            :person-options="nodeOwnerOptions"
            :can-edit="canEditActiveNode"
            :read-only="activeNodeReadOnly"
-           :has-pending-profile-changes="profileDirty"
-           @save-requested="onWorkflowFieldsSaveRequested"
          />
        </div>
 
@@ -1356,6 +1429,7 @@ onBeforeUnmount(() => {
         :style="componentSlotStyle('release-handover')"
         :project-id="projectId"
         :node-id="activeNode.id"
+        :node-status="activeNode.status"
         :node-read-only="activeNodeReadOnly"
         :can-edit="canEditActiveNode"
         @completion-ready="onReleaseCompletionReady"
@@ -1450,7 +1524,7 @@ onBeforeUnmount(() => {
           />
         </a-tab-pane>
         <a-tab-pane key="members" :tab="$t('detail.memberTab')">
-          <Members :project-id="projectId" :can-manage="canManageMembers" :revision="membersRevision" />
+          <Members :project-id="projectId" :can-manage="canManageMembers" :revision="membersRevision" @members-changed="onProjectMembersChanged" />
         </a-tab-pane>
         <a-tab-pane key="comments" :tab="$t('detail.comments')">
           <Comments :project-id="projectId" :can-write="canWriteComment" />
@@ -1483,6 +1557,7 @@ onBeforeUnmount(() => {
         />
       </div>
     </a-modal>
+
   </div>
   </div>
 </template>
