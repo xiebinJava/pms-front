@@ -130,7 +130,7 @@ PMS 当前的项目详情以流程节点为主线，任务只能归属于某个�
 
 ## 6. 后端设计
 
-后端仓库：`/Users/fs/Desktop/Project/pms-backend`。
+后端仓库：`../pms-backend`。
 
 ### 6.1 数据库迁移
 
@@ -283,7 +283,7 @@ private int overdueTaskCount;
 
 ## 7. 前端改造边界
 
-前端仓库：`/Users/fs/Desktop/Project/pms-front`。
+前端仓库：`../pms-front`。
 
 ### 7.1 类型与接口
 

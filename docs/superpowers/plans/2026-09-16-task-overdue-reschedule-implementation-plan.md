@@ -23,7 +23,7 @@
 
 ## File Map
 
-### Backend repository: /Users/fs/Desktop/Project/pms-backend
+### Backend repository: ../pms-backend
 
 - src/main/java/com/brad/pms/common/enums/TaskScheduleState.java owns the JSON-visible schedule-state values.
 - src/main/java/com/brad/pms/common/TaskScheduleCalculator.java owns the date/status projection and Asia/Shanghai date helper.
@@ -35,7 +35,7 @@
 - src/main/resources/db/migration/V45__task_schedule_history.sql adds the production migration; src/main/resources/schema.sql keeps fresh installs aligned.
 - src/main/resources/openapi/pms-api.yaml documents the added task and workbench response fields.
 
-### Frontend repository: /Users/fs/Desktop/Project/pms-front
+### Frontend repository: ../pms-front
 
 - src/types/domain.ts owns the client task schedule-state and history types.
 - src/views/project/detail/task-schedule.mjs, task-schedule.d.mts, and task-schedule.test.mjs own state-to-tone/label mapping.
@@ -52,9 +52,9 @@
 ### Task 1: Add the deterministic backend schedule projection
 
 **Files:**
-- Create: /Users/fs/Desktop/Project/pms-backend/src/main/java/com/brad/pms/common/enums/TaskScheduleState.java
-- Create: /Users/fs/Desktop/Project/pms-backend/src/main/java/com/brad/pms/common/TaskScheduleCalculator.java
-- Test: /Users/fs/Desktop/Project/pms-backend/src/test/java/com/brad/pms/common/TaskScheduleCalculatorTest.java
+- Create: ../pms-backend/src/main/java/com/brad/pms/common/enums/TaskScheduleState.java
+- Create: ../pms-backend/src/main/java/com/brad/pms/common/TaskScheduleCalculator.java
+- Test: ../pms-backend/src/test/java/com/brad/pms/common/TaskScheduleCalculatorTest.java
 
 **Interfaces:**
 - Produces TaskScheduleState values NO_DUE_DATE, DUE_TODAY, ON_TIME, OVERDUE, and COMPLETED.
@@ -95,7 +95,7 @@ void completedTaskWithPastDueDateIsCompleted() {
 - [ ] Step 2: Run the focused test to verify it fails.
 
 ~~~bash
-cd /Users/fs/Desktop/Project/pms-backend
+cd ../pms-backend
 mvn -q -Dtest=TaskScheduleCalculatorTest test
 ~~~
 
@@ -143,12 +143,12 @@ Expected: PASS and one commit containing only the three task files.
 ### Task 2: Expose schedule state from task and workbench APIs
 
 **Files:**
-- Modify: /Users/fs/Desktop/Project/pms-backend/src/main/java/com/brad/pms/dto/response/ProjectTaskDTO.java
-- Modify: /Users/fs/Desktop/Project/pms-backend/src/main/java/com/brad/pms/service/TaskService.java
-- Modify: /Users/fs/Desktop/Project/pms-backend/src/main/java/com/brad/pms/service/WorkbenchService.java
-- Modify: /Users/fs/Desktop/Project/pms-backend/src/main/resources/openapi/pms-api.yaml
-- Test: /Users/fs/Desktop/Project/pms-backend/src/test/java/com/brad/pms/service/TaskServiceTest.java
-- Test: /Users/fs/Desktop/Project/pms-backend/src/test/java/com/brad/pms/service/WorkbenchServiceTest.java
+- Modify: ../pms-backend/src/main/java/com/brad/pms/dto/response/ProjectTaskDTO.java
+- Modify: ../pms-backend/src/main/java/com/brad/pms/service/TaskService.java
+- Modify: ../pms-backend/src/main/java/com/brad/pms/service/WorkbenchService.java
+- Modify: ../pms-backend/src/main/resources/openapi/pms-api.yaml
+- Test: ../pms-backend/src/test/java/com/brad/pms/service/TaskServiceTest.java
+- Test: ../pms-backend/src/test/java/com/brad/pms/service/WorkbenchServiceTest.java
 
 **Interfaces:**
 - Extends ProjectTaskDTO with TaskScheduleState scheduleState and int overdueDays.
@@ -247,7 +247,7 @@ test('completed state never uses the overdue tone', () => {
 - [ ] Step 2: Run the focused frontend test to verify it fails.
 
 ~~~bash
-cd /Users/fs/Desktop/Project/pms-front
+cd ../pms-front
 pnpm exec node --test src/views/project/detail/task-schedule.test.mjs
 ~~~
 
@@ -310,18 +310,18 @@ git commit -m 'feat: show task due-date state on cards'
 ### Task 5: Persist and expose due-date change history
 
 **Files:**
-- Create: /Users/fs/Desktop/Project/pms-backend/src/main/resources/db/migration/V45__task_schedule_history.sql
-- Modify: /Users/fs/Desktop/Project/pms-backend/src/main/resources/schema.sql
-- Create: /Users/fs/Desktop/Project/pms-backend/src/main/java/com/brad/pms/common/enums/TaskScheduleChangeType.java
-- Create: /Users/fs/Desktop/Project/pms-backend/src/main/java/com/brad/pms/entity/ProjectTaskScheduleHistoryDO.java
-- Create: /Users/fs/Desktop/Project/pms-backend/src/main/java/com/brad/pms/mapper/ProjectTaskScheduleHistoryMapper.java
-- Create: /Users/fs/Desktop/Project/pms-backend/src/main/java/com/brad/pms/dto/response/TaskScheduleHistoryDTO.java
-- Modify: /Users/fs/Desktop/Project/pms-backend/src/main/java/com/brad/pms/dto/response/ProjectTaskDTO.java
-- Modify: /Users/fs/Desktop/Project/pms-backend/src/main/java/com/brad/pms/dto/response/TaskDetailDTO.java
-- Modify: /Users/fs/Desktop/Project/pms-backend/src/main/java/com/brad/pms/service/TaskService.java
-- Modify: /Users/fs/Desktop/Project/pms-backend/src/main/resources/openapi/pms-api.yaml
-- Modify: /Users/fs/Desktop/Project/pms-backend/src/test/java/com/brad/pms/service/TaskServiceTest.java
-- Create: /Users/fs/Desktop/Project/pms-backend/src/test/java/com/brad/pms/migration/TaskScheduleHistoryMigrationTest.java
+- Create: ../pms-backend/src/main/resources/db/migration/V45__task_schedule_history.sql
+- Modify: ../pms-backend/src/main/resources/schema.sql
+- Create: ../pms-backend/src/main/java/com/brad/pms/common/enums/TaskScheduleChangeType.java
+- Create: ../pms-backend/src/main/java/com/brad/pms/entity/ProjectTaskScheduleHistoryDO.java
+- Create: ../pms-backend/src/main/java/com/brad/pms/mapper/ProjectTaskScheduleHistoryMapper.java
+- Create: ../pms-backend/src/main/java/com/brad/pms/dto/response/TaskScheduleHistoryDTO.java
+- Modify: ../pms-backend/src/main/java/com/brad/pms/dto/response/ProjectTaskDTO.java
+- Modify: ../pms-backend/src/main/java/com/brad/pms/dto/response/TaskDetailDTO.java
+- Modify: ../pms-backend/src/main/java/com/brad/pms/service/TaskService.java
+- Modify: ../pms-backend/src/main/resources/openapi/pms-api.yaml
+- Modify: ../pms-backend/src/test/java/com/brad/pms/service/TaskServiceTest.java
+- Create: ../pms-backend/src/test/java/com/brad/pms/migration/TaskScheduleHistoryMigrationTest.java
 
 **Interfaces:**
 - ProjectTaskScheduleHistoryMapper extends BaseMapper<ProjectTaskScheduleHistoryDO>.
@@ -468,9 +468,9 @@ git commit -m 'feat: show task schedule history'
 ### Task 7: Add overdue count and labels to the personal workbench
 
 **Files:**
-- Modify: /Users/fs/Desktop/Project/pms-backend/src/main/java/com/brad/pms/dto/response/WorkbenchSummaryDTO.java
-- Modify: /Users/fs/Desktop/Project/pms-backend/src/main/java/com/brad/pms/service/WorkbenchService.java
-- Modify: /Users/fs/Desktop/Project/pms-backend/src/test/java/com/brad/pms/service/WorkbenchServiceTest.java
+- Modify: ../pms-backend/src/main/java/com/brad/pms/dto/response/WorkbenchSummaryDTO.java
+- Modify: ../pms-backend/src/main/java/com/brad/pms/service/WorkbenchService.java
+- Modify: ../pms-backend/src/test/java/com/brad/pms/service/WorkbenchServiceTest.java
 - Modify: src/views/workbench/workbench.ts
 - Modify: src/views/workbench/index.vue
 - Modify: src/styles/pms-theme.css
@@ -504,12 +504,12 @@ mvn -q -Dtest=WorkbenchServiceTest test
 - [ ] Step 6: Run tests, typecheck, and commit.
 
 ~~~bash
-cd /Users/fs/Desktop/Project/pms-backend
+cd ../pms-backend
 ./mvnw -q -Dtest=WorkbenchServiceTest test
 git add src/main/java/com/brad/pms/dto/response/WorkbenchSummaryDTO.java src/main/java/com/brad/pms/service/WorkbenchService.java src/test/java/com/brad/pms/service/WorkbenchServiceTest.java
 git commit -m 'feat: surface overdue task count in workbench'
 
-cd /Users/fs/Desktop/Project/pms-front
+cd ../pms-front
 pnpm exec node --test src/views/workbench/workbench.test.mjs
 pnpm typecheck
 git add src/views/workbench/workbench.ts src/views/workbench/index.vue src/styles/pms-theme.css src/views/workbench/workbench.test.mjs src/locales/zh-CN.ts src/locales/en-US.ts
@@ -575,7 +575,7 @@ git commit -m 'feat: mark overdue tasks on project timelines'
 **Files:**
 - Create: tests/e2e/task-overdue-reschedule.spec.ts
 - Modify: tests/e2e/playwright.project-list.config.mjs only if the existing local-app fixture cannot reuse its login/baseURL setup.
-- Review: /Users/fs/Desktop/Project/pms-backend/src/main/resources/db/migration/V45__task_schedule_history.sql
+- Review: ../pms-backend/src/main/resources/db/migration/V45__task_schedule_history.sql
 - Review: src/locales/zh-CN.ts and src/locales/en-US.ts
 
 **Interfaces:**
@@ -606,7 +606,7 @@ Expected: PASS for task card, detail, timeline/calendar, and English-copy checks
 - [ ] Step 3: Run backend verification.
 
 ~~~bash
-cd /Users/fs/Desktop/Project/pms-backend
+cd ../pms-backend
 mvn -q test
 ~~~
 
@@ -615,7 +615,7 @@ Expected: all existing and new backend tests pass, including migration, task, no
 - [ ] Step 4: Run frontend verification.
 
 ~~~bash
-cd /Users/fs/Desktop/Project/pms-front
+cd ../pms-front
 pnpm test
 pnpm typecheck
 pnpm build
