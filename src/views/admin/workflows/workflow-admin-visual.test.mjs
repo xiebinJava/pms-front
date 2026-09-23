@@ -69,11 +69,14 @@ test('workflow node cards keep a uniform height regardless of title wrapping', (
 })
 
 test('workflow editor presents the node field palette, visual canvas, and property inspector', () => {
-  assert.match(template, /class="workflow-template-bar"[\s\S]*?class="workflow-node-designer"/)
+  assert.match(template, /data-testid="workflow-type-picker"[\s\S]*?v-for="type in types"[\s\S]*?:aria-pressed="selectedTypeId === type\.id"/)
+  assert.match(template, /data-testid="workflow-template-picker"[\s\S]*?v-for="template in templates"[\s\S]*?:aria-pressed="selectedTemplateId === template\.id"/)
+  assert.match(template, /v-if="workflowEntryStep === 'editor'"[\s\S]*?class="workflow-template-bar"[\s\S]*?class="workflow-canvas-panel"/)
+  assert.match(template, /workflowEntryStep === 'empty-types'[\s\S]*?\$t\('admin\.workflow\.noTypes'\)/)
+  assert.match(template, /workflowEntryStep === 'empty-templates'[\s\S]*?\$t\('admin\.workflow\.noTemplates'\)/)
+  assert.doesNotMatch(template, /<a-select :value="selectedTypeId"/)
   assert.match(template, /class="designer-panel designer-palette"[\s\S]*?class="designer-panel designer-canvas"[\s\S]*?class="designer-panel designer-inspector"/)
   assert.match(template, /data-testid="designer-fixed-owner"[\s\S]*?data-testid="designer-fixed-schedule"[\s\S]*?data-testid="designer-fixed-task-board"/)
-  assert.match(template, /<a-select :value="selectedTypeId" @change="changeProjectType/)
-  assert.doesNotMatch(template, /<a-select :value="selectedTypeId" :disabled="!canWrite"/)
   assert.match(style, /\.designer-grid\s*\{[^}]*grid-template-columns:\s*minmax\(168px,[^}]+minmax\(196px/)
 })
 

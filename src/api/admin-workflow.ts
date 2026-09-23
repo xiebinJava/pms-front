@@ -18,7 +18,7 @@ export function listWorkflowProjectTypes(): Promise<ProjectType[]> {
   return http.get('/admin/workflow-config/project-types')
 }
 
-export function createWorkflowProjectType(payload: Pick<ProjectType, 'code' | 'name' | 'description' | 'sort'>): Promise<ProjectType> {
+export function createWorkflowProjectType(payload: Pick<ProjectType, 'name' | 'description' | 'sort'>): Promise<ProjectType> {
   return http.post('/admin/workflow-config/project-types', payload)
 }
 

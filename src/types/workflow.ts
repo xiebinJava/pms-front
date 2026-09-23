@@ -61,6 +61,7 @@ export interface ProjectType {
   name: string
   description?: string
   status: number
+  projectCreationEnabled?: boolean
   sort: number
   defaultTemplateVersionId?: number
   defaultTemplateId?: number

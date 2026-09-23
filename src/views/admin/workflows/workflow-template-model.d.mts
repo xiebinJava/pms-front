@@ -2,7 +2,14 @@ import type { WorkflowFieldDefinition, WorkflowNodeDefinition, WorkflowNodeDefin
 
 export const FIXED_NODE_BLOCKS: readonly ('owner' | 'schedule' | 'task-board')[]
 export const DEFAULT_PROJECT_BASIC_INFO_FIELDS: WorkflowProjectFieldDefinition[]
-export function generateNextProjectTypeCode(existingCodes?: Array<string | null | undefined>): string
+export function getWorkflowTemplateEntryStep(options: {
+  typeCount: number
+  selectedTypeId?: number | null
+  templateCount: number
+  selectedTemplateId?: number | null
+  creatingTemplate?: boolean
+}): 'empty-types' | 'select-type' | 'empty-templates' | 'select-template' | 'editor'
+export function buildProjectTypeCreatePayload(form?: { name?: string | null; description?: string | null }, sort?: number): { name: string; description: string; sort: number }
 export function moveWorkflowNode<T extends WorkflowNodeDefinition | WorkflowNodeDefinitionV2>(nodes: T[], nodeKey: string, toIndex: number): T[]
 export function createWorkflowNode(nodes: WorkflowNodeDefinitionV2[], options?: { name?: string; description?: string; key?: string }): WorkflowNodeDefinitionV2
 export function removeWorkflowNode<T extends WorkflowNodeDefinition | WorkflowNodeDefinitionV2>(nodes: T[], nodeKey: string): T[]

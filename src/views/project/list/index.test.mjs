@@ -4,6 +4,7 @@ import test from 'node:test'
 
 const source = fs.readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
 const visualStyle = fs.readFileSync(new URL('../../../styles/pms-theme.css', import.meta.url), 'utf8')
+const chineseLocale = fs.readFileSync(new URL('../../../locales/zh-CN.ts', import.meta.url), 'utf8')
 
 test('keeps the project list free of the temporary overview statistics block', () => {
   assert.equal(source.includes('class="pms-stat-grid"'), false)
@@ -37,6 +38,11 @@ test('shows the same organization path and leader summary returned by project de
   assert.match(source, /key: 'orgUnitPath', dataIndex: 'orgUnitPath'/)
   assert.match(source, /record\.orgUnitPath \|\| record\.orgUnitName \|\| \$t\('common.unset'\)/)
   assert.match(source, /\$t\('project.leader', \{ name: record.orgUnitLeaderName \}\)/)
+})
+
+test('labels the business-line lead as an organization leader', () => {
+  const projectLocale = chineseLocale.slice(chineseLocale.indexOf('project: {'), chineseLocale.indexOf('detail: {'))
+  assert.match(projectLocale, /leader: '组织负责人：\{name\}'/)
 })
 
 test('keeps create-form start and end dates on one row', () => {

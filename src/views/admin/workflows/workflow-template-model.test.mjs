@@ -50,13 +50,29 @@ test('ships canonical project profile fields as configurable visibility/required
   assert.equal(DEFAULT_PROJECT_BASIC_INFO_FIELDS.find((field) => field.key === 'description').required, true)
 })
 
-test('generates the next unused zero-padded project type code', () => {
-  const generateCode = workflowTemplateModel.generateNextProjectTypeCode
+test('workflow template entry requires an explicit type and template before showing the editor', () => {
+  const getEntryStep = workflowTemplateModel.getWorkflowTemplateEntryStep
+  assert.equal(typeof getEntryStep, 'function')
+  if (typeof getEntryStep !== 'function') return
 
-  assert.equal(typeof generateCode, 'function')
-  assert.equal(generateCode([]), '0001')
-  assert.equal(generateCode(['general', '0001', '0003']), '0002')
-  assert.equal(generateCode(['0001', '0002', '0003', '0004', '0005', '0006', '0007', '0008', '0009']), '0010')
+  assert.equal(getEntryStep({ typeCount: 0 }), 'empty-types')
+  assert.equal(getEntryStep({ typeCount: 3, selectedTypeId: undefined, templateCount: 0 }), 'select-type')
+  assert.equal(getEntryStep({ typeCount: 3, selectedTypeId: 2, templateCount: 0 }), 'empty-templates')
+  assert.equal(getEntryStep({ typeCount: 3, selectedTypeId: 2, templateCount: 2 }), 'select-template')
+  assert.equal(getEntryStep({ typeCount: 3, selectedTypeId: 2, templateCount: 2, selectedTemplateId: 8 }), 'editor')
+  assert.equal(getEntryStep({ typeCount: 3, selectedTypeId: 2, templateCount: 0, creatingTemplate: true }), 'editor')
+})
+
+test('builds a process type request without asking the client to generate an internal code', () => {
+  const buildPayload = workflowTemplateModel.buildProjectTypeCreatePayload
+  assert.equal(typeof buildPayload, 'function')
+  if (typeof buildPayload !== 'function') return
+
+  assert.deepEqual(buildPayload({ code: 'client-code', name: '  故事流程  ', description: '  故事交付  ' }, 3), {
+    name: '故事流程',
+    description: '故事交付',
+    sort: 3,
+  })
 })
 
 test('adds fields with unique keys and creates the fields content item only when needed', () => {

@@ -11,12 +11,26 @@ export const DEFAULT_PROJECT_BASIC_INFO_FIELDS = Object.freeze([
   { key: 'followers', label: '关注人', visible: true, required: false },
 ])
 
-export function generateNextProjectTypeCode(existingCodes = []) {
-  const usedCodes = new Set((Array.isArray(existingCodes) ? existingCodes : [])
-    .map((code) => String(code ?? '').trim()))
-  let sequence = 1
-  while (usedCodes.has(String(sequence).padStart(4, '0'))) sequence += 1
-  return String(sequence).padStart(4, '0')
+export function getWorkflowTemplateEntryStep({
+  typeCount,
+  selectedTypeId,
+  templateCount,
+  selectedTemplateId,
+  creatingTemplate = false,
+}) {
+  if (!typeCount) return 'empty-types'
+  if (selectedTypeId == null) return 'select-type'
+  if (!templateCount && !creatingTemplate) return 'empty-templates'
+  if (selectedTemplateId == null && !creatingTemplate) return 'select-template'
+  return 'editor'
+}
+
+export function buildProjectTypeCreatePayload({ name = '', description = '' } = {}, sort = 0) {
+  return {
+    name: String(name).trim(),
+    description: String(description ?? '').trim(),
+    sort,
+  }
 }
 
 export function createUniqueWorkflowKey(existingKeys, requestedKey, fallback = 'field') {

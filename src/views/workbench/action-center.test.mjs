@@ -16,10 +16,11 @@ const items = [
 ]
 
 test('filters action center items by overdue, today, project, and soon groups', () => {
-  assert.equal(filterActionItems(items, 'ALL').length, 7)
+  assert.equal(filterActionItems(items, 'ALL').length, 5)
   assert.equal(filterActionItems(items, 'OVERDUE').length, 1)
   assert.equal(filterActionItems(items, 'TODAY').length, 1)
-  assert.equal(filterActionItems(items, 'PROJECT').length, 2)
+  assert.equal(filterActionItems(items, 'PROJECT').length, 1)
+  assert.equal(filterActionItems(items, 'PROJECT')[0].type, 'CURRENT_NODE_OWNER_MISSING')
   assert.equal(filterActionItems(items, 'SOON').length, 1)
 })
 

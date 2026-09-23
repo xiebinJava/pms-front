@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { BellOutlined, BookOutlined, CloudUploadOutlined, DashboardOutlined, DownOutlined, ExperimentOutlined, LineChartOutlined, LogoutOutlined, MenuOutlined, ProjectOutlined, SearchOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, MessageOutlined, NodeIndexOutlined } from '@ant-design/icons-vue'
+import { BellOutlined, BookOutlined, CloudUploadOutlined, DashboardOutlined, DownOutlined, ExperimentOutlined, FileTextOutlined, FolderOpenOutlined, LineChartOutlined, LogoutOutlined, MenuOutlined, ProjectOutlined, SearchOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, MessageOutlined, NodeIndexOutlined } from '@ant-design/icons-vue'
 import { useUserStore } from '/@/store/user'
 import LocaleSwitch from '/@/components/LocaleSwitch.vue'
 import { message } from 'ant-design-vue'
@@ -65,6 +65,8 @@ const selectedKeys = computed(() => {
   if (route.path.startsWith('/manual/design-system')) return ['manual-design-system']
   if (route.path.startsWith('/manual')) return ['manual']
   if (route.path.startsWith('/projects/dashboard')) return ['enterprise-project-board']
+  if (route.path.startsWith('/development/topics')) return ['development-topics']
+  if (route.path.startsWith('/development/stories')) return ['development-stories']
   if (route.path.startsWith('/projects')) return ['projects']
   if (route.path.startsWith('/admin/users')) return ['admin-users']
   if (route.path.startsWith('/admin/org')) return ['admin-org']
@@ -84,6 +86,8 @@ const menuRoutes: Record<string, string> = {
   'manual-design-system': '/manual/design-system#principles',
   'project-dashboard': '/projects/dashboard',
   'enterprise-project-board': '/projects/dashboard',
+  'development-topics': '/development/topics',
+  'development-stories': '/development/stories',
   projects: '/projects',
   feedback: '/feedback',
   'admin-users': '/admin/users',
@@ -407,12 +411,18 @@ onBeforeUnmount(() => {
               </div>
             </div>
             <div class="pms-nav-group pms-nav-group--projects">
-              <button class="pms-nav-section-label" :class="{ 'pms-nav-section-label--active': selectedKeys.includes('projects') }" type="button" aria-controls="pms-project-subnav" :aria-expanded="projectNavOpen" @click.stop="projectNavOpen = !projectNavOpen">
+              <button class="pms-nav-section-label" :class="{ 'pms-nav-section-label--active': selectedKeys.some(key => ['projects', 'development-topics', 'development-stories'].includes(key)) }" type="button" aria-controls="pms-project-subnav" :aria-expanded="projectNavOpen" @click.stop="projectNavOpen = !projectNavOpen">
                 <ExperimentOutlined /><span>{{ $t('nav.rdManagement') }}</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !projectNavOpen }" />
               </button>
               <div v-if="projectNavOpen" id="pms-project-subnav" class="pms-nav-subnav">
                 <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('projects') }" :aria-current="selectedKeys.includes('projects') ? 'page' : undefined" type="button" :aria-label="$t('nav.projectsTab')" @click.stop="handleMenuClick({ key: 'projects' })">
                   <ProjectOutlined /><span>{{ $t('nav.projects') }}</span>
+                </button>
+                <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('development-topics') }" :aria-current="selectedKeys.includes('development-topics') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'development-topics' })">
+                  <FolderOpenOutlined /><span>{{ $t('nav.topics') }}</span>
+                </button>
+                <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('development-stories') }" :aria-current="selectedKeys.includes('development-stories') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'development-stories' })">
+                  <FileTextOutlined /><span>{{ $t('nav.stories') }}</span>
                 </button>
               </div>
             </div>
