@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import type { Component } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { onBeforeRouteLeave } from 'vue-router'
@@ -16,6 +16,7 @@ import {
   createWorkflowTemplate,
   archiveWorkflowTemplate,
   archiveWorkflowTemplateVersion,
+  getWorkflowProjectNodeOptions,
   getWorkflowTemplate,
   listWorkflowProjectTypes,
   listWorkflowTemplates,
@@ -23,7 +24,7 @@ import {
   saveWorkflowTemplateDraft,
   setWorkflowDefault,
 } from '/@/api/admin-workflow'
-import type { ProjectType, WorkflowContentOrderItem, WorkflowFieldBinding, WorkflowFieldDefinition, WorkflowFieldType, WorkflowNodeDefinitionV2, WorkflowTemplateDefinitionV2, WorkflowTemplateSummary, WorkflowTemplateVersionSummary } from '/@/types/workflow'
+import type { ProjectType, WorkflowContentOrderItem, WorkflowFieldBinding, WorkflowFieldDefinition, WorkflowFieldType, WorkflowNodeDefinitionV2, WorkflowProjectNodeOption, WorkflowTemplateDefinitionV2, WorkflowTemplateSummary, WorkflowTemplateVersionSummary } from '/@/types/workflow'
 import { isWorkflowFieldFullWidth } from '/@/utils/workflow-field-layout.mjs'
 import {
   FIXED_NODE_BLOCKS,
@@ -31,13 +32,15 @@ import {
   buildProjectTypeCreatePayload,
   createWorkflowNode,
   getWorkflowTemplateEntryStep,
+  normalizeWorkflowDefinitionForProcessType,
   moveWorkflowContentItem,
   moveWorkflowField,
   moveWorkflowNode,
   removeWorkflowField,
   removeWorkflowNode,
+  setTopicSourceProjectNodeKey,
 } from './workflow-template-model.mjs'
-import { normalizeWorkflowDefinition, PROJECT_FIELD_BINDINGS } from './workflow-template-schema.mjs'
+import { PROJECT_FIELD_BINDINGS } from './workflow-template-schema.mjs'
 
 const { t } = useI18n()
 const userStore = useUserStore()
@@ -46,6 +49,8 @@ const loading = ref(false)
 const saving = ref(false)
 const types = ref<ProjectType[]>([])
 const templates = ref<WorkflowTemplateSummary[]>([])
+const workflowProjectNodeOptions = ref<WorkflowProjectNodeOption[]>([])
+const workflowProjectNodeOptionsLoading = ref(false)
 const selectedTypeId = ref<number>()
 const selectedTemplateId = ref<number | null>(null)
 const selectedNodeKey = ref('')
@@ -70,6 +75,7 @@ let templateListRequestSequence = 0
 let templateDetailRequestSequence = 0
 let typeChangeRequestSequence = 0
 let templateEditSequence = 0
+let workflowProjectNodeOptionsRequest: Promise<void> | undefined
 
 const COMPONENTS = [
   { key: 'requirement-scope' }, { key: 'solution-design' },
@@ -110,6 +116,32 @@ const selectedNodeIndex = computed(() => definition.value.nodes.findIndex((node)
 const publishedVersion = computed(() => selectedTemplateSummary.value?.publishedVersionNo)
 const workflowVersions = computed(() => [...(selectedTemplateSummary.value?.versions || [])]
   .sort((left, right) => right.versionNo - left.versionNo))
+
+watch(selectedTypeId, (typeId) => {
+  if (types.value.find((type) => type.id === typeId)?.code === 'topic-management') {
+    void loadWorkflowProjectNodeOptions()
+  }
+})
+
+function loadWorkflowProjectNodeOptions(): Promise<void> {
+  if (workflowProjectNodeOptions.value.length) return Promise.resolve()
+  if (workflowProjectNodeOptionsRequest) return workflowProjectNodeOptionsRequest
+  workflowProjectNodeOptionsLoading.value = true
+  workflowProjectNodeOptionsRequest = getWorkflowProjectNodeOptions()
+    .then((options) => { workflowProjectNodeOptions.value = Array.isArray(options) ? options : [] })
+    .catch((error) => { message.error((error as Error).message || t('admin.workflow.topicSourceProjectNodeLoadFailed')) })
+    .finally(() => {
+      workflowProjectNodeOptionsLoading.value = false
+      workflowProjectNodeOptionsRequest = undefined
+    })
+  return workflowProjectNodeOptionsRequest
+}
+
+function updateTopicSourceProjectNodeKey(value: unknown) {
+  if (selectedType.value?.code !== 'topic-management') return
+  definition.value = setTopicSourceProjectNodeKey(definition.value, String(value || ''))
+  markDirty()
+}
 
 function defaultVersionLabel(template: WorkflowTemplateSummary): string {
   const versionNo = template.publishedVersions?.find((version) => version.id === template.defaultTemplateVersionId)?.versionNo
@@ -246,7 +278,7 @@ async function selectTemplate(id: number) {
     selectedTemplateId.value = template.id
     templateName.value = template.name
     templateDescription.value = template.description || ''
-    definition.value = normalizeWorkflowDefinition(template.definition)
+    definition.value = normalizeWorkflowDefinitionForProcessType(template.definition, selectedType.value?.code)
     selectedNodeKey.value = definition.value.nodes[0]?.key || ''
     selectedFieldKey.value = firstFieldKey(definition.value.nodes[0])
     dirty.value = false
@@ -328,13 +360,13 @@ async function newTemplate() {
   const requestSequence = ++templateDetailRequestSequence
   templateListRequestSequence += 1
   const base = templates.value.find((template) => template.defaultTemplate) || templates.value[0]
-  let nodes: WorkflowNodeDefinitionV2[] = []
+  let baseDefinition: WorkflowTemplateDefinitionV2 | undefined
   if (base) {
     loading.value = true
     try {
       const baseTemplate = await getWorkflowTemplate(base.id)
       if (requestSequence !== templateDetailRequestSequence || typeId !== selectedTypeId.value) return
-      nodes = normalizeWorkflowDefinition(baseTemplate.definition).nodes
+      baseDefinition = normalizeWorkflowDefinitionForProcessType(baseTemplate.definition, selectedType.value?.code)
     } catch (error) {
       dirty.value = hadUnsavedChanges
       message.error((error as Error).message || t('admin.workflow.loadFailed'))
@@ -345,9 +377,10 @@ async function newTemplate() {
   selectedTemplateId.value = null
   templateName.value = t('admin.workflow.newTemplateName')
   templateDescription.value = ''
-  definition.value = nodes.length
-    ? { schemaVersion: 2, nodes }
+  const initialDefinition: WorkflowTemplateDefinitionV2 = baseDefinition
+    ? { ...baseDefinition, nodes: baseDefinition.nodes }
     : { schemaVersion: 2, nodes: [createWorkflowNode([], { name: t('admin.workflow.newNodeName'), key: 'stage-1' })] }
+  definition.value = normalizeWorkflowDefinitionForProcessType(initialDefinition, selectedType.value?.code)
   selectedNodeKey.value = definition.value.nodes[0]?.key || ''
   selectedFieldKey.value = firstFieldKey(definition.value.nodes[0])
   dirty.value = true
@@ -872,6 +905,28 @@ onMounted(async () => {
                 <InfoCircleOutlined aria-hidden="true" />
                 <span>{{ $t('admin.workflow.versionGuidance') }}</span>
               </div>
+              <section v-if="selectedType?.code === 'topic-management'" class="workflow-topic-binding" data-testid="workflow-topic-binding">
+                <div class="workflow-topic-binding__copy">
+                  <strong>{{ $t('admin.workflow.topicSourceProjectNodeKey') }}</strong>
+                  <p>{{ $t('admin.workflow.topicSourceProjectNodeKeyHint') }}</p>
+                </div>
+                <div class="workflow-topic-binding__control">
+                  <a-select
+                    :value="definition.sourceProjectNodeKey"
+                    :options="workflowProjectNodeOptions.map((option) => ({ value: option.key, label: option.name }))"
+                    :loading="workflowProjectNodeOptionsLoading"
+                    :disabled="!canWrite || workflowProjectNodeOptionsLoading || !workflowProjectNodeOptions.length"
+                    :placeholder="$t('admin.workflow.topicSourceProjectNodeKeyPlaceholder')"
+                    :aria-label="$t('admin.workflow.topicSourceProjectNodeKey')"
+                    show-search
+                    option-filter-prop="label"
+                    @change="updateTopicSourceProjectNodeKey"
+                  />
+                  <small v-if="!workflowProjectNodeOptionsLoading && !workflowProjectNodeOptions.length">
+                    {{ $t('admin.workflow.topicSourceProjectNodeKeyNoOptions') }}
+                  </small>
+                </div>
+              </section>
             </section>
 
             <section class="workflow-canvas-panel" :aria-label="$t('admin.workflow.canvasAria')">
@@ -1211,6 +1266,12 @@ onMounted(async () => {
 .template-selector__selected { display: flex; min-height: 40px; align-items: center; padding: 0 var(--pms-space-3); color: var(--pms-text); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); font-size: var(--pms-font-size-compact); }
 .workflow-template-version-guidance { display: flex; grid-column: 1 / -1; align-items: flex-start; gap: var(--pms-space-2); padding: var(--pms-space-3); color: var(--pms-text-muted); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
 .workflow-template-version-guidance :deep(.anticon) { flex: 0 0 auto; color: var(--pms-primary); }
+.workflow-topic-binding { display: grid; grid-template-columns: minmax(220px, .72fr) minmax(280px, 1.28fr); align-items: center; gap: var(--pms-space-4); padding: var(--pms-space-3); background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); }
+.workflow-topic-binding__copy strong { color: var(--pms-text); font-size: var(--pms-font-size-body); }
+.workflow-topic-binding__copy p { margin: var(--pms-space-1) 0 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
+.workflow-topic-binding__control { display: grid; gap: var(--pms-space-1); }
+.workflow-topic-binding__control small { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); }
+.workflow-topic-binding__control :deep(.ant-select) { width: 100%; }
 .workflow-version-manager { display: grid; gap: var(--pms-space-3); }
 .workflow-version-manager__description { margin: 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
 .workflow-version-list { display: grid; max-height: min(56vh, 520px); overflow: auto; border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); }
@@ -1362,6 +1423,7 @@ onMounted(async () => {
   .workflow-version-row__actions { justify-content: flex-start; }
   .template-selectors { grid-template-columns: minmax(0, 1fr); }
   .template-selectors > .template-current { grid-column: auto; }
+  .workflow-topic-binding { grid-template-columns: minmax(0, 1fr); gap: var(--pms-space-2); }
   .workflow-canvas-panel { padding: var(--pms-space-3); }
   .workflow-node-card { flex-basis: 220px; min-height: 84px; padding-bottom: var(--pms-space-3); }
   .workflow-node-designer { padding: var(--pms-space-3); }

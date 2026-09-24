@@ -5,7 +5,6 @@ import {
   CaretDownOutlined,
   CaretRightOutlined,
   DeleteOutlined,
-  ExclamationCircleOutlined,
   FileTextOutlined,
   FolderOpenOutlined,
 } from '@ant-design/icons-vue'
@@ -50,6 +49,7 @@ const emptyState = (): NodeDevelopmentControl => ({
   projectId: props.projectId,
   nodeId: props.nodeId,
   canEdit: false,
+  topicCreationAllowed: false,
   summary: { topicCount: 0, storyCount: 0, completedStoryCount: 0, blockedStoryCount: 0, progress: 0 },
   topics: [],
 })
@@ -145,13 +145,6 @@ const iterationPlanOptions = computed(() => {
     return true
   })
 })
-
-function iterationPlanNames(topic: DevelopmentTopic) {
-  const names = topic.stories
-    .map((story) => story.iterationPlanName || iterationPlans.value.find((plan) => plan.id === story.iterationPlanId)?.name)
-    .filter((name): name is string => Boolean(name))
-  return [...new Set(names)].join('、')
-}
 
 const currentIterationSummary = computed(() => {
   const names = topics.value.flatMap((topic) => topic.stories
@@ -402,8 +395,11 @@ watch(
             <span>项目 → 专题 → 故事</span>
           </div>
           <div class="development-control__tree-actions">
-            <span class="development-control__tree-hint">点击专题查看详情</span>
-            <a-button v-if="editable" size="small" @click="addTopic">+ 新增专题</a-button>
+            <span class="development-control__tree-hint">点击专题展开故事</span>
+            <span v-if="!loading && !loadError && !state.topicCreationAllowed" class="development-control__topic-hint">
+              新增专题请前往当前配置节点；此处仅可维护已有专题。
+            </span>
+            <a-button v-if="editable && state.topicCreationAllowed" size="small" @click="addTopic">+ 新增专题</a-button>
           </div>
         </div>
 
@@ -421,8 +417,8 @@ watch(
           <a-button size="small" @click="refresh">重新加载</a-button>
         </div>
         <div v-else-if="!topics.length" class="development-control__empty">
-          <span>还没有专题，先建立第一个专题。</span>
-          <a-button v-if="editable" type="primary" size="small" @click="addTopic">新增专题</a-button>
+          <span>{{ state.topicCreationAllowed ? '还没有专题，先建立第一个专题。' : '当前节点没有专题，请前往专题模板配置节点创建。' }}</span>
+          <a-button v-if="editable && state.topicCreationAllowed" type="primary" size="small" @click="addTopic">新增专题</a-button>
         </div>
 
         <div class="development-control__project-row">
@@ -493,43 +489,6 @@ watch(
         </template>
       </section>
 
-      <aside v-if="selectedTopic" class="development-control__detail-panel">
-        <div class="development-control__panel-heading">
-          <div>
-            <h4>专题详情</h4>
-            <span>当前选中专题</span>
-          </div>
-          <span class="development-control__status" :class="`development-control__status--${topicStatusMeta[getTopicStatus(selectedTopic)].className.replace('is-', '')}`"><i />{{ topicStatusMeta[getTopicStatus(selectedTopic)].label }}</span>
-        </div>
-
-        <h3>{{ selectedTopic.title }}</h3>
-        <div class="development-control__detail-meta">
-          <div><span>负责人</span><strong>{{ selectedTopic.ownerName || '待分配' }}</strong></div>
-          <div><span>迭代计划</span><strong>{{ iterationPlanNames(selectedTopic) || '未安排' }}</strong></div>
-          <div><span>故事进度</span><strong>{{ completedStories(selectedTopic) }} / {{ selectedTopic.stories.length }}</strong></div>
-        </div>
-
-        <div class="development-control__detail-progress">
-          <div><span>专题完成度</span><strong>{{ getTopicProgress(selectedTopic) }}%</strong></div>
-          <a-progress :percent="getTopicProgress(selectedTopic)" :show-info="false" />
-        </div>
-
-        <div class="development-control__detail-section">
-          <div class="development-control__detail-section-title">故事状态</div>
-          <div v-for="story in selectedTopic.stories" :key="`detail-${story.id}`" class="development-control__detail-story">
-            <span class="development-control__detail-story-name"><FileTextOutlined />{{ story.title }}</span>
-            <span class="development-control__status" :class="`development-control__status--${getStoryStatus(story).className.replace('is-', '')}`"><i />{{ getStoryStatus(story).label }}</span>
-          </div>
-        </div>
-
-        <div v-if="selectedTopic.blocker" class="development-control__blocker">
-          <ExclamationCircleOutlined />
-          <div>
-            <strong>当前阻塞</strong>
-            <span>{{ selectedTopic.blocker }}</span>
-          </div>
-        </div>
-      </aside>
     </div>
 
     <a-modal
@@ -590,18 +549,19 @@ watch(
 .development-control__summary { display: grid; grid-template-columns: minmax(180px, 1.2fr) repeat(3, minmax(110px, 0.7fr)) minmax(220px, 1fr); gap: 0; background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: 8px; }
 .development-control__metric { display: grid; align-content: center; gap: 5px; min-height: 78px; padding: 14px 16px; border-left: 1px solid var(--pms-border); }
 .development-control__metric:first-child { border-left: 0; }
-.development-control__metric-label, .development-control__metric-note, .development-control__detail-meta span { color: var(--pms-text-muted); font-size: 11px; }
+.development-control__metric-label, .development-control__metric-note { color: var(--pms-text-muted); font-size: 11px; }
 .development-control__metric strong { color: var(--pms-text); font-size: 20px; line-height: 1.1; }
 .development-control__metric--progress strong { color: var(--pms-primary); }
 .development-control__metric--danger strong { color: var(--pms-danger); }
 .development-control__metric--date strong { font-size: 13px; }
 .development-control__summary :deep(.ant-progress) { margin: 0; }
-.development-control__layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.75fr); gap: 16px; align-items: start; }
-.development-control__tree-panel, .development-control__detail-panel { background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: 8px; overflow: hidden; }
+.development-control__layout { display: block; }
+.development-control__tree-panel { background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: 8px; overflow: hidden; }
 .development-control__tree-panel { min-width: 0; }
 .development-control__panel-heading { align-items: center; padding: 16px 18px 13px; }
 .development-control__panel-heading span { margin: 2px 0 0; }
 .development-control__tree-actions { display: flex; align-items: center; gap: 10px; }
+.development-control__topic-hint { color: var(--pms-text-muted); font-size: 12px; }
 .development-control__tree-hint { font-size: 11px !important; }
 .development-control__empty { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 86px; padding: 16px; color: var(--pms-text-muted); font-size: 12px; }
 .development-control__tree-head, .development-control__project-row, .development-control__topic-row, .development-control__story-row { display: grid; grid-template-columns: minmax(180px, 1.5fr) minmax(100px, 0.8fr) minmax(112px, 0.95fr) minmax(86px, 0.7fr) minmax(100px, 0.8fr); column-gap: 12px; align-items: center; }
@@ -635,25 +595,6 @@ watch(
 .development-control__status--done i { background: var(--pms-success); }
 .development-control__status--blocked { color: var(--pms-danger); }
 .development-control__status--blocked i { background: var(--pms-danger); }
-.development-control__detail-panel { padding-bottom: 16px; }
-.development-control__detail-panel h3 { padding: 0 18px; font-size: 17px; }
-.development-control__detail-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 16px 18px 0; padding: 12px 0; border-top: 1px solid var(--pms-border); border-bottom: 1px solid var(--pms-border); }
-.development-control__detail-meta div { display: grid; min-width: 0; gap: 4px; padding: 8px 10px; border: 1px solid #edf1f6; border-radius: 6px; background: #fbfcfe; }
-.development-control__detail-meta span { overflow: hidden; color: var(--pms-text-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.development-control__detail-meta strong { overflow: hidden; color: var(--pms-text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.development-control__detail-progress { display: grid; gap: 6px; margin: 15px 18px 0; }
-.development-control__detail-progress > div { display: flex; justify-content: space-between; color: var(--pms-text-muted); font-size: 12px; }
-.development-control__detail-progress strong { color: var(--pms-primary); }
-.development-control__detail-progress :deep(.ant-progress-bg) { height: 7px !important; }
-.development-control__detail-section { margin: 17px 18px 0; }
-.development-control__detail-section-title { margin-bottom: 8px; color: var(--pms-text); font-size: 12px; font-weight: 700; }
-.development-control__detail-story { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 31px; border-bottom: 1px solid #edf1f6; color: var(--pms-text-muted); font-size: 11px; }
-.development-control__detail-story-name { display: inline-flex; align-items: center; min-width: 0; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.development-control__detail-story-name svg { color: #9aa8bb; }
-    .development-control__blocker { display: flex; gap: 8px; margin: 16px 18px 0; padding: 11px 12px; border-radius: 6px; font-size: 11px; line-height: 1.5; }
-.development-control__blocker { background: #fff7f5; color: var(--pms-danger); }
-.development-control__blocker div { display: grid; gap: 2px; }
-.development-control__blocker span { color: var(--pms-text-muted); }
 .development-control__editor { display: grid; gap: 18px; }
 .development-control__editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .development-control__editor-grid label { display: grid; gap: 6px; color: var(--pms-text); font-size: 12px; font-weight: 600; }
@@ -667,7 +608,6 @@ watch(
 @media (max-width: 900px) {
   .development-control__summary { grid-template-columns: repeat(2, 1fr); }
   .development-control__metric:nth-child(odd) { border-left: 0; }
-  .development-control__layout { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {

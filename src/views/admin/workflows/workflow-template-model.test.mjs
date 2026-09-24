@@ -63,6 +63,38 @@ test('workflow template entry requires an explicit type and template before show
   assert.equal(getEntryStep({ typeCount: 3, selectedTypeId: 2, templateCount: 0, creatingTemplate: true }), 'editor')
 })
 
+test('topic workflow normalization preserves and defaults the bound project node without changing other process types', () => {
+  const normalizeForType = workflowTemplateModel.normalizeWorkflowDefinitionForProcessType
+  const setTopicSourceNode = workflowTemplateModel.setTopicSourceProjectNodeKey
+  assert.equal(typeof normalizeForType, 'function')
+  assert.equal(typeof setTopicSourceNode, 'function')
+  if (typeof normalizeForType !== 'function' || typeof setTopicSourceNode !== 'function') return
+
+  const legacyTopic = normalizeForType({ schemaVersion: 1, nodes }, 'topic-management')
+  assert.equal(legacyTopic.sourceProjectNodeKey, 'develop')
+
+  const configuredTopic = normalizeForType({
+    schemaVersion: 2,
+    sourceProjectNodeKey: 'delivery-gate',
+    nodes: [{ key: 'topic-stage', name: '需求调研', fields: [], contentOrder: [] }],
+  }, 'topic-management')
+  assert.equal(configuredTopic.sourceProjectNodeKey, 'delivery-gate')
+  assert.equal(normalizeForType({ schemaVersion: 1, sourceProjectNodeKey: 'custom-legacy', nodes }, 'topic-management').sourceProjectNodeKey, 'custom-legacy')
+
+  const changedTopic = setTopicSourceNode(configuredTopic, 'release-gate')
+  assert.equal(changedTopic.sourceProjectNodeKey, 'release-gate')
+  assert.equal(configuredTopic.sourceProjectNodeKey, 'delivery-gate')
+
+  const storyDefinition = normalizeForType({ schemaVersion: 1, nodes }, 'story-management')
+  assert.equal(Object.hasOwn(storyDefinition, 'sourceProjectNodeKey'), false)
+  const storyWithStaleTopicBinding = normalizeForType({
+    schemaVersion: 1,
+    sourceProjectNodeKey: 'topic-only-key',
+    nodes,
+  }, 'story-management')
+  assert.equal(Object.hasOwn(storyWithStaleTopicBinding, 'sourceProjectNodeKey'), false)
+})
+
 test('builds a process type request without asking the client to generate an internal code', () => {
   const buildPayload = workflowTemplateModel.buildProjectTypeCreatePayload
   assert.equal(typeof buildPayload, 'function')
@@ -153,7 +185,7 @@ test('new templates normalize the persisted base definition rather than discarde
 
   assert.ok(handler)
   assert.ok(handler.indexOf('confirmDiscard') < handler.indexOf('getWorkflowTemplate(base.id)'))
-  assert.match(handler, /normalizeWorkflowDefinition\(baseTemplate\.definition\)\.nodes/)
+  assert.match(handler, /baseDefinition = normalizeWorkflowDefinitionForProcessType\(baseTemplate\.definition,\s*selectedType\.value\?\.code\)/)
   assert.doesNotMatch(handler, /structuredClone\(toRaw\(definition\.value\.nodes\)\)/)
 })
 

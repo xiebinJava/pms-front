@@ -1157,7 +1157,7 @@ onBeforeUnmount(() => {
       {{ $t('detail.loadRetry') }}
     </a-button>
   </div>
-  <div v-else-if="project" class="project-detail-page pms-page-stack">
+  <div v-else-if="project" class="project-detail-page pms-detail-page pms-page-stack">
     <div class="detail-breadcrumb">
       <span class="detail-breadcrumb__back" @click="router.push('/projects')">
         <ArrowLeftOutlined /> {{ $t('detail.breadcrumbList') }}
@@ -1577,28 +1577,9 @@ onBeforeUnmount(() => {
 .detail-breadcrumb__back:hover { color: var(--pms-primary); }
 .detail-breadcrumb__separator { color: var(--pms-text-faint); }
 .project-header {
-  --pms-primary: #1769e0;
-  --pms-primary-dark: #1258bf;
-  --pms-primary-soft: #eaf2ff;
-  --pms-bg: #f5f7fb;
-  --pms-surface-muted: #f8faff;
-  --pms-text: #17243b;
-  --pms-text-muted: #5d6d85;
-  --pms-text-faint: #8997aa;
-  --pms-border: #e5eaf2;
-  --pms-border-strong: #d7dfeb;
-  --pms-success: #21a366;
-  --pms-success-soft: #eaf8f0;
-  --pms-warning: #b9680c;
-  --pms-warning-soft: #fff5e8;
-  --pms-status-active: #ef8e1b;
-  --pms-danger: #d95b58;
-  --pms-danger-soft: #fff0ef;
-  --pms-shadow-sm: 0 1px 2px rgb(31 54 92 / 4%), 0 8px 20px rgb(31 54 92 / 4%);
-  --pms-shadow-interactive: 0 5px 12px rgb(23 105 224 / 20%);
   padding: 24px 26px 19px;
-  border-radius: 14px;
-  box-shadow: 0 12px 28px rgb(31 54 92 / 7%);
+  border-radius: var(--pms-detail-radius);
+  box-shadow: var(--pms-detail-shadow);
 }
 .project-header__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
 .project-header__meta, .project-header__insights { display: flex; align-items: baseline; justify-content: flex-start; }
@@ -1612,17 +1593,17 @@ onBeforeUnmount(() => {
 .project-header__meta { flex-wrap: wrap; gap: 9px 25px; min-width: 0; margin-top: 13px; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); }
 .project-header__meta-item { display: flex; align-items: baseline; min-width: 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); white-space: nowrap; }
 .project-header__meta-item > span { flex: 0 0 auto; }
-.project-header__meta-item strong { min-width: 0; overflow: hidden; color: #3d4b63; font-weight: 650; text-overflow: ellipsis; }
+.project-header__meta-item strong { min-width: 0; overflow: hidden; color: var(--pms-text-strong); font-weight: 650; text-overflow: ellipsis; }
 .project-header__meta-item--wide { flex: 0 1 auto; max-width: min(100%, 620px); }
-.project-header__meta-item--divider { padding-right: 20px; border-right: 1px solid #e8edf4; }
+.project-header__meta-item--divider { padding-right: 20px; border-right: 1px solid var(--pms-border-soft); }
 .project-header__insights { gap: 24px; margin-top: 19px; padding-top: 17px; border-top: 1px solid var(--pms-border); }
 .project-header__insight { display: flex; align-items: baseline; min-width: 0; gap: 8px; }
 .project-header__insight > span { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
-.project-header__insight > strong { color: #31415b; font-size: 14px; font-weight: 720; }
+.project-header__insight > strong { color: var(--pms-text-strong); font-size: 14px; font-weight: 720; }
 .project-header__insight small { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
 .project-header__insight-details { display: inline-flex; flex-wrap: wrap; align-items: baseline; min-width: 0; gap: 4px 8px; }
 .project-header__insight-submetric { color: var(--pms-text-muted); font-weight: 400; }
-.project-header__insight-submetric-value { margin-left: 4px; color: #31415b; font-weight: 720; }
+.project-header__insight-submetric-value { margin-left: 4px; color: var(--pms-text-strong); font-weight: 720; }
 .project-header__insight-task-count { margin-left: 4px; font-weight: 400; }
 .node-detail-title__dot { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 20px; height: 20px; color: #fff; font-size: var(--pms-font-size-compact); border-radius: 6px; }
 .node-detail-title__dot--1 { background: var(--pms-status-active); }

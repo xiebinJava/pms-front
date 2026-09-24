@@ -5,18 +5,17 @@ import { useI18n } from 'vue-i18n'
 import { message, Modal } from 'ant-design-vue'
 import { ArrowLeftOutlined, FolderOpenOutlined, InfoCircleOutlined } from '@ant-design/icons-vue'
 import { getDevelopmentItemWorkflow, updateDevelopmentItemNode, completeDevelopmentItemNode } from '/@/api/development-item'
-import { getMembers } from '/@/api/member'
 import type {
   DevelopmentItemType,
   DevelopmentItemWorkflowDetail,
   DevelopmentItemWorkflowNode,
-  ProjectMember,
 } from '/@/types/domain'
 import type { PersonOption } from '/@/views/project/detail/workflow'
 import PersonSelect from '/@/views/project/detail/components/PersonSelect.vue'
 import DevelopmentItemFlow from './components/DevelopmentItemFlow.vue'
 import DevelopmentItemWorkflowFields from './components/DevelopmentItemWorkflowFields.vue'
 import DevelopmentItemTaskBoard from './components/DevelopmentItemTaskBoard.vue'
+import TopicStorySection from './TopicStorySection.vue'
 import { isNodeReadOnly, shouldAutoSaveProfile } from '/@/views/project/detail/workflow'
 import { shouldAutoSaveOnBlur } from '/@/views/project/detail/workflow-config.mjs'
 
@@ -43,17 +42,13 @@ const nodeForm = reactive({ ownerId: undefined as number | undefined, startDate:
 const nodeFieldsContainer = ref<HTMLElement | null>(null)
 let nodeFormEditRevision = 0
 let activeNodeSave: Promise<boolean> | null = null
+let queuedNodeSave = false
 
 function onScheduleChange(_dates: unknown, dateStrings: string[]) {
   nodeForm.startDate = dateStrings[0] || ''
   nodeForm.endDate = dateStrings[1] || ''
   markNodeFormDirty()
   void saveNode()
-}
-
-function personOption(member: ProjectMember): PersonOption {
-  const label = member.displayName || member.nickname || member.username || member.email || String(member.userId)
-  return { value: member.userId, label, avatar: member.avatar }
 }
 
 function setSelectedNode(node?: DevelopmentItemWorkflowNode) {
@@ -63,6 +58,26 @@ function setSelectedNode(node?: DevelopmentItemWorkflowNode) {
   nodeForm.endDate = node?.endDate || ''
   nodeForm.fieldValues = { ...(node?.fieldValues || {}) }
   nodeFormDirty.value = false
+}
+
+function collectDetailPeople(workflow: DevelopmentItemWorkflowDetail): PersonOption[] {
+  const options = new Map<number, PersonOption>()
+  const add = (id?: number, label?: string) => {
+    if (id == null || !label) return
+    options.set(id, { value: id, label })
+  }
+  const addTasks = (tasks: DevelopmentItemWorkflowNode['tasks']) => {
+    tasks.forEach((task) => {
+      add(task.assigneeId, task.assigneeName)
+      addTasks(task.children || [])
+    })
+  }
+  add(workflow.ownerId, workflow.ownerName)
+  workflow.nodes.forEach((node) => {
+    add(node.ownerId, node.ownerName)
+    addTasks(node.tasks || [])
+  })
+  return Array.from(options.values())
 }
 
 function markNodeFormDirty() {
@@ -120,11 +135,7 @@ async function loadData() {
     const result = await getDevelopmentItemWorkflow(props.itemType, id)
     detail.value = result
     setSelectedNode(result.nodes.find((node) => node.status === 1) || result.nodes[0])
-    try {
-      members.value = (await getMembers(result.projectId)).map(personOption)
-    } catch {
-      members.value = []
-    }
+    members.value = collectDetailPeople(result)
   } catch (error) {
     loadError.value = true
     message.error(errorMessage(error, t('developmentDetail.loadFailed')))
@@ -156,7 +167,7 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 function openSource() {
-  if (!detail.value) return
+  if (!detail.value || detail.value.projectId == null || detail.value.sourceNodeId == null) return
   void router.push({ path: `/projects/${detail.value.projectId}`, query: { node: String(detail.value.sourceNodeId) } })
 }
 
@@ -165,7 +176,10 @@ function openTopic() {
 }
 
 function saveNode(): Promise<boolean> {
-  if (activeNodeSave) return activeNodeSave
+  if (activeNodeSave) {
+    queuedNodeSave = true
+    return activeNodeSave
+  }
   if (!nodeFormDirty.value) return Promise.resolve(true)
   const node = selectedNode.value
   if (!detail.value || !node || isNodeReadOnly(node.status)) return Promise.resolve(false)
@@ -201,6 +215,10 @@ function saveNode(): Promise<boolean> {
     } finally {
       savingNode.value = false
       if (activeNodeSave === request) activeNodeSave = null
+      if (queuedNodeSave) {
+        queuedNodeSave = false
+        if (nodeFormDirty.value) void saveNode()
+      }
     }
   })()
   activeNodeSave = request
@@ -252,7 +270,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="development-item-detail project-detail-root">
+  <div class="development-item-detail project-detail-root pms-detail-page">
     <a-spin :spinning="loading">
       <div class="project-detail-page pms-page-stack">
         <div class="detail-breadcrumb">
@@ -283,10 +301,13 @@ onBeforeUnmount(() => {
                 <span>{{ t('developmentDetail.owner') }}：</span><strong>{{ detail.ownerName || t('common.unset') }}</strong>
               </div>
               <div class="project-header__meta-item project-header__meta-item--wide">
-                <FolderOpenOutlined />
-                <button type="button" class="development-item-detail__context-link" @click="openSource">{{ detail.projectName || t('common.unset') }}</button>
-                <span class="development-item-detail__context-separator">/</span>
-                <button type="button" class="development-item-detail__context-link" @click="openSource">{{ detail.sourceNodeName || t('common.unset') }}</button>
+                <template v-if="detail.projectId != null && detail.sourceNodeId != null">
+                  <FolderOpenOutlined />
+                  <button type="button" class="development-item-detail__context-link" @click="openSource">{{ detail.projectName || t('common.unset') }}</button>
+                  <span class="development-item-detail__context-separator">/</span>
+                  <button type="button" class="development-item-detail__context-link" @click="openSource">{{ detail.sourceNodeName || t('common.unset') }}</button>
+                </template>
+                <span v-else class="development-item-detail__context-unbound">{{ t('developmentList.unboundProject') }}</span>
                 <template v-if="props.itemType === 'story' && detail.topicId">
                   <span class="development-item-detail__context-separator">/</span>
                   <button type="button" class="development-item-detail__context-link" @click="openTopic">{{ detail.topicTitle || t('developmentDetail.topicTitle') }}</button>
@@ -356,7 +377,7 @@ onBeforeUnmount(() => {
                     v-model="nodeForm.ownerId"
                     class="node-owner-row__select"
                     :options="members"
-                    :remote-search="false"
+                    :remote-search="true"
                     allow-clear
                     :placeholder="t('developmentDetail.assigneePlaceholder')"
                     :disabled="savingNode"
@@ -406,6 +427,7 @@ onBeforeUnmount(() => {
               <div v-if="detail.blocker"><span>{{ t('developmentDetail.blocker') }}</span><strong>{{ detail.blocker }}</strong></div>
             </div>
           </section>
+          <TopicStorySection v-if="props.itemType === 'topic'" :topic-id="detail.id" />
         </template>
       </div>
     </a-spin>
@@ -414,7 +436,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .development-item-detail { min-width: 0; }
-.development-item-detail__summary { --pms-primary: #1769e0; --pms-primary-dark: #1258bf; --pms-primary-soft: #eaf2ff; --pms-surface-muted: #f8faff; --pms-text: #17243b; --pms-text-muted: #5d6d85; --pms-text-faint: #8997aa; --pms-border: #e5eaf2; --pms-border-strong: #d7dfeb; --pms-success: #21a366; --pms-warning: #b9680c; --pms-status-active: #ef8e1b; --pms-danger: #d95b58; --pms-shadow-sm: 0 1px 2px rgb(31 54 92 / 4%), 0 8px 20px rgb(31 54 92 / 4%); --pms-shadow-interactive: 0 5px 12px rgb(23 105 224 / 20%); padding: 24px 26px 19px; border-radius: 14px; box-shadow: 0 12px 28px rgb(31 54 92 / 7%); }
+.development-item-detail__summary { padding: 24px 26px 19px; border-radius: var(--pms-detail-radius); box-shadow: var(--pms-detail-shadow); }
 .project-header__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
 .project-header__identity { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; min-width: 0; }
 .project-header__identity h1 { overflow: hidden; margin: 0; color: var(--pms-text); font-size: 24px; font-weight: 720; letter-spacing: -.02em; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
@@ -422,17 +444,17 @@ onBeforeUnmount(() => {
 .project-header__meta { flex-wrap: wrap; gap: 9px 25px; min-width: 0; margin-top: 13px; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); }
 .project-header__meta-item { display: flex; align-items: baseline; min-width: 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); white-space: nowrap; }
 .project-header__meta-item > span { flex: 0 0 auto; }
-.project-header__meta-item strong { min-width: 0; overflow: hidden; color: #3d4b63; font-weight: 650; text-overflow: ellipsis; }
-.project-header__meta-item--wide { flex: 0 1 auto; max-width: min(100%, 720px); }
-.project-header__meta-item--divider { padding-right: 20px; border-right: 1px solid #e8edf4; }
+.project-header__meta-item strong { min-width: 0; overflow: hidden; color: var(--pms-text-strong); font-weight: 650; text-overflow: ellipsis; }
+.project-header__meta-item--wide { flex: 0 1 auto; max-width: min(100%, 620px); }
+.project-header__meta-item--divider { padding-right: 20px; border-right: 1px solid var(--pms-border-soft); }
 .development-item-detail__context { align-items: center; gap: 7px; }
 .development-item-detail__context-link { padding: 0; border: 0; background: none; color: var(--pms-primary); cursor: pointer; }
 .development-item-detail__context-link:hover { text-decoration: underline; }
 .development-item-detail__context-separator { color: var(--pms-text-faint); }
-.project-header__insights { align-items: center; flex-wrap: wrap; gap: 16px 28px; margin-top: 19px; padding-top: 17px; border-top: 1px solid var(--pms-border); }
+.project-header__insights { align-items: center; flex-wrap: wrap; gap: 24px; margin-top: 19px; padding-top: 17px; border-top: 1px solid var(--pms-border); }
 .project-header__insight { display: flex; align-items: baseline; min-width: 0; gap: 8px; }
 .project-header__insight > span { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
-.project-header__insight > strong { color: #31415b; font-size: 14px; font-weight: 720; }
+.project-header__insight > strong { color: var(--pms-text-strong); font-size: 14px; font-weight: 720; }
 .development-item-detail__progress { display: grid; grid-template-columns: auto auto; align-items: center; gap: 4px 9px; }
 .development-item-detail__progress :deep(.ant-progress) { grid-column: 1 / -1; width: min(260px, 40vw); margin: 0; }
 .development-item-detail__unconfigured { border-radius: 8px; }
@@ -452,14 +474,14 @@ onBeforeUnmount(() => {
 .node-detail-title__dot--2 { background: var(--pms-success); }
     .node-detail-title__description { max-width: 100%; margin: 4px 0 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-normal); }
 .development-item-detail__deliverable { margin: 7px 0 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-normal); }
-.node-assignment-row { display: flex; align-items: flex-end; gap: 18px; margin-top: 14px; }
+.node-assignment-row { display: flex; align-items: flex-end; gap: 24px; margin-top: 16px; }
 .node-owner-row { display: flex; align-items: center; flex: 1 1 0; gap: 12px; width: auto; min-width: 0; min-height: 58px; padding: 10px 12px; background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: 8px; }
 .node-owner-row__label { flex: 0 0 76px; color: var(--pms-text-muted); font-size: var(--pms-font-size-body); }
 .node-owner-row__control { display: flex; flex: 1 1 auto; align-items: center; gap: 8px; width: auto; min-width: 0; }
 .node-owner-row__control strong { color: var(--pms-text); font-weight: 600; }
 .node-owner-row__select { width: 100%; }
 .node-schedule-row { margin-top: 0; }
-.node-schedule-picker { width: min(100%, 380px); }
+.node-schedule-picker { width: min(100%, 360px); }
 .development-item-detail__task-section { margin-top: 14px; padding-top: 17px; border-top: 1px solid var(--pms-border); }
 .development-item-detail__info-grid { display: flex; flex-wrap: wrap; gap: 10px 28px; }
 .development-item-detail__info-grid > div { display: grid; gap: 3px; }

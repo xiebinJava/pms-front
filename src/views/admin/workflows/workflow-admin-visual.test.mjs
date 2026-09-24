@@ -14,6 +14,29 @@ test('workflow template typography only uses documented readable type sizes', ()
   assert.ok(sizes.every((size) => /^var\(--pms-font-size-(?:caption|compact|body|nav|section|title|display)\)$/.test(size)), `unexpected font sizes: ${sizes.join(', ')}`)
 })
 
+test('topic templates select a backend project-node binding and explain runtime component injection', () => {
+  const api = fs.readFileSync(new URL('../../../api/admin-workflow.ts', import.meta.url), 'utf8')
+  const types = fs.readFileSync(new URL('../../../types/workflow.ts', import.meta.url), 'utf8')
+  const zhLocale = fs.readFileSync(new URL('../../../locales/zh-CN.ts', import.meta.url), 'utf8')
+  const enLocale = fs.readFileSync(new URL('../../../locales/en-US.ts', import.meta.url), 'utf8')
+
+  assert.match(api, /getWorkflowProjectNodeOptions[\s\S]*?\/admin\/workflow-config\/project-node-options/)
+  assert.match(types, /interface WorkflowProjectNodeOption\s*\{\s*key:\s*string\s*name:\s*string/s)
+  assert.match(types, /interface WorkflowTemplateDefinitionV1\s*\{[^}]*sourceProjectNodeKey\?:\s*string/s)
+  assert.match(types, /interface WorkflowTemplateDefinitionV2\s*\{[^}]*sourceProjectNodeKey\?:\s*string/s)
+  assert.match(source, /normalizeWorkflowDefinitionForProcessType\(template\.definition,\s*selectedType\.value\?\.code\)/)
+  assert.match(source, /getWorkflowProjectNodeOptions\(\)/)
+  assert.match(template, /v-if="selectedType\?\.code === 'topic-management'"/)
+  assert.match(template, /:value="definition\.sourceProjectNodeKey"[\s\S]*?@change="updateTopicSourceProjectNodeKey"/)
+  assert.match(template, /:options="workflowProjectNodeOptions\.map\(\(option\) => \(\{ value: option\.key, label: option\.name \}\)\)"/)
+  assert.match(template, /:aria-label="\$t\('admin\.workflow\.topicSourceProjectNodeKey'\)"/)
+  assert.match(source, /setTopicSourceProjectNodeKey\(definition\.value,\s*String\(value \|\| ''\)\)/)
+  assert.match(zhLocale, /topicSourceProjectNodeKey/)
+  assert.match(enLocale, /topicSourceProjectNodeKey/)
+  assert.match(zhLocale, /发布后会在该项目节点自动加入“开发与迭代控制”工作台/)
+  assert.match(enLocale, /automatically adds the Development and Iteration Control workspace/)
+})
+
 test('workflow layout spacing comes from the documented PMS spacing scale', () => {
   assert.deepEqual(designTokens.spacing, { 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32 })
   const spacingValues = [...style.matchAll(/(?:^|[;{}])\s*(?:gap|row-gap|column-gap|margin(?:-[a-z]+)?|padding(?:-[a-z]+)?)\s*:\s*([^;{}]+)/gm)]
@@ -97,9 +120,9 @@ test('designer fields and inspector adapt to mobile widths', () => {
 })
 
 test('workflow editor normalizes legacy definitions before editing and persists schema v2', () => {
-  assert.match(source, /import\s*\{[^}]*normalizeWorkflowDefinition[^}]*\}\s*from '\.\/workflow-template-schema\.mjs'/)
-  assert.match(source, /definition\.value = normalizeWorkflowDefinition\(template\.definition\)/)
-  assert.match(source, /normalizeWorkflowDefinition\(baseTemplate\.definition\)/)
+  assert.match(source, /import\s*\{[^}]*normalizeWorkflowDefinitionForProcessType[^}]*\}\s*from '\.\/workflow-template-model\.mjs'/)
+  assert.match(source, /definition\.value = normalizeWorkflowDefinitionForProcessType\(template\.definition,\s*selectedType\.value\?\.code\)/)
+  assert.match(source, /baseDefinition = normalizeWorkflowDefinitionForProcessType\(baseTemplate\.definition,\s*selectedType\.value\?\.code\)/)
   assert.match(source, /const definition = ref<WorkflowTemplateDefinitionV2>\(\{ schemaVersion: 2, nodes: \[\] \}\)/)
   assert.match(source, /definition:\s*JSON\.parse\(JSON\.stringify\(definition\.value\)\)/)
 })

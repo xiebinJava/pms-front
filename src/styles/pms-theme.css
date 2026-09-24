@@ -1212,6 +1212,31 @@ body { font-family: var(--pms-font-family); background: var(--pms-bg); }
 .pms-admin-table .ant-btn-link.ant-btn-dangerous:hover { color: var(--pms-danger); background: var(--pms-danger-soft); }
 
 /* Detail page anatomy */
+.pms-detail-page {
+  /* Keep project, topic, and story details on one visual palette. */
+  --pms-primary: #1769e0;
+  --pms-primary-dark: #1258bf;
+  --pms-primary-soft: #eaf2ff;
+  --pms-bg: #f5f7fb;
+  --pms-surface-muted: #f8faff;
+  --pms-text: #17243b;
+  --pms-text-muted: #5d6d85;
+  --pms-text-faint: #8997aa;
+  --pms-text-strong: #3d4b63;
+  --pms-border: #e5eaf2;
+  --pms-border-strong: #d7dfeb;
+  --pms-border-soft: #e8edf4;
+  --pms-success: #21a366;
+  --pms-success-soft: #eaf8f0;
+  --pms-warning: #b9680c;
+  --pms-warning-soft: #fff5e8;
+  --pms-status-active: #ef8e1b;
+  --pms-danger: #d95b58;
+  --pms-danger-soft: #fff0ef;
+  --pms-detail-radius: 14px;
+  --pms-detail-shadow: 0 12px 28px rgb(31 54 92 / 7%);
+}
+
 .pms-detail-hero,
 .pms-section-panel {
   border-radius: 9px;

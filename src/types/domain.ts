@@ -343,6 +343,7 @@ export interface NodeDevelopmentControl {
   version?: number
   currentIteration?: string
   canEdit: boolean
+  topicCreationAllowed: boolean
   updatedAt?: string
   summary: NodeDevelopmentSummary
   topics: NodeDevelopmentTopic[]
@@ -415,12 +416,12 @@ export interface DevelopmentItemWorkflowDetail {
   itemType: DevelopmentItemType
   id: number
   title: string
-  projectId: number
+  projectId: number | null
   projectCode?: string
   projectName?: string
-  sourceNodeId: number
+  sourceNodeId: number | null
   sourceNodeName?: string
-  topicId?: number
+  topicId: number | null
   topicTitle?: string
   ownerId?: number
   ownerName?: string

@@ -67,14 +67,14 @@ function statusKey(status: number) {
 <style scoped>
 .flow-card { min-width: 0; }
 .section-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.section-title-row h2 { margin: 0; color: var(--pms-text); font-size: var(--pms-font-size-section); font-weight: 600; line-height: var(--pms-line-height-tight); }
+.section-title-row h2 { margin: 0; color: var(--pms-text); font-size: 16px; font-weight: 730; line-height: var(--pms-line-height-tight); }
 .section-title-row p { margin: 5px 0 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
 .flow-count { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; padding: 5px 9px; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); background: var(--pms-surface-muted); border-radius: 6px; }
 .flow-navigator { overflow-x: auto; padding: 4px 0 13px; scrollbar-width: thin; }
 .flow-navigator__hint { display: flex; justify-content: flex-end; padding: 0 8px; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
 .flow-track { display: flex; align-items: center; min-width: max-content; padding: 10px 4px 5px; }
 .flow-track__item { display: inline-flex; align-items: center; }
-.flow-node { display: inline-flex; align-items: center; gap: 9px; min-width: 205px; max-width: 260px; padding: 10px 14px 10px 11px; color: var(--pms-text); text-align: left; background: var(--pms-surface); border: 1px solid var(--pms-border-strong); border-radius: 7px; box-shadow: var(--pms-shadow-sm); cursor: pointer; transition: border-color var(--pms-motion-fast) ease, box-shadow var(--pms-motion-fast) ease, transform var(--pms-motion-fast) ease; }
+.flow-node { display: inline-flex; align-items: center; gap: 9px; min-width: 148px; padding: 10px 14px 10px 11px; color: var(--pms-text); text-align: left; background: var(--pms-surface); border: 1px solid var(--pms-border-strong); border-radius: 7px; box-shadow: var(--pms-shadow-sm); cursor: pointer; transition: border-color var(--pms-motion-fast) ease, box-shadow var(--pms-motion-fast) ease, transform var(--pms-motion-fast) ease; }
 .flow-node:hover { border-color: var(--pms-primary); box-shadow: var(--pms-shadow-interactive); transform: translateY(-1px); }
 .flow-node--selected { border-color: var(--pms-primary); background: var(--pms-primary-soft); box-shadow: 0 0 0 3px var(--pms-primary-soft), var(--pms-shadow-sm); }
 .flow-node--completed .flow-node__dot { color: var(--pms-success); background: var(--pms-success-soft); border-color: color-mix(in srgb, var(--pms-success) 30%, var(--pms-border)); }

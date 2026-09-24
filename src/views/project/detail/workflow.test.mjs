@@ -239,11 +239,13 @@ test('workflow cards show the node owner and deadline without removing click nav
 
 test('project detail surfaces follow the compact governance demo visual language', () => {
   const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
-  assert.match(detail, /--pms-primary:\s*#1769e0/)
-  assert.match(detail, /--pms-text:\s*#17243b/)
+  const theme = fs.readFileSync(path.join(process.cwd(), 'src/styles/pms-theme.css'), 'utf8')
+  assert.match(detail, /class="project-detail-page pms-detail-page pms-page-stack"/)
+  assert.match(theme, /\.pms-detail-page\s*\{[\s\S]*--pms-primary:\s*#1769e0/)
+  assert.match(theme, /\.pms-detail-page\s*\{[\s\S]*--pms-text:\s*#17243b/)
   assert.match(detail, /\.project-header\s*\{[^}]*padding:\s*24px 26px 19px/)
-  assert.match(detail, /\.project-header\s*\{[^}]*border-radius:\s*14px/)
-  assert.match(detail, /\.project-header\s*\{[^}]*box-shadow:\s*0 12px 28px/)
+  assert.match(detail, /\.project-header\s*\{[^}]*border-radius:\s*var\(--pms-detail-radius\)/)
+  assert.match(detail, /\.project-header\s*\{[^}]*box-shadow:\s*var\(--pms-detail-shadow\)/)
   assert.match(detail, /project-header__meta-item--divider/)
   assert.match(detail, /\.project-header__insights\s*\{[^}]*margin-top:\s*19px/)
 })

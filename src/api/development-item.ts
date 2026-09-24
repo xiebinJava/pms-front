@@ -20,13 +20,25 @@ export interface DevelopmentItemPageParams {
   status?: string
 }
 
+export interface DevelopmentTopicPageParams extends DevelopmentItemPageParams {
+  deleted?: boolean
+}
+
+export interface DevelopmentTopicProjectOption {
+  projectId: number
+  projectCode?: string
+  projectName: string
+  nodeKey: string
+  nodeName: string
+}
+
 export interface DevelopmentTopicRow {
   id: number
   title: string
-  projectId: number
+  projectId: number | null
   projectCode?: string
   projectName?: string
-  nodeId: number
+  nodeId: number | null
   nodeKey?: string
   nodeName?: string
   ownerId?: number
@@ -47,13 +59,13 @@ export interface DevelopmentTopicRow {
 export interface DevelopmentStoryRow {
   id: number
   title: string
-  projectId: number
+  projectId: number | null
   projectCode?: string
   projectName?: string
-  nodeId: number
+  nodeId: number | null
   nodeKey?: string
   nodeName?: string
-  topicId?: number
+  topicId: number | null
   topicTitle?: string
   ownerId?: number
   ownerName?: string
@@ -69,12 +81,84 @@ export interface DevelopmentStoryRow {
   blocker?: string
 }
 
-export function getDevelopmentTopicPage(params: DevelopmentItemPageParams): Promise<PageResult<DevelopmentTopicRow>> {
+export interface DevelopmentTopicStory {
+  id: number
+  title: string
+  ownerId?: number
+  ownerName?: string
+  status: DevelopmentStoryStatus
+  progress: number
+  storyPoints?: number
+  startDate?: string
+  dueDate?: string
+  blocker?: string
+  sort?: number
+}
+
+export function getDevelopmentTopicPage(params: DevelopmentTopicPageParams): Promise<PageResult<DevelopmentTopicRow>> {
   return http.post('/development/topics/page', params)
+}
+
+export function createDevelopmentTopic(payload: { title: string; ownerId?: number | null; projectId: number | null }): Promise<number> {
+  return http.post('/development/topics', payload)
+}
+
+export function updateDevelopmentTopic(id: number, payload: { title: string; ownerId?: number | null; projectId: number | null }): Promise<void> {
+  return http.put(`/development/topics/${id}`, payload)
+}
+
+export function deleteDevelopmentTopic(id: number): Promise<void> {
+  return http.delete(`/development/topics/${id}`)
+}
+
+export function restoreDevelopmentTopic(id: number): Promise<void> {
+  return http.post(`/development/topics/${id}/restore`)
+}
+
+export function getDevelopmentTopicProjectOptions(params: {
+  currPage: number
+  pageSize: number
+  keyword?: string
+}): Promise<PageResult<DevelopmentTopicProjectOption>> {
+  return http.post('/development/topics/projects/page', params)
 }
 
 export function getDevelopmentStoryPage(params: DevelopmentItemPageParams): Promise<PageResult<DevelopmentStoryRow>> {
   return http.post('/development/stories/page', params)
+}
+
+export function createDevelopmentStory(payload: {
+  topicId: number | null
+  title: string
+  ownerId?: number | null
+  status?: DevelopmentStoryStatus
+  progress?: number
+  storyPoints?: number
+  startDate?: string
+  dueDate?: string
+  blocker?: string
+  sort?: number
+}): Promise<number> {
+  return http.post('/development/stories', payload)
+}
+
+export function updateDevelopmentStory(id: number, payload: {
+  topicId: number | null
+  title: string
+  ownerId?: number | null
+  status?: DevelopmentStoryStatus
+  progress?: number
+  storyPoints?: number
+  startDate?: string
+  dueDate?: string
+  blocker?: string
+  sort?: number
+}): Promise<void> {
+  return http.put(`/development/stories/${id}`, payload)
+}
+
+export function getDevelopmentTopicStories(topicId: number): Promise<DevelopmentTopicStory[]> {
+  return http.get(`/development/topics/${topicId}/stories`)
 }
 
 export function getDevelopmentItemWorkflow(

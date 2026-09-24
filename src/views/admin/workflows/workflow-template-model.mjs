@@ -1,4 +1,7 @@
+import { normalizeWorkflowDefinition } from './workflow-template-schema.mjs'
+
 export const FIXED_NODE_BLOCKS = Object.freeze(['owner', 'schedule', 'task-board'])
+export const LEGACY_TOPIC_SOURCE_PROJECT_NODE_KEY = 'develop'
 
 export const DEFAULT_PROJECT_BASIC_INFO_FIELDS = Object.freeze([
   { key: 'description', label: '项目描述', visible: true, required: true },
@@ -44,6 +47,20 @@ export function createUniqueWorkflowKey(existingKeys, requestedKey, fallback = '
   let index = 2
   while (used.has(key)) key = `${base}-${index++}`
   return key
+}
+
+export function normalizeWorkflowDefinitionForProcessType(definition, processTypeCode) {
+  const normalized = normalizeWorkflowDefinition(definition)
+  if (processTypeCode !== 'topic-management') {
+    const { sourceProjectNodeKey: _topicOnlyBinding, ...otherDefinition } = normalized
+    return otherDefinition
+  }
+  if (normalized.sourceProjectNodeKey?.trim()) return normalized
+  return { ...normalized, sourceProjectNodeKey: LEGACY_TOPIC_SOURCE_PROJECT_NODE_KEY }
+}
+
+export function setTopicSourceProjectNodeKey(definition, nodeKey) {
+  return { ...definition, sourceProjectNodeKey: String(nodeKey || '').trim() }
 }
 
 function moveByKey(items, key, toIndex) {

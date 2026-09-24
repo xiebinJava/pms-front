@@ -187,3 +187,21 @@ test('mounts the development tree inside the develop node detail', () => {
   assert.doesNotMatch(workbench, /placeholder="阻塞原因（可选）"/)
   assert.doesNotMatch(workbench, /当前暂无阻塞事项/)
 })
+
+test('keeps the development tree as the only visible workbench panel', () => {
+  const workbench = fs.readFileSync(path.join(path.resolve(import.meta.dirname), 'components/DevelopmentControlWorkbench.vue'), 'utf8')
+
+  assert.match(workbench, /项目开发树/)
+  assert.match(workbench, /点击专题展开故事/)
+  assert.match(workbench, /development-control__layout \{ display: block; \}/)
+  assert.doesNotMatch(workbench, /专题详情/)
+  assert.doesNotMatch(workbench, /development-control__detail-panel/)
+})
+
+test('only allows creating topics on the currently configured host node', () => {
+  const workbench = fs.readFileSync(path.join(path.resolve(import.meta.dirname), 'components/DevelopmentControlWorkbench.vue'), 'utf8')
+  const addTopicButtons = workbench.match(/v-if="editable && state\.topicCreationAllowed"[^>]*>[^<]*新增专题/g) || []
+
+  assert.equal(addTopicButtons.length, 2)
+  assert.match(workbench, /新增专题请前往当前配置节点；此处仅可维护已有专题。/)
+})

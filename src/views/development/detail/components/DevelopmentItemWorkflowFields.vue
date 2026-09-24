@@ -54,7 +54,7 @@ function setRadioValue(key: string, event: { target?: { value?: unknown } }) {
 </script>
 
 <template>
-  <section v-if="visibleFields.length" class="development-item-fields">
+  <section v-if="visibleFields.length" class="development-item-fields node-tab-profile">
     <div class="development-item-fields__grid">
       <div
         v-for="field in visibleFields"
@@ -163,11 +163,11 @@ function setRadioValue(key: string, event: { target?: { value?: unknown } }) {
 </template>
 
 <style scoped>
-.development-item-fields { margin-top: 20px; padding: 18px 0 2px; border-top: 1px solid var(--pms-border); }
-.development-item-fields__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; }
-.development-item-fields__field { display: grid; align-content: start; gap: 6px; min-width: 0; color: var(--pms-text); font-size: 12px; }
+.development-item-fields { margin-top: 14px; padding: 16px 18px; background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: 6px; }
+.development-item-fields__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 36px; row-gap: 12px; }
+.development-item-fields__field { display: grid; align-content: start; gap: 6px; min-width: 0; color: var(--pms-text); font-size: var(--pms-font-size-body); }
 .development-item-fields__field--wide { grid-column: 1 / -1; }
-.development-item-fields__field label { color: var(--pms-text-muted); font-weight: 650; }
+.development-item-fields__field label { color: var(--pms-text-muted); font-weight: 680; }
 .development-item-fields__required { padding-left: 3px; color: var(--pms-danger); }
 .development-item-fields__control { width: 100%; }
 .development-item-fields__unsupported { color: var(--pms-text-faint); }

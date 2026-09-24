@@ -29,3 +29,7 @@ test('audit page supports project, result, request filters and detail inspection
   assert.match(source, /diffBefore/)
   assert.doesNotMatch(source, /<pre>/)
 })
+
+test('audit resource filter includes development topics', () => {
+  assert.match(source, /const resourceOptions = \[[^\]]*'DEVELOPMENT_TOPIC'/)
+})

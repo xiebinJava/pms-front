@@ -173,7 +173,7 @@ function taskClass(task: DevelopmentItemTask) {
 
 <template>
   <section class="item-task-board">
-    <div class="item-task-board__heading">
+    <div class="item-task-board__heading pms-section-heading">
       <div>
         <h3>{{ t('developmentDetail.taskBoard') }}</h3>
         <p>{{ t('developmentDetail.taskBoardHint') }}</p>
@@ -255,7 +255,7 @@ function taskClass(task: DevelopmentItemTask) {
             <a-select v-model:value="form.priority"><a-select-option :value="0">{{ t('developmentDetail.priorityLabels.0') }}</a-select-option><a-select-option :value="1">{{ t('developmentDetail.priorityLabels.1') }}</a-select-option><a-select-option :value="2">{{ t('developmentDetail.priorityLabels.2') }}</a-select-option></a-select>
           </a-form-item>
         </div>
-        <a-form-item :label="t('developmentDetail.assignee')"><PersonSelect v-model="form.assigneeId" :options="members" :remote-search="false" allow-clear :placeholder="t('developmentDetail.assigneePlaceholder')" /></a-form-item>
+        <a-form-item :label="t('developmentDetail.assignee')"><PersonSelect v-model="form.assigneeId" :options="members" :remote-search="true" allow-clear :placeholder="t('developmentDetail.assigneePlaceholder')" /></a-form-item>
         <a-form-item :label="t('developmentDetail.dueDate')"><a-input v-model:value="form.dueDate" type="date" /></a-form-item>
       </a-form>
     </a-modal>
@@ -264,8 +264,8 @@ function taskClass(task: DevelopmentItemTask) {
 
 <style scoped>
 .item-task-board { min-width: 0; }
-.item-task-board__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
-.item-task-board__heading h3 { margin: 0; color: var(--pms-text); font-size: var(--pms-font-size-section); font-weight: 700; }
+.item-task-board__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 15px; }
+.item-task-board__heading h3 { margin: 0; color: var(--pms-text); font-size: 16px; font-weight: 730; }
 .item-task-board__heading p { margin: 4px 0 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
 .task-board-shell { display: grid; }
 .task-board { display: grid; grid-template-columns: repeat(3, minmax(240px, 1fr)); align-items: stretch; gap: 12px; overflow-x: auto; }
@@ -273,9 +273,9 @@ function taskClass(task: DevelopmentItemTask) {
 .item-task-board__task { position: relative; min-width: 0; padding: 13px 40px 13px 12px; }
 .item-task-board__task-main,.item-task-board__child { display: flex; align-items: flex-start; gap: 10px; }
 .item-task-board__task-main { display: flex; }
-.item-task-board__check { display: grid; flex: 0 0 20px; place-items: center; width: 20px; height: 20px; margin-top: 2px; padding: 0; border: 1px solid var(--pms-border-strong); border-radius: 50%; background: transparent; color: #fff; font-size: 12px; cursor: pointer; }
+.item-task-board__check { display: grid; flex: 0 0 20px; place-items: center; width: 20px; height: 20px; margin-top: 2px; padding: 0; border: 1px solid var(--pms-border-strong); border-radius: 50%; background: transparent; color: var(--pms-surface); font-size: 12px; cursor: pointer; }
 .item-task-board__check:disabled { cursor: default; }
-.is-done > .item-task-board__task-main > .item-task-board__check,.is-done > .item-task-board__check { border-color: var(--pms-success, #389e0d); background: var(--pms-success, #389e0d); }
+.is-done > .item-task-board__task-main > .item-task-board__check,.is-done > .item-task-board__check { border-color: var(--pms-success); background: var(--pms-success); }
 .item-task-board__task-content { flex: 1; min-width: 0; }
 .item-task-board__task-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .item-task-board__task-title-row strong { color: var(--pms-text); font-size: var(--pms-font-size-body); font-weight: 650; overflow-wrap: anywhere; }

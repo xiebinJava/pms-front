@@ -95,8 +95,12 @@ function normalizeNode(node) {
 export function normalizeWorkflowDefinition(definition) {
   if (definition?.schemaVersion === 2) return clone(definition)
 
-  return {
+  const normalized = {
     schemaVersion: 2,
     nodes: (Array.isArray(definition?.nodes) ? definition.nodes : []).map(normalizeNode),
   }
+  if (typeof definition?.sourceProjectNodeKey === 'string') {
+    normalized.sourceProjectNodeKey = definition.sourceProjectNodeKey
+  }
+  return normalized
 }

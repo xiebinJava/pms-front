@@ -36,7 +36,7 @@ export const referenceDocuments: Record<ReferenceDocumentId, ReferenceDocument> 
     purposeKey: 'manual.references.businessRules.purpose',
     scopeKey: 'manual.references.businessRules.scope',
     sourceKey: 'manual.references.businessRules.source',
-    sections: ['identity', 'organization', 'authorization', 'lifecycle', 'import', 'audit', 'recovery'].map((id) => section('business-rules', id)),
+    sections: ['identity', 'organization', 'authorization', 'lifecycle', 'workflow-templates', 'import', 'audit', 'recovery'].map((id) => section('business-rules', id)),
   },
   'design-system': {
     id: 'design-system',

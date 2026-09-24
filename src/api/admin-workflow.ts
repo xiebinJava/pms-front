@@ -4,6 +4,7 @@ import type {
   WorkflowFieldAttachment,
   WorkflowNodeFieldValues,
   WorkflowNodeFieldValuesSavePayload,
+  WorkflowProjectNodeOption,
   WorkflowTemplate,
   WorkflowTemplateDefinition,
   WorkflowTemplateOptions,
@@ -16,6 +17,10 @@ export function getWorkflowTemplateOptions(): Promise<WorkflowTemplateOptions> {
 
 export function listWorkflowProjectTypes(): Promise<ProjectType[]> {
   return http.get('/admin/workflow-config/project-types')
+}
+
+export function getWorkflowProjectNodeOptions(): Promise<WorkflowProjectNodeOption[]> {
+  return http.get('/admin/workflow-config/project-node-options')
 }
 
 export function createWorkflowProjectType(payload: Pick<ProjectType, 'name' | 'description' | 'sort'>): Promise<ProjectType> {

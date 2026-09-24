@@ -9,6 +9,8 @@ const layoutSource = fs.readFileSync(new URL('../../layout/Index.vue', import.me
 const routerSource = fs.readFileSync(new URL('../../router/index.ts', import.meta.url), 'utf8')
 const docsSource = fs.readFileSync(new URL('../../../docs/user-manual.md', import.meta.url), 'utf8')
 const referenceSource = fs.readFileSync(new URL('./reference.ts', import.meta.url), 'utf8')
+const zhLocaleSource = fs.readFileSync(new URL('../../locales/zh-CN.ts', import.meta.url), 'utf8')
+const enLocaleSource = fs.readFileSync(new URL('../../locales/en-US.ts', import.meta.url), 'utf8')
 const referenceViewSource = fs.readFileSync(new URL('./ReferenceDocument.vue', import.meta.url), 'utf8')
 const businessRulesSource = fs.readFileSync(new URL('./BusinessRules.vue', import.meta.url), 'utf8')
 const designSystemSource = fs.readFileSync(new URL('./DesignSystem.vue', import.meta.url), 'utf8')
@@ -23,6 +25,7 @@ test('user manual exposes the navigation-aligned module catalog', () => {
     'notifications',
     'rd-management',
     'manual.sections.rdManagement',
+    'manual.sections.workflowTemplates',
     'manual.sections.projects',
     'manual.sections.configuration',
     'manual.sections.users',
@@ -33,7 +36,7 @@ test('user manual exposes the navigation-aligned module catalog', () => {
     'manual.sections.feedback',
     'manual.sections.faq',
   ]) {
-    assert.match(viewSource, new RegExp(section))
+    assert.ok(viewSource.includes(section), `manual section ${section} should be registered`)
   }
   assert.match(layoutSource, /\$t\('nav.manual'\)/)
   assert.match(layoutSource, /manual#quick-start/)
@@ -52,6 +55,26 @@ test('user manual exposes the navigation-aligned module catalog', () => {
   assert.match(viewSource, /#design-system': '\/manual\/design-system#principles'/)
   assert.doesNotMatch(viewSource, /id: 'business-rules'/)
   assert.doesNotMatch(viewSource, /id: 'design-system'/)
+})
+
+test('user manuals explain workflow-template setup and topic/story item behavior in both languages', () => {
+  assert.ok(viewSource.includes("id: 'workflow-templates'"), 'workflow templates should have a dedicated manual section')
+  assert.ok(zhLocaleSource.includes("workflowTemplates: {\n        title: '流程模板'"), 'Chinese manual should register workflow templates')
+  assert.ok(enLocaleSource.includes("workflowTemplates: {\n        title: 'Workflow Templates'"), 'English manual should register workflow templates')
+  assert.ok(zhLocaleSource.includes('专题流程模板指定的项目节点'))
+  assert.ok(zhLocaleSource.includes('点击外部自动保存'))
+  assert.ok(zhLocaleSource.includes('故事拆分组件尚未开放'))
+  assert.ok(enLocaleSource.includes('story-splitting component is not available yet'))
+  assert.ok(docsSource.includes('包含专题模板配置挂载节点'))
+})
+
+test('business-rules references define workflow bindings and call out deferred story splitting', () => {
+  assert.ok(referenceSource.includes("'workflow-templates'"))
+  assert.ok(zhLocaleSource.includes("'workflow-templates': {"))
+  assert.ok(enLocaleSource.includes("'workflow-templates': {"))
+  assert.ok(zhLocaleSource.includes('故事拆分组件当前尚未实现'))
+  assert.ok(enLocaleSource.includes('story-breakdown component is not implemented yet'))
+  assert.ok(logicDocsSource.includes('流程模板与工作项绑定'))
 })
 
 test('static directory redirects keep the published host port', () => {
@@ -136,7 +159,7 @@ test('manual reading surface exposes scoped search, mobile index controls, metad
 test('manual view wires scroll synchronization and documents the current release baseline', () => {
   assert.match(viewSource, /addEventListener\('scroll', onWindowScroll/)
   assert.match(viewSource, /router\.replace\(\{ path: '\/manual', hash: `#\$\{nextSection\}` \}\)/)
-  assert.match(docsSource, /PMS v1\.0\.0[\s\S]*V1–V41/)
+  assert.ok(docsSource.includes('PMS v1.0.7') && docsSource.includes('V1–V54') && docsSource.includes('14 个功能模块'))
 })
 
 test('manual explains business rules and role capabilities instead of only listing operations', () => {
@@ -163,6 +186,7 @@ test('every feature module includes role-based examples grounded in default gran
     'organization',
     'roles',
     'import',
+    'workflowTemplates',
     'audit',
     'feedback',
     'faq',
@@ -198,7 +222,7 @@ test('standalone reference pages do not use feature-template labels', () => {
 })
 
 test('reference documents cover a complete design-system and business-rule scope', () => {
-  assert.match(referenceSource, /sections: \['identity', 'organization', 'authorization', 'lifecycle', 'import', 'audit', 'recovery'\]/)
+  assert.match(referenceSource, /sections: \['identity', 'organization', 'authorization', 'lifecycle', 'workflow-templates', 'import', 'audit', 'recovery'\]/)
   assert.match(referenceSource, /sections: \['principles', 'tokens', 'typography', 'color', 'layout', 'components', 'states', 'responsive', 'accessibility', 'governance'\]/)
 })
 
