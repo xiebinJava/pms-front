@@ -128,11 +128,12 @@ test('topic mutations confirm soft deletion and reload the previous page when th
   assert.match(zh, /deleteTopicContent:.*\{title\}.*\{count\}.*隐藏，不会物理删除/)
 })
 
-test('active topic list exposes a create action and reuses the topic editor for creation', () => {
+test('topic list always exposes create action while deleted scope keeps row mutations restricted', () => {
   const page = read('views/development/DevelopmentListPage.vue')
   const modal = read('views/development/DevelopmentTopicEditModal.vue')
   const zh = read('locales/zh-CN.ts')
-  assert.match(page, /v-if="!deletedScope"[^>]*@click="isTopics \? createTopic\(\) : createStory\(\)"/)
+  assert.match(page, /<a-button[^>]*type="primary"[^>]*@click="isTopics \? createTopic\(\) : createStory\(\)"/)
+  assert.doesNotMatch(page, /<a-button[^>]*v-if="!deletedScope"[^>]*@click="isTopics \? createTopic\(\) : createStory\(\)"/)
   assert.match(page, /developmentList\.createTopic/)
   assert.match(page, /developmentList\.createStory/)
   assert.match(page, /function createTopic\(/)
@@ -163,6 +164,15 @@ test('topic form allows an independent topic while owner selection remains compa
   assert.doesNotMatch(source, /:disabled="form\.projectId == null \|\| membersLoading"/)
   assert.doesNotMatch(source, /developmentList\.topicOwnerNeedsProject/)
   assert.match(source, /projectId: form\.projectId \?\? null/)
+})
+
+test('topic editor exposes a selectable workflow template and refreshes eligible projects for it', () => {
+  const source = read('views/development/DevelopmentTopicEditModal.vue')
+  const api = read('api/development-item.ts')
+  assert.match(source, /getDevelopmentWorkflowTemplateOptions/)
+  assert.match(source, /templateVersionId/)
+  assert.match(source, /developmentList\.topicWorkflowTemplate/)
+  assert.match(api, /templateVersionId\?: number/)
 })
 
 test('development list uses a grouped toolbar, responsive table shell, and accessible row actions', () => {

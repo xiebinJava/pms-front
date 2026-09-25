@@ -87,6 +87,7 @@ watch(() => [props.topicId, props.nodeId], () => { void load() })
       v-model:open="editorOpen"
       :story="null"
       :initial-topic-id="topicId"
+      :lock-topic="true"
       @saved="load"
     />
   </section>

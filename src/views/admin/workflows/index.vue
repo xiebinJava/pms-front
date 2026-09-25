@@ -28,6 +28,7 @@ import {
 } from '/@/api/admin-workflow'
 import type { ProjectType, WorkflowContentOrderItem, WorkflowFieldBinding, WorkflowFieldDefinition, WorkflowFieldType, WorkflowNodeDefinitionV2, WorkflowProjectNodeOption, WorkflowTemplateDefinitionV2, WorkflowTemplateSummary, WorkflowTemplateVersionSummary } from '/@/types/workflow'
 import { isWorkflowFieldFullWidth } from '/@/utils/workflow-field-layout.mjs'
+import WorkflowWorkbenchPreview from '/@/components/workflow/WorkflowWorkbenchPreview.vue'
 import {
   FIXED_NODE_BLOCKS,
   addWorkflowField,
@@ -83,9 +84,6 @@ let templateEditSequence = 0
 let workflowProjectNodeOptionsRequest: Promise<void> | undefined
 let workflowTopicNodeOptionsRequest: Promise<void> | undefined
 
-const COMPONENTS = WORKFLOW_RUNTIME_COMPONENTS
-  .filter(({ key }) => key !== WorkflowRuntimeComponentKey.STORY_SPLIT)
-  .map(({ key }) => ({ key }))
 const fieldTypes: WorkflowFieldType[] = ['TEXT', 'TEXTAREA', 'NUMBER', 'RADIO', 'SINGLE_SELECT', 'MULTI_SELECT', 'PERSON', 'PERSON_MULTI', 'DATE', 'DATE_RANGE', 'ATTACHMENT']
 const FIELD_TYPE_ICONS: Record<WorkflowFieldType, Component> = {
   TEXT: FileTextOutlined,
@@ -101,6 +99,10 @@ const FIELD_TYPE_ICONS: Record<WorkflowFieldType, Component> = {
   ATTACHMENT: PaperClipOutlined,
 }
 const selectedType = computed(() => types.value.find((type) => type.id === selectedTypeId.value))
+const availableComponents = computed(() => WORKFLOW_RUNTIME_COMPONENTS
+  .filter(({ key }) => key !== WorkflowRuntimeComponentKey.STORY_SPLIT)
+  .filter((component) => !component.processTypeCodes?.length || component.processTypeCodes.includes(selectedType.value?.code || ''))
+  .map(({ key }) => ({ key })))
 const selectedTemplateSummary = computed(() => templates.value.find((template) => template.id === selectedTemplateId.value))
 const workflowEntryStep = computed(() => getWorkflowTemplateEntryStep({
   typeCount: types.value.length,
@@ -1026,7 +1028,7 @@ onMounted(async () => {
                   </div>
                   <div class="designer-palette-section">
                     <div class="designer-subheading"><strong>{{ $t('admin.workflow.workbenchComponents') }}</strong><small>{{ $t('admin.workflow.workbenchComponentsHint') }}</small></div>
-                    <button v-for="component in COMPONENTS" :key="component.key" type="button" class="designer-palette-item designer-palette-item--compact" :data-testid="`add-workflow-component-${component.key}`" :class="{ 'is-added': configuredComponents.includes(component.key) }" :aria-pressed="configuredComponents.includes(component.key)" :disabled="!canWrite" @click="toggleComponent(component.key, !configuredComponents.includes(component.key))"><span class="field-type-symbol"><CheckOutlined v-if="configuredComponents.includes(component.key)" /><PlusOutlined v-else /></span><span class="designer-palette-item__copy"><strong>{{ componentLabel(component.key) }}</strong><small>{{ $t(`admin.workflow.componentHints.${component.key}`) }}</small></span><span class="palette-state">{{ configuredComponents.includes(component.key) ? $t('admin.workflow.added') : $t('admin.workflow.add') }}</span></button>
+                    <button v-for="component in availableComponents" :key="component.key" type="button" class="designer-palette-item designer-palette-item--compact" :data-testid="`add-workflow-component-${component.key}`" :class="{ 'is-added': configuredComponents.includes(component.key) }" :aria-pressed="configuredComponents.includes(component.key)" :disabled="!canWrite" @click="toggleComponent(component.key, !configuredComponents.includes(component.key))"><span class="field-type-symbol"><CheckOutlined v-if="configuredComponents.includes(component.key)" /><PlusOutlined v-else /></span><span class="designer-palette-item__copy"><strong>{{ componentLabel(component.key) }}</strong><small>{{ $t(`admin.workflow.componentHints.${component.key}`) }}</small></span><span class="palette-state">{{ configuredComponents.includes(component.key) ? $t('admin.workflow.added') : $t('admin.workflow.add') }}</span></button>
                   </div>
                 </aside>
 
@@ -1064,7 +1066,7 @@ onMounted(async () => {
                         </div>
                       </section>
                       <section v-else class="designer-content-item designer-workbench-card" :data-content-item="contentItem" :draggable="canWrite" @dragstart="contentDragItem = contentItem" @dragover.prevent @drop.prevent="onContentDrop(contentIndex)" @dragend="contentDragItem = undefined">
-                        <div><strong>{{ contentItemLabel(contentItem) }}</strong><p>{{ $t(`admin.workflow.componentHints.${contentItem.slice('component:'.length)}`) }}</p><div class="designer-workbench-placeholder">{{ $t('admin.workflow.reusedComponent') }}</div></div>
+                        <div class="designer-workbench-card__content"><WorkflowWorkbenchPreview class="designer-workbench-preview" :component-key="contentItem.slice('component:'.length)" /></div>
                         <div class="designer-workbench-actions"><a-button size="small" :disabled="!canWrite || contentIndex === 0" :aria-label="$t('admin.workflow.moveUp')" @click="moveContentItem(contentItem, -1)"><ArrowUpOutlined /></a-button><a-button size="small" :disabled="!canWrite || contentIndex === currentNode.contentOrder.length - 1" :aria-label="$t('admin.workflow.moveDown')" @click="moveContentItem(contentItem, 1)"><ArrowDownOutlined /></a-button><a-button size="small" danger :disabled="!canWrite" :aria-label="$t('admin.workflow.removeComponent')" @click="removeContentItem(contentItem)"><DeleteOutlined /></a-button></div>
                       </section>
                     </template>

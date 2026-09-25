@@ -220,7 +220,7 @@ onMounted(() => { void loadData() })
           <a-radio-button value="active">{{ t('developmentList.activeTopics') }}</a-radio-button>
           <a-radio-button value="deleted">{{ t('developmentList.deletedTopics') }}</a-radio-button>
         </a-radio-group>
-        <a-button v-if="!deletedScope" type="primary" class="pms-primary-button pms-project-button pms-project-button--primary" @click="isTopics ? createTopic() : createStory()"><PlusOutlined /> {{ t(isTopics ? 'developmentList.createTopic' : 'developmentList.createStory') }}</a-button>
+        <a-button type="primary" class="pms-primary-button pms-project-button pms-project-button--primary" @click="isTopics ? createTopic() : createStory()"><PlusOutlined /> {{ t(isTopics ? 'developmentList.createTopic' : 'developmentList.createStory') }}</a-button>
         <a-button class="pms-secondary-button pms-filter-button pms-project-button pms-project-button--secondary" @click="loadData"><ReloadOutlined /> {{ t('common.refresh') }}</a-button>
       </template>
     </PmsPageHeader>

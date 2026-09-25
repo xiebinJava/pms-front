@@ -16,6 +16,7 @@ import DevelopmentItemFlow from './components/DevelopmentItemFlow.vue'
 import DevelopmentItemWorkflowFields from './components/DevelopmentItemWorkflowFields.vue'
 import DevelopmentItemTaskBoard from './components/DevelopmentItemTaskBoard.vue'
 import DevelopmentStorySplitComponent from './DevelopmentStorySplitComponent.vue'
+import DevelopmentStoryListComponent from './DevelopmentStoryListComponent.vue'
 import WorkflowNodeShell from '/@/components/workflow/WorkflowNodeShell.vue'
 import WorkflowRuntimeComponentHost from '/@/components/workflow/WorkflowRuntimeComponentHost.vue'
 import { WorkflowRuntimeComponentKey } from '/@/components/workflow/workflow-component-registry'
@@ -433,12 +434,18 @@ onBeforeUnmount(() => {
             <template #components>
               <template v-for="componentKey in selectedNode.runtimeComponents || []" :key="componentKey">
                 <WorkflowRuntimeComponentHost
-                  v-if="props.itemType !== 'topic' || componentKey !== WorkflowRuntimeComponentKey.STORY_SPLIT"
+                  v-if="props.itemType === 'topic' && componentKey === WorkflowRuntimeComponentKey.STORY_LIST"
                   :component-key="componentKey"
-                />
-                <WorkflowRuntimeComponentHost v-else :component-key="componentKey">
+                >
+                  <DevelopmentStoryListComponent :topic-id="detail.id" :node-id="selectedNode.id" :can-edit="selectedNodeEditable" />
+                </WorkflowRuntimeComponentHost>
+                <WorkflowRuntimeComponentHost
+                  v-else-if="props.itemType === 'topic' && componentKey === WorkflowRuntimeComponentKey.STORY_SPLIT"
+                  :component-key="componentKey"
+                >
                   <DevelopmentStorySplitComponent :topic-id="detail.id" :node-id="selectedNode.id" :can-edit="selectedNodeEditable" />
                 </WorkflowRuntimeComponentHost>
+                <WorkflowRuntimeComponentHost v-else :component-key="componentKey" />
               </template>
             </template>
 

@@ -6,6 +6,7 @@ import type {
   DevelopmentItemType,
   DevelopmentItemWorkflowDetail,
 } from '/@/types/domain'
+import type { WorkflowTemplateSummary } from '/@/types/workflow'
 
 export type DevelopmentTopicStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'DONE'
 export type DevelopmentStoryStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'TESTING' | 'DONE' | 'BLOCKED'
@@ -30,6 +31,11 @@ export interface DevelopmentTopicProjectOption {
   projectName: string
   nodeKey: string
   nodeName: string
+}
+
+export interface DevelopmentWorkflowTemplateOptions {
+  topicTemplates: WorkflowTemplateSummary[]
+  storyTemplates: WorkflowTemplateSummary[]
 }
 
 export interface DevelopmentTopicRow {
@@ -100,11 +106,15 @@ export function getDevelopmentTopicPage(params: DevelopmentTopicPageParams): Pro
   return http.post('/development/topics/page', params)
 }
 
-export function createDevelopmentTopic(payload: { title: string; ownerId?: number | null; projectId: number | null }): Promise<number> {
+export function getDevelopmentWorkflowTemplateOptions(): Promise<DevelopmentWorkflowTemplateOptions> {
+  return http.get('/workflow-templates/development-options')
+}
+
+export function createDevelopmentTopic(payload: { title: string; ownerId?: number | null; projectId: number | null; templateVersionId?: number | null }): Promise<number> {
   return http.post('/development/topics', payload)
 }
 
-export function updateDevelopmentTopic(id: number, payload: { title: string; ownerId?: number | null; projectId: number | null }): Promise<void> {
+export function updateDevelopmentTopic(id: number, payload: { title: string; ownerId?: number | null; projectId: number | null; templateVersionId?: number | null }): Promise<void> {
   return http.put(`/development/topics/${id}`, payload)
 }
 
@@ -120,6 +130,7 @@ export function getDevelopmentTopicProjectOptions(params: {
   currPage: number
   pageSize: number
   keyword?: string
+  templateVersionId?: number
 }): Promise<PageResult<DevelopmentTopicProjectOption>> {
   return http.post('/development/topics/projects/page', params)
 }
@@ -130,6 +141,7 @@ export function getDevelopmentStoryPage(params: DevelopmentItemPageParams): Prom
 
 export function createDevelopmentStory(payload: {
   topicId: number | null
+  templateVersionId?: number | null
   title: string
   ownerId?: number | null
   status?: DevelopmentStoryStatus
@@ -145,6 +157,7 @@ export function createDevelopmentStory(payload: {
 
 export function updateDevelopmentStory(id: number, payload: {
   topicId: number | null
+  templateVersionId?: number | null
   title: string
   ownerId?: number | null
   status?: DevelopmentStoryStatus

@@ -1,22 +1,25 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   createDevelopmentStory,
+  getDevelopmentWorkflowTemplateOptions,
   getDevelopmentTopicPage,
   updateDevelopmentStory,
   type DevelopmentStoryRow,
   type DevelopmentTopicRow,
   type DevelopmentStoryStatus,
 } from '/@/api/development-item'
+import type { WorkflowTemplateSummary } from '/@/types/workflow'
 import PersonSelect from '/@/views/project/detail/components/PersonSelect.vue'
 import { useI18n } from 'vue-i18n'
 
-const props = defineProps<{ open: boolean; story: DevelopmentStoryRow | null; initialTopicId?: number | null }>()
+const props = defineProps<{ open: boolean; story: DevelopmentStoryRow | null; initialTopicId?: number | null; lockTopic?: boolean }>()
 const emit = defineEmits<{ (event: 'update:open', value: boolean): void; (event: 'saved'): void }>()
 const { t } = useI18n()
 const form = reactive({
   topicId: null as number | null,
+  templateVersionId: null as number | null,
   title: '',
   ownerId: undefined as number | undefined,
   status: 'NOT_STARTED' as DevelopmentStoryStatus,
@@ -29,6 +32,20 @@ const form = reactive({
 const topics = ref<DevelopmentTopicRow[]>([])
 const topicLoading = ref(false)
 const saving = ref(false)
+const workflowTemplates = ref<WorkflowTemplateSummary[]>([])
+const workflowTemplatesLoading = ref(false)
+
+const workflowTemplateSelectOptions = computed(() => workflowTemplates.value
+  .filter((template) => template.publishedVersionId != null)
+  .map((template) => {
+    const versionId = template.defaultTemplateVersionId ?? template.publishedVersionId
+    const versionNo = template.publishedVersions?.find((version) => version.id === versionId)?.versionNo
+      ?? template.publishedVersionNo
+    return {
+      value: versionId,
+      label: `${template.name} · v${versionNo ?? '?'}${template.defaultTemplate ? ` · ${t('developmentList.workflowTemplateDefault')}` : ''}`,
+    }
+  }))
 
 const statusOptions = [
   'NOT_STARTED', 'IN_PROGRESS', 'TESTING', 'BLOCKED', 'DONE',
@@ -38,6 +55,7 @@ watch(() => [props.open, props.story?.id, props.initialTopicId] as const, ([open
   if (!open) return
   const story = props.story
   form.topicId = story?.topicId ?? props.initialTopicId ?? null
+  form.templateVersionId = null
   form.title = story?.title || ''
   form.ownerId = story?.ownerId
   form.status = story?.status || 'NOT_STARTED'
@@ -46,8 +64,31 @@ watch(() => [props.open, props.story?.id, props.initialTopicId] as const, ([open
   form.startDate = story?.startDate || ''
   form.dueDate = story?.dueDate || ''
   form.blocker = story?.blocker || ''
-  void loadTopics()
+  void initialize()
 })
+
+async function initialize() {
+  await Promise.all([
+    props.lockTopic ? Promise.resolve() : loadTopics(),
+    props.story ? Promise.resolve() : loadWorkflowTemplates(),
+  ])
+}
+
+async function loadWorkflowTemplates() {
+  workflowTemplatesLoading.value = true
+  try {
+    const result = await getDevelopmentWorkflowTemplateOptions()
+    workflowTemplates.value = result.storyTemplates || []
+    form.templateVersionId = workflowTemplateSelectOptions.value.find((option) =>
+      workflowTemplates.value.some((template) =>
+        template.defaultTemplate && (template.defaultTemplateVersionId ?? template.publishedVersionId) === option.value),
+    )?.value ?? workflowTemplateSelectOptions.value[0]?.value ?? null
+  } catch (error) {
+    message.error((error as Error).message || t('developmentList.workflowTemplateLoadFailed'))
+  } finally {
+    workflowTemplatesLoading.value = false
+  }
+}
 
 async function loadTopics() {
   topicLoading.value = true
@@ -75,8 +116,14 @@ async function save() {
     message.warning(t('developmentList.storyTitleRequired'))
     return
   }
+  if (!props.story && form.templateVersionId == null) {
+    message.warning(t('developmentList.workflowTemplateRequired'))
+    return
+  }
+  const topicId = props.lockTopic ? props.initialTopicId ?? props.story?.topicId ?? null : form.topicId
   const payload = {
-    topicId: form.topicId,
+    topicId,
+    templateVersionId: props.story ? undefined : form.templateVersionId,
     title: form.title.trim(),
     ownerId: form.ownerId ?? null,
     status: form.status,
@@ -114,8 +161,20 @@ async function save() {
   >
     <a-form layout="vertical">
       <a-form-item :label="t('developmentList.storyName')" required><a-input v-model:value="form.title" :maxlength="300" show-count :placeholder="t('developmentList.storyNamePlaceholder')" /></a-form-item>
-      <a-form-item :label="t('developmentList.storyTopic')">
+      <a-form-item v-if="!lockTopic" :label="t('developmentList.storyTopic')">
         <a-select v-model:value="form.topicId" allow-clear show-search :loading="topicLoading" :filter-option="filterTopicOption" :options="topics.map((topic) => ({ value: topic.id, label: topic.title }))" :placeholder="t('developmentList.storyTopicPlaceholder')" />
+      </a-form-item>
+      <a-form-item v-if="!story" :label="t('developmentList.storyWorkflowTemplate')" required>
+        <a-select
+          v-model:value="form.templateVersionId"
+          :options="workflowTemplateSelectOptions"
+          :loading="workflowTemplatesLoading"
+          :placeholder="t('developmentList.workflowTemplatePlaceholder')"
+          allow-clear
+        />
+        <p v-if="!workflowTemplatesLoading && workflowTemplateSelectOptions.length === 0" class="development-story-edit-modal__empty-note">
+          {{ t('developmentList.workflowTemplateEmpty') }}
+        </p>
       </a-form-item>
       <a-form-item :label="t('developmentList.storyOwner')"><PersonSelect v-model="form.ownerId" allow-clear :placeholder="t('developmentList.storyOwnerPlaceholder')" /></a-form-item>
       <div class="development-story-edit-modal__grid">
@@ -132,5 +191,6 @@ async function save() {
 
 <style scoped>
 .development-story-edit-modal__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+.development-story-edit-modal__empty-note { margin: 8px 0 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
 @media (max-width: 640px) { .development-story-edit-modal__grid { grid-template-columns: 1fr; } }
 </style>

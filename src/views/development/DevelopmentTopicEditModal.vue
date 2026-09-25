@@ -3,11 +3,13 @@ import { computed, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   createDevelopmentTopic,
+  getDevelopmentWorkflowTemplateOptions,
   getDevelopmentTopicProjectOptions,
   updateDevelopmentTopic,
   type DevelopmentTopicProjectOption,
   type DevelopmentTopicRow,
 } from '/@/api/development-item'
+import type { WorkflowTemplateSummary } from '/@/types/workflow'
 import { useI18n } from 'vue-i18n'
 import PersonSelect from '/@/views/project/detail/components/PersonSelect.vue'
 
@@ -18,7 +20,9 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 
-const form = reactive({ title: '', ownerId: undefined as number | undefined, projectId: null as number | null })
+const form = reactive({ title: '', ownerId: undefined as number | undefined, projectId: null as number | null, templateVersionId: null as number | null })
+const workflowTemplates = ref<WorkflowTemplateSummary[]>([])
+const workflowTemplatesLoading = ref(false)
 const projectKeyword = ref('')
 const projectOptions = ref<DevelopmentTopicProjectOption[]>([])
 const selectedEligibleProjectId = ref<number | null>(null)
@@ -29,6 +33,18 @@ const projectTotal = ref(0)
 const saving = ref(false)
 let projectRequestSequence = 0
 const projectPageSize = 20
+
+const workflowTemplateSelectOptions = computed(() => workflowTemplates.value
+  .filter((template) => template.publishedVersionId != null)
+  .map((template) => {
+    const versionId = template.defaultTemplateVersionId ?? template.publishedVersionId
+    const versionNo = template.publishedVersions?.find((version) => version.id === versionId)?.versionNo
+      ?? template.publishedVersionNo
+    return {
+      value: versionId,
+      label: `${template.name} · v${versionNo ?? '?'}${template.defaultTemplate ? ` · ${t('developmentList.workflowTemplateDefault')}` : ''}`,
+    }
+  }))
 
 const projectSelectOptions = computed(() => {
   const options = [...projectOptions.value]
@@ -57,13 +73,35 @@ watch(() => [props.open, props.topic?.id] as const, ([open]) => {
   form.title = topic?.title || ''
   form.ownerId = topic?.ownerId
   form.projectId = topic?.projectId ?? null
+  form.templateVersionId = null
   selectedEligibleProjectId.value = topic?.projectId ?? null
   projectKeyword.value = ''
   projectOptions.value = []
   projectPage.value = 1
   projectHasMore.value = true
-  void loadProjectOptions(true)
+  void initialize()
 })
+
+async function initialize() {
+  if (!props.topic) await loadWorkflowTemplates()
+  await loadProjectOptions(true)
+}
+
+async function loadWorkflowTemplates() {
+  workflowTemplatesLoading.value = true
+  try {
+    const result = await getDevelopmentWorkflowTemplateOptions()
+    workflowTemplates.value = result.topicTemplates || []
+    form.templateVersionId = workflowTemplateSelectOptions.value.find((option) =>
+      workflowTemplates.value.some((template) =>
+        template.defaultTemplate && (template.defaultTemplateVersionId ?? template.publishedVersionId) === option.value),
+    )?.value ?? workflowTemplateSelectOptions.value[0]?.value ?? null
+  } catch (error) {
+    message.error((error as Error).message || t('developmentList.workflowTemplateLoadFailed'))
+  } finally {
+    workflowTemplatesLoading.value = false
+  }
+}
 
 async function loadProjectOptions(reset = false) {
   if (reset) {
@@ -84,6 +122,7 @@ async function loadProjectOptions(reset = false) {
       currPage: requestedPage,
       pageSize: projectPageSize,
       keyword: projectKeyword.value.trim() || undefined,
+      templateVersionId: form.templateVersionId ?? undefined,
     })
     if (requestSequence !== projectRequestSequence) return
     projectOptions.value = reset ? result.list : [...projectOptions.value, ...result.list]
@@ -95,6 +134,12 @@ async function loadProjectOptions(reset = false) {
   } finally {
     if (requestSequence === projectRequestSequence) projectOptionsLoading.value = false
   }
+}
+
+function onWorkflowTemplateChange() {
+  form.projectId = null
+  selectedEligibleProjectId.value = null
+  void loadProjectOptions(true)
 }
 
 function onProjectSearch(value: string) {
@@ -126,6 +171,10 @@ async function save() {
     message.warning(t('developmentList.topicTitleRequired'))
     return
   }
+  if (!topic && form.templateVersionId == null) {
+    message.warning(t('developmentList.workflowTemplateRequired'))
+    return
+  }
   if (form.projectId != null && (!topic || projectChanged.value) && selectedEligibleProjectId.value !== form.projectId) {
     message.warning(t('developmentList.chooseEligibleProject'))
     return
@@ -133,7 +182,12 @@ async function save() {
 
   saving.value = true
   try {
-    const payload = { title, ownerId: form.ownerId ?? null, projectId: form.projectId ?? null }
+    const payload = {
+      title,
+      ownerId: form.ownerId ?? null,
+      projectId: form.projectId ?? null,
+      templateVersionId: topic ? undefined : form.templateVersionId,
+    }
     if (topic) await updateDevelopmentTopic(topic.id, payload)
     else await createDevelopmentTopic(payload)
     message.success(t(topic ? 'developmentList.topicUpdated' : 'developmentList.topicCreated'))
@@ -161,6 +215,19 @@ async function save() {
     <a-form layout="vertical">
       <a-form-item :label="t('developmentList.topicName')" required>
         <a-input v-model:value="form.title" :maxlength="200" show-count :placeholder="t('developmentList.topicNamePlaceholder')" />
+      </a-form-item>
+      <a-form-item v-if="!props.topic" :label="t('developmentList.topicWorkflowTemplate')" required>
+        <a-select
+          v-model:value="form.templateVersionId"
+          :options="workflowTemplateSelectOptions"
+          :loading="workflowTemplatesLoading"
+          :placeholder="t('developmentList.workflowTemplatePlaceholder')"
+          allow-clear
+          @change="onWorkflowTemplateChange"
+        />
+        <p v-if="!workflowTemplatesLoading && workflowTemplateSelectOptions.length === 0" class="development-topic-edit-modal__empty-note">
+          {{ t('developmentList.workflowTemplateEmpty') }}
+        </p>
       </a-form-item>
       <a-form-item :label="t('developmentList.topicProject')">
         <a-select

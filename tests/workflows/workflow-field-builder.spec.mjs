@@ -144,6 +144,25 @@ async function expectNoConsoleErrors(page) {
   return errors
 }
 
+async function openWorkflowEditor(page, { typeName = '产品项目', templateName = '旧版九阶段' } = {}) {
+  const editor = page.getByTestId('workflow-template-bar')
+  if (await editor.count() && await editor.isVisible().catch(() => false)) return
+
+  const typeCard = page.getByTestId('workflow-type-picker').locator('.workflow-choice-card').filter({ hasText: typeName }).first()
+  await expect(typeCard).toBeVisible()
+  await typeCard.click()
+
+  const templateCard = page.getByTestId('workflow-template-picker').locator('.workflow-template-choice').filter({ hasText: templateName }).first()
+  await expect(templateCard).toBeVisible()
+  await templateCard.click()
+  await expect(editor).toBeVisible()
+}
+
+async function gotoWorkflowEditor(page, options) {
+  await page.goto('/admin/workflows')
+  await openWorkflowEditor(page, options)
+}
+
 test.describe('workflow field builder browser regression', () => {
   test.use({ baseURL })
   test.beforeEach(async ({ page }) => {
@@ -158,7 +177,7 @@ test.describe('workflow field builder browser regression', () => {
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify(api({ id: 31, projectTypeId: 1, name: '旧版九阶段', definition: draftPayload.definition })) })
     })
     await page.setViewportSize({ width: 1440, height: 1000 })
-    await page.goto('/admin/workflows')
+    await gotoWorkflowEditor(page)
 
     const descriptionCard = page.locator('.designer-field-card[data-field-key="project-description"]')
     const descriptionSelect = descriptionCard.locator('.designer-field-select')
@@ -268,7 +287,7 @@ test.describe('workflow field builder browser regression', () => {
 
   test('workflow editor explains that published versions do not retrofit existing projects', async ({ page }) => {
     await installApi(page)
-    await page.goto('/admin/workflows')
+    await gotoWorkflowEditor(page)
 
     const guidance = page.getByTestId('workflow-template-version-guidance')
     await expect(guidance).toBeVisible()
@@ -277,7 +296,7 @@ test.describe('workflow field builder browser regression', () => {
     await expect(guidance).toContainText('设为默认')
   })
 
-  test('prefills an available project type code and keeps it editable', async ({ page }) => {
+  test('opens the process type dialog with the current editable fields', async ({ page }) => {
     const errors = await expectNoConsoleErrors(page)
     await installApi(page, {
       projectTypes: [
@@ -291,13 +310,13 @@ test.describe('workflow field builder browser regression', () => {
     await expect(page.getByRole('heading', { name: '流程模板配置' })).toBeVisible()
     await expect(page.locator('vite-error-overlay')).toHaveCount(0)
 
-    await page.locator('.template-selector--type').getByRole('button', { name: '新增类型' }).click()
-    const dialog = page.getByRole('dialog', { name: '新增类型' })
-    const codeInput = dialog.locator('.ant-form-item').filter({ hasText: '类型编码' }).locator('input')
-    await expect(codeInput).toHaveValue('0002')
+    await page.getByTestId('workflow-type-picker').getByRole('button', { name: '新增流程类型' }).click()
+    const dialog = page.getByRole('dialog', { name: '新增流程类型' })
+    const nameInput = dialog.locator('.ant-form-item').filter({ hasText: '流程类型名称' }).locator('input')
+    await expect(nameInput).toBeVisible()
     await page.screenshot({ path: '/tmp/pms-workflow-type-code-prefilled.png', fullPage: false })
-    await codeInput.fill('CUSTOM-TYPE')
-    await expect(codeInput).toHaveValue('CUSTOM-TYPE')
+    await nameInput.fill('自定义流程类型')
+    await expect(nameInput).toHaveValue('自定义流程类型')
     expect(errors).toEqual([])
   })
 
@@ -305,7 +324,7 @@ test.describe('workflow field builder browser regression', () => {
     const errors = await expectNoConsoleErrors(page)
     await installApi(page)
     await page.setViewportSize({ width: 1280, height: 900 })
-    await page.goto('/admin/workflows')
+    await gotoWorkflowEditor(page)
 
     await expect(page.locator('.template-current__description')).toHaveCount(0)
     await expect(page.getByRole('textbox', { name: '模板名称' })).toBeVisible()
@@ -317,13 +336,13 @@ test.describe('workflow field builder browser regression', () => {
     const errors = await expectNoConsoleErrors(page)
     await installApi(page)
     await page.setViewportSize({ width: 1440, height: 1000 })
-    await page.goto('/admin/workflows')
+    await gotoWorkflowEditor(page)
 
     const templateBar = page.getByTestId('workflow-template-bar')
     const workflowSelector = templateBar.locator('.template-selector--workflow')
     const defaultAction = workflowSelector.getByRole('button', { name: '设为默认' })
     const selectorHeading = workflowSelector.locator('.template-selector__heading')
-    const selectorControl = workflowSelector.locator('.template-selector__control')
+    const selectorControl = workflowSelector.locator('.template-selector__selected')
 
     await expect(defaultAction).toBeVisible()
     await expect(selectorHeading).toBeVisible()
@@ -350,51 +369,42 @@ test.describe('workflow field builder browser regression', () => {
     const errors = await expectNoConsoleErrors(page)
     await installApi(page)
     await page.setViewportSize({ width: 1440, height: 1000 })
-    await page.goto('/admin/workflows')
+    await gotoWorkflowEditor(page)
 
     await expect(page).toHaveURL(/\/admin\/workflows$/)
     await expect(page.getByRole('heading', { name: '流程模板配置' })).toBeVisible()
     await expect(page.locator('vite-error-overlay')).toHaveCount(0)
     const templateBar = page.getByTestId('workflow-template-bar')
     const currentHeading = templateBar.locator('.template-current__heading')
-    const typeHeading = templateBar.locator('.template-selector--type .template-selector__heading')
     const workflowHeading = templateBar.locator('.template-selector--workflow .template-selector__heading')
     const currentControl = templateBar.locator('.template-current__name input')
-    const typeControl = templateBar.locator('.template-selector--type .template-selector__control .ant-select-selector')
-    const workflowControl = templateBar.locator('.template-selector--workflow .template-selector__control .ant-select-selector')
+    const workflowControl = templateBar.locator('.template-selector--workflow .template-selector__selected')
 
-    const headingBoxes = await Promise.all([currentHeading, typeHeading, workflowHeading].map((element) => element.boundingBox()))
-    const controlBoxes = await Promise.all([currentControl, typeControl, workflowControl].map((element) => element.boundingBox()))
+    const headingBoxes = await Promise.all([currentHeading, workflowHeading].map((element) => element.boundingBox()))
+    const controlBoxes = await Promise.all([currentControl, workflowControl].map((element) => element.boundingBox()))
     expect(headingBoxes.every(Boolean)).toBe(true)
     expect(controlBoxes.every(Boolean)).toBe(true)
     const headingCenters = headingBoxes.map((box) => box.y + box.height / 2)
     const controlCenters = controlBoxes.map((box) => box.y + box.height / 2)
     expect(Math.max(...headingCenters) - Math.min(...headingCenters)).toBeLessThan(3)
     expect(Math.max(...controlCenters) - Math.min(...controlCenters)).toBeLessThan(3)
-
-    await typeControl.click()
-    await expect(page.locator('.ant-select-dropdown:visible')).toContainText('产品项目')
-    await typeControl.press('Escape')
-    await expect(page.locator('.ant-select-dropdown:visible')).toHaveCount(0)
     if (process.env.PMS_E2E_LAYOUT_DESKTOP_SCREENSHOT_PATH) {
       await templateBar.screenshot({ path: process.env.PMS_E2E_LAYOUT_DESKTOP_SCREENSHOT_PATH })
     }
 
     await page.setViewportSize({ width: 768, height: 900 })
-    const tabletBoxes = await Promise.all([currentControl, typeControl, workflowControl].map((element) => element.boundingBox()))
+    const tabletBoxes = await Promise.all([currentControl, workflowControl].map((element) => element.boundingBox()))
     expect(tabletBoxes.every(Boolean)).toBe(true)
-    expect(tabletBoxes[1].y).toBeGreaterThan(tabletBoxes[0].y)
-    expect(Math.abs(tabletBoxes[1].y - tabletBoxes[2].y)).toBeLessThan(3)
+    expect(tabletBoxes[1].y).toBeGreaterThanOrEqual(tabletBoxes[0].y)
     expect(await templateBar.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(false)
     if (process.env.PMS_E2E_LAYOUT_TABLET_SCREENSHOT_PATH) {
       await templateBar.screenshot({ path: process.env.PMS_E2E_LAYOUT_TABLET_SCREENSHOT_PATH })
     }
 
     await page.setViewportSize({ width: 390, height: 844 })
-    const mobileBoxes = await Promise.all([currentControl, typeControl, workflowControl].map((element) => element.boundingBox()))
+    const mobileBoxes = await Promise.all([currentControl, workflowControl].map((element) => element.boundingBox()))
     expect(mobileBoxes.every(Boolean)).toBe(true)
     expect(mobileBoxes[1].y).toBeGreaterThan(mobileBoxes[0].y)
-    expect(mobileBoxes[2].y).toBeGreaterThan(mobileBoxes[1].y)
     expect(await templateBar.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(false)
     if (process.env.PMS_E2E_LAYOUT_MOBILE_SCREENSHOT_PATH) {
       await templateBar.screenshot({ path: process.env.PMS_E2E_LAYOUT_MOBILE_SCREENSHOT_PATH })
@@ -413,7 +423,7 @@ test.describe('workflow field builder browser regression', () => {
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify(api({ id: 31, projectTypeId: 1, name: '旧版九阶段', definition: draftPayload.definition })) })
     })
 
-    await page.goto('/admin/workflows')
+    await gotoWorkflowEditor(page)
     await expect(page.getByRole('heading', { name: '流程模板配置' })).toBeVisible()
     await expect(page.getByTestId('workflow-template-bar')).toBeVisible()
     await expect(page.locator('.workflow-node-card')).toHaveCount(1)
@@ -448,12 +458,7 @@ test.describe('workflow field builder browser regression', () => {
       { id: 2, code: 'RESEARCH', name: '研发项目', sort: 1, defaultTemplateName: '研发流程' },
     ]
     await installApi(page, { user: viewer, projectTypes })
-    await page.goto('/admin/workflows')
-    const typePicker = page.locator('.template-selector').first().locator('.ant-select-selector')
-    await expect(typePicker).toBeEnabled()
-    await typePicker.click()
-    await page.locator('.ant-select-dropdown:visible').getByText('研发项目', { exact: true }).click()
-    await expect(page.getByTestId('workflow-template-bar')).toContainText('研发项目')
+    await gotoWorkflowEditor(page, { typeName: '研发项目', templateName: '研发流程' })
     await expect(page.getByRole('textbox', { name: '模板名称' })).toHaveValue('研发流程')
     await expect(page.getByTestId('designer-canvas').getByRole('heading', { name: '立项与启动' })).toBeVisible()
     await expect(page.getByTestId('designer-palette').getByRole('button', { name: /单行文本/ })).toBeDisabled()
@@ -465,7 +470,7 @@ test.describe('workflow field builder browser regression', () => {
     const definition = v2Definition()
     definition.nodes.push({ key: 'design', name: '方案设计', description: '', deliverable: '', roles: '', fields: [], contentOrder: [] })
     await installApi(page, { definition })
-    await page.goto('/admin/workflows')
+    await gotoWorkflowEditor(page)
     const nextNodeSelector = page.getByRole('button', { name: '方案设计', exact: true })
     await expect(nextNodeSelector).toHaveAttribute('aria-pressed', 'false')
     await nextNodeSelector.focus()
@@ -502,7 +507,7 @@ test.describe('workflow field builder browser regression', () => {
       draftPayload = JSON.parse(route.request().postData() || '{}')
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify(api({ id: 31, projectTypeId: 1, name: '旧版九阶段', definition: draftPayload.definition })) })
     })
-    await page.goto('/admin/workflows')
+    await gotoWorkflowEditor(page)
     await expect(page.locator('.workflow-node-card')).toHaveCount(9)
     await expect(page.locator('.designer-fixed-module .ant-tag')).toHaveCount(3)
     await expect(page.getByTestId('designer-fixed-task-board')).toBeVisible()
@@ -586,7 +591,7 @@ test.describe('workflow field builder browser regression', () => {
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify(api({ ...type, defaultTemplateVersionId: defaultVersionId })) })
     })
 
-    await page.goto('/admin/workflows')
+    await gotoWorkflowEditor(page)
     const setDefault = page.locator('.template-selectors').getByRole('button', { name: '设为默认' })
     const templateStatus = page.locator('.template-current__status')
     await expect(setDefault).toBeVisible()
@@ -639,7 +644,7 @@ test.describe('workflow field builder browser regression', () => {
       })) })
     })
 
-    await page.goto('/admin/workflows')
+    await gotoWorkflowEditor(page)
 
     const templateStatus = page.locator('.template-current__status')
     await expect(templateStatus).toContainText('草稿 v4')
@@ -723,7 +728,7 @@ test.describe('workflow field builder browser regression', () => {
     })
 
     const errors = await expectNoConsoleErrors(page)
-    await page.goto('/admin/workflows')
+    await gotoWorkflowEditor(page, { typeName: '通用项目', templateName: '当前项目流程' })
     await expect(page.getByRole('heading', { name: '流程模板配置' })).toBeVisible()
     await page.getByRole('button', { name: '版本管理' }).click()
     const versionDialog = page.getByRole('dialog')
@@ -746,13 +751,12 @@ test.describe('workflow field builder browser regression', () => {
     if (process.env.PMS_E2E_SCREENSHOT_PATH) await page.screenshot({ path: process.env.PMS_E2E_SCREENSHOT_PATH, fullPage: false })
     await versionDialog.getByRole('button', { name: /关\s*闭/ }).click()
 
-    const selector = page.locator('.template-selector--workflow .ant-select-selector')
-    await selector.click()
-    await page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({ hasText: '新流程模板' }).click()
+    await gotoWorkflowEditor(page, { typeName: '通用项目', templateName: '新流程模板' })
     await page.getByTestId('archive-workflow-template').click()
     await page.locator('.ant-modal-confirm').getByRole('button', { name: '归档模板' }).click()
     await expect.poll(() => customTemplateArchived).toBe(true)
-    await expect(page.locator('.template-current__name input')).toHaveValue('当前项目流程')
+    await expect(page.getByTestId('workflow-template-picker')).toContainText('当前项目流程')
+    await expect(page.getByTestId('workflow-template-picker')).not.toContainText('新流程模板')
     expect(errors).toEqual([])
   })
 
