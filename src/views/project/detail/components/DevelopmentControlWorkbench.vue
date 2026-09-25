@@ -4,8 +4,6 @@ import {
   BuildOutlined,
   CaretDownOutlined,
   CaretRightOutlined,
-  DeleteOutlined,
-  ExclamationCircleOutlined,
   FileTextOutlined,
   FolderOpenOutlined,
 } from '@ant-design/icons-vue'
@@ -16,7 +14,6 @@ import { getNodeDevelopmentControl, saveNodeDevelopmentControl } from '/@/api/no
 import type {
   NodeDevelopmentControl,
   NodeDevelopmentControlUpdate,
-  NodeDevelopmentStory,
   NodeDevelopmentStoryStatus,
   NodeDevelopmentTopic,
   NodeDevelopmentTopicStatus,
@@ -50,6 +47,7 @@ const emptyState = (): NodeDevelopmentControl => ({
   projectId: props.projectId,
   nodeId: props.nodeId,
   canEdit: false,
+  topicCreationAllowed: false,
   summary: { topicCount: 0, storyCount: 0, completedStoryCount: 0, blockedStoryCount: 0, progress: 0 },
   topics: [],
 })
@@ -82,6 +80,8 @@ const storyStatusMeta: Record<NodeDevelopmentStoryStatus, { label: string; class
   DONE: { label: '已完成', className: 'is-done' },
   BLOCKED: { label: '阻塞中', className: 'is-blocked' },
 }
+
+const storyStatusOrder: NodeDevelopmentStoryStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'TESTING', 'BLOCKED', 'DONE']
 
 const topicStatusMeta: Record<NodeDevelopmentTopicStatus, { label: string; className: string }> = {
   NOT_STARTED: { label: '未开始', className: 'is-not-started' },
@@ -118,39 +118,10 @@ function completedStories(topic: DevelopmentTopic) {
   return topic.stories.filter((story) => story.status === 'DONE').length
 }
 
-const statusOptions = [
-  { value: 'NOT_STARTED', label: '未开始' },
-  { value: 'IN_PROGRESS', label: '开发中' },
-  { value: 'TESTING', label: '测试中' },
-  { value: 'DONE', label: '已完成' },
-  { value: 'BLOCKED', label: '阻塞中' },
-] satisfies Array<{ value: NodeDevelopmentStoryStatus; label: string }>
-
-const iterationPlanOptions = computed(() => {
-  const currentOptions = iterationPlans.value
-    .filter((plan) => plan.id != null)
-    .map((plan) => ({ value: plan.id, label: plan.name }))
-  const currentIds = new Set(currentOptions.map((option) => option.value))
-  const historicalOptions = (draftTopic.value?.stories || [])
-    .filter((story) => story.iterationPlanId != null && story.iterationPlanName && !currentIds.has(story.iterationPlanId))
-    .map((story) => ({
-      value: story.iterationPlanId,
-      label: `${story.iterationPlanName}（历史）`,
-      disabled: true,
-    }))
-  const seen = new Set<number>()
-  return [...currentOptions, ...historicalOptions].filter((option) => {
-    if (option.value == null || seen.has(option.value)) return false
-    seen.add(option.value)
-    return true
-  })
-})
-
-function iterationPlanNames(topic: DevelopmentTopic) {
-  const names = topic.stories
-    .map((story) => story.iterationPlanName || iterationPlans.value.find((plan) => plan.id === story.iterationPlanId)?.name)
-    .filter((name): name is string => Boolean(name))
-  return [...new Set(names)].join('、')
+function getStoryStatusCounts(topic: DevelopmentTopic) {
+  return storyStatusOrder
+    .map((status) => ({ ...storyStatusMeta[status], status, count: topic.stories.filter((story) => story.status === status).length }))
+    .filter((item) => item.count > 0)
 }
 
 const currentIterationSummary = computed(() => {
@@ -223,65 +194,20 @@ function updateDevelopmentStatus() {
   editorOpen.value = true
 }
 
-function addStory() {
-  if (!draftTopic.value) return
-  draftTopic.value.stories.push({
-    id: nextTempId--,
-    title: '',
-    status: 'NOT_STARTED',
-    progress: 0,
-    storyPoints: 0,
-    iterationPlanId: undefined,
-    blocker: '',
-    sort: draftTopic.value.stories.length,
-  })
-}
-
-function removeStory(index: number) {
-  draftTopic.value?.stories.splice(index, 1)
-}
-
-function storyScheduleValue(story: DevelopmentStory): [string | undefined, string | undefined] {
-  return [story.startDate || undefined, story.dueDate || undefined]
-}
-
-function onStoryScheduleChange(story: DevelopmentStory, value: string[] | undefined) {
-  if (!editable.value) return
-  story.startDate = value?.[0]
-  story.dueDate = value?.[1]
-}
-
-function onStoryStatusChange(story: DevelopmentStory) {
-  if (story.status === 'DONE') story.progress = 100
-  if (story.status === 'NOT_STARTED') story.progress = 0
-}
-
-function updateDerivedDraftTopic() {
-  if (!draftTopic.value) return
-  draftTopic.value.status = getDerivedTopicStatus(draftTopic.value.stories)
-  draftTopic.value.progress = getTopicProgress(draftTopic.value)
-}
-
 function editorIsValid() {
   return Boolean(draftTopic.value?.title.trim())
-    && !draftTopic.value?.stories.some((story) => !story.title.trim()
-      || Boolean(story.startDate && story.dueDate && story.startDate > story.dueDate))
 }
 
 async function saveEditor() {
   if (saving.value) return false
   if (!draftTopic.value || !editorIsValid()) {
-    const invalidSchedule = draftTopic.value?.stories.some((story) => story.startDate && story.dueDate && story.startDate > story.dueDate)
-    message.warning(!draftTopic.value?.title.trim()
-      ? '请填写专题名称'
-      : invalidSchedule ? '故事开始日期不能晚于结束日期' : '请填写所有故事名称')
+    message.warning('请填写专题名称')
     return false
   }
   if (loading.value) {
     message.warning('开发数据仍在加载，请稍后再试')
     return false
   }
-  updateDerivedDraftTopic()
   const wasCreate = editorMode.value === 'create'
   const draftId = draftTopic.value.id
   const draftTitle = draftTopic.value.title
@@ -362,7 +288,7 @@ watch(
         :disabled="!editable || !selectedTopic"
         @click="updateDevelopmentStatus"
       >
-        更新开发状态
+        编辑专题
       </a-button>
     </div>
 
@@ -390,7 +316,7 @@ watch(
       <div class="development-control__metric development-control__metric--date">
           <span class="development-control__metric-label">迭代计划</span>
           <strong>{{ currentIterationSummary || '尚未设置' }}</strong>
-          <span class="development-control__metric-note">故事可在编辑时关联</span>
+          <span class="development-control__metric-note">故事状态实时汇总</span>
       </div>
     </div>
 
@@ -402,8 +328,11 @@ watch(
             <span>项目 → 专题 → 故事</span>
           </div>
           <div class="development-control__tree-actions">
-            <span class="development-control__tree-hint">点击专题查看详情</span>
-            <a-button v-if="editable" size="small" @click="addTopic">+ 新增专题</a-button>
+            <span class="development-control__tree-hint">点击专题展开故事</span>
+            <span v-if="!loading && !loadError && !state.topicCreationAllowed" class="development-control__topic-hint">
+              新增专题请前往当前配置节点；此处仅可维护已有专题。
+            </span>
+            <a-button v-if="editable && state.topicCreationAllowed" size="small" @click="addTopic">+ 新增专题</a-button>
           </div>
         </div>
 
@@ -421,8 +350,8 @@ watch(
           <a-button size="small" @click="refresh">重新加载</a-button>
         </div>
         <div v-else-if="!topics.length" class="development-control__empty">
-          <span>还没有专题，先建立第一个专题。</span>
-          <a-button v-if="editable" type="primary" size="small" @click="addTopic">新增专题</a-button>
+          <span>{{ state.topicCreationAllowed ? '还没有专题，先建立第一个专题。' : '当前节点没有专题，请前往专题模板配置节点创建。' }}</span>
+          <a-button v-if="editable && state.topicCreationAllowed" type="primary" size="small" @click="addTopic">新增专题</a-button>
         </div>
 
         <div class="development-control__project-row">
@@ -465,7 +394,10 @@ watch(
               <a-progress :percent="getTopicProgress(topic)" :show-info="false" size="small" />
               <span>{{ getTopicProgress(topic) }}%</span>
             </div>
-            <span>{{ completedStories(topic) }} / {{ topic.stories.length }}</span>
+            <span class="development-control__story-summary">
+              <strong>{{ completedStories(topic) }} / {{ topic.stories.length }}</strong>
+              <small v-for="item in getStoryStatusCounts(topic)" :key="item.status" :class="`development-control__story-count development-control__story-count--${item.className.replace('is-', '')}`">{{ item.count }} {{ item.label }}</small>
+            </span>
             <span class="development-control__status" :class="`development-control__status--${topicStatusMeta[getTopicStatus(topic)].className.replace('is-', '')}`"><i />{{ topicStatusMeta[getTopicStatus(topic)].label }}</span>
             <span class="development-control__owner-cell">{{ topic.ownerName || '待分配' }}</span>
           </div>
@@ -493,53 +425,16 @@ watch(
         </template>
       </section>
 
-      <aside v-if="selectedTopic" class="development-control__detail-panel">
-        <div class="development-control__panel-heading">
-          <div>
-            <h4>专题详情</h4>
-            <span>当前选中专题</span>
-          </div>
-          <span class="development-control__status" :class="`development-control__status--${topicStatusMeta[getTopicStatus(selectedTopic)].className.replace('is-', '')}`"><i />{{ topicStatusMeta[getTopicStatus(selectedTopic)].label }}</span>
-        </div>
-
-        <h3>{{ selectedTopic.title }}</h3>
-        <div class="development-control__detail-meta">
-          <div><span>负责人</span><strong>{{ selectedTopic.ownerName || '待分配' }}</strong></div>
-          <div><span>迭代计划</span><strong>{{ iterationPlanNames(selectedTopic) || '未安排' }}</strong></div>
-          <div><span>故事进度</span><strong>{{ completedStories(selectedTopic) }} / {{ selectedTopic.stories.length }}</strong></div>
-        </div>
-
-        <div class="development-control__detail-progress">
-          <div><span>专题完成度</span><strong>{{ getTopicProgress(selectedTopic) }}%</strong></div>
-          <a-progress :percent="getTopicProgress(selectedTopic)" :show-info="false" />
-        </div>
-
-        <div class="development-control__detail-section">
-          <div class="development-control__detail-section-title">故事状态</div>
-          <div v-for="story in selectedTopic.stories" :key="`detail-${story.id}`" class="development-control__detail-story">
-            <span class="development-control__detail-story-name"><FileTextOutlined />{{ story.title }}</span>
-            <span class="development-control__status" :class="`development-control__status--${getStoryStatus(story).className.replace('is-', '')}`"><i />{{ getStoryStatus(story).label }}</span>
-          </div>
-        </div>
-
-        <div v-if="selectedTopic.blocker" class="development-control__blocker">
-          <ExclamationCircleOutlined />
-          <div>
-            <strong>当前阻塞</strong>
-            <span>{{ selectedTopic.blocker }}</span>
-          </div>
-        </div>
-      </aside>
     </div>
 
     <a-modal
       v-model:open="editorOpen"
-      :title="editorMode === 'create' ? '新增专题' : '更新开发状态'"
+      :title="editorMode === 'create' ? '新增专题' : '编辑专题'"
       :footer="null"
       :destroy-on-close="true"
       :mask-closable="!saving"
       :closable="!saving"
-      width="min(1280px, calc(100vw - 32px))"
+      width="min(640px, calc(100vw - 32px))"
       @after-close="flushDeferredRefresh"
     >
       <div v-if="draftTopic" class="development-control__editor">
@@ -547,28 +442,7 @@ watch(
           <label>专题名称<a-input v-model:value="draftTopic.title" :disabled="saving" placeholder="例如：订单中心专题" /></label>
           <label>专题负责人<PersonSelect v-model="draftTopic.ownerId" allow-clear :disabled="saving" placeholder="选择负责人" :options="ownerOptions" /></label>
         </div>
-        <div class="development-control__editor-story-heading">
-          <strong>故事</strong>
-          <a-button size="small" :disabled="saving" @click="addStory">+ 新增故事</a-button>
-        </div>
-        <div v-if="!draftTopic.stories.length" class="development-control__editor-empty">填写专题名称后点击确认，专题将加入开发树；故事可继续补充。</div>
-        <div v-for="(story, index) in draftTopic.stories" :key="story.id || index" class="development-control__editor-story">
-          <a-input v-model:value="story.title" :disabled="saving" placeholder="故事名称" aria-label="故事名称" />
-          <PersonSelect v-model="story.ownerId" allow-clear :disabled="saving" placeholder="故事负责人" :options="ownerOptions" aria-label="故事负责人" />
-          <a-select v-model:value="story.iterationPlanId" :disabled="saving" allow-clear placeholder="迭代计划（可选）" :options="iterationPlanOptions" aria-label="所属迭代计划" />
-          <a-select v-model:value="story.status" :disabled="saving" :options="statusOptions" aria-label="故事状态" @change="onStoryStatusChange(story)" />
-          <a-input-number v-model:value="story.progress" :disabled="saving" :min="0" :max="100" addon-after="%" placeholder="进度" aria-label="进度" />
-          <a-input-number v-model:value="story.storyPoints" :disabled="saving" :min="0" :max="1000" placeholder="故事点" aria-label="故事点" />
-          <a-range-picker
-            :value="storyScheduleValue(story)"
-            :disabled="saving"
-            value-format="YYYY-MM-DD"
-            :placeholder="['开始日期', '结束日期']"
-            aria-label="故事排期"
-            @change="onStoryScheduleChange(story, $event)"
-          />
-          <a-button type="text" danger :disabled="saving" aria-label="删除故事" title="删除故事" @click="removeStory(index)"><DeleteOutlined /></a-button>
-        </div>
+        <p class="development-control__editor-note">项目页面仅创建和编辑专题；故事请进入“故事列表工作台”创建和维护。此处保留已关联故事的实时状态展示。</p>
         <div class="development-control__editor-actions">
           <a-button :disabled="saving" @click="editorOpen = false">取消</a-button>
           <a-button type="primary" :loading="saving" :disabled="loading" @click="saveEditor">确认</a-button>
@@ -590,18 +464,19 @@ watch(
 .development-control__summary { display: grid; grid-template-columns: minmax(180px, 1.2fr) repeat(3, minmax(110px, 0.7fr)) minmax(220px, 1fr); gap: 0; background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: 8px; }
 .development-control__metric { display: grid; align-content: center; gap: 5px; min-height: 78px; padding: 14px 16px; border-left: 1px solid var(--pms-border); }
 .development-control__metric:first-child { border-left: 0; }
-.development-control__metric-label, .development-control__metric-note, .development-control__detail-meta span { color: var(--pms-text-muted); font-size: 11px; }
+.development-control__metric-label, .development-control__metric-note { color: var(--pms-text-muted); font-size: 11px; }
 .development-control__metric strong { color: var(--pms-text); font-size: 20px; line-height: 1.1; }
 .development-control__metric--progress strong { color: var(--pms-primary); }
 .development-control__metric--danger strong { color: var(--pms-danger); }
 .development-control__metric--date strong { font-size: 13px; }
 .development-control__summary :deep(.ant-progress) { margin: 0; }
-.development-control__layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.75fr); gap: 16px; align-items: start; }
-.development-control__tree-panel, .development-control__detail-panel { background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: 8px; overflow: hidden; }
+.development-control__layout { display: block; }
+.development-control__tree-panel { background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: 8px; overflow: hidden; }
 .development-control__tree-panel { min-width: 0; }
 .development-control__panel-heading { align-items: center; padding: 16px 18px 13px; }
 .development-control__panel-heading span { margin: 2px 0 0; }
 .development-control__tree-actions { display: flex; align-items: center; gap: 10px; }
+.development-control__topic-hint { color: var(--pms-text-muted); font-size: 12px; }
 .development-control__tree-hint { font-size: 11px !important; }
 .development-control__empty { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 86px; padding: 16px; color: var(--pms-text-muted); font-size: 12px; }
 .development-control__tree-head, .development-control__project-row, .development-control__topic-row, .development-control__story-row { display: grid; grid-template-columns: minmax(180px, 1.5fr) minmax(100px, 0.8fr) minmax(112px, 0.95fr) minmax(86px, 0.7fr) minmax(100px, 0.8fr); column-gap: 12px; align-items: center; }
@@ -618,6 +493,12 @@ watch(
 .development-control__tree-name--project svg, .development-control__topic-icon { color: var(--pms-primary); }
 .development-control__tree-name--story { padding-left: 30px; color: var(--pms-text-muted); }
 .development-control__tree-name--story svg { color: #9aa8bb; }
+.development-control__story-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 8px; }
+.development-control__story-summary > strong { color: var(--pms-text); }
+.development-control__story-count { font-size: 11px; }
+.development-control__story-count--blocked { color: var(--pms-danger); }
+.development-control__story-count--done { color: var(--pms-success); }
+.development-control__story-count--testing { color: #d98b19; }
 .development-control__owner-cell { overflow: hidden; color: var(--pms-text-muted); text-overflow: ellipsis; white-space: nowrap; }
 .development-control__expand-button { display: inline-grid; width: 18px; height: 18px; place-items: center; padding: 0; border: 0; background: transparent; color: var(--pms-text-muted); cursor: pointer; }
 .development-control__progress-cell { display: grid; grid-template-columns: minmax(45px, 1fr) 34px; align-items: center; gap: 8px; color: var(--pms-text-muted); font-size: 11px; }
@@ -635,39 +516,15 @@ watch(
 .development-control__status--done i { background: var(--pms-success); }
 .development-control__status--blocked { color: var(--pms-danger); }
 .development-control__status--blocked i { background: var(--pms-danger); }
-.development-control__detail-panel { padding-bottom: 16px; }
-.development-control__detail-panel h3 { padding: 0 18px; font-size: 17px; }
-.development-control__detail-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 16px 18px 0; padding: 12px 0; border-top: 1px solid var(--pms-border); border-bottom: 1px solid var(--pms-border); }
-.development-control__detail-meta div { display: grid; min-width: 0; gap: 4px; padding: 8px 10px; border: 1px solid #edf1f6; border-radius: 6px; background: #fbfcfe; }
-.development-control__detail-meta span { overflow: hidden; color: var(--pms-text-muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.development-control__detail-meta strong { overflow: hidden; color: var(--pms-text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.development-control__detail-progress { display: grid; gap: 6px; margin: 15px 18px 0; }
-.development-control__detail-progress > div { display: flex; justify-content: space-between; color: var(--pms-text-muted); font-size: 12px; }
-.development-control__detail-progress strong { color: var(--pms-primary); }
-.development-control__detail-progress :deep(.ant-progress-bg) { height: 7px !important; }
-.development-control__detail-section { margin: 17px 18px 0; }
-.development-control__detail-section-title { margin-bottom: 8px; color: var(--pms-text); font-size: 12px; font-weight: 700; }
-.development-control__detail-story { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 31px; border-bottom: 1px solid #edf1f6; color: var(--pms-text-muted); font-size: 11px; }
-.development-control__detail-story-name { display: inline-flex; align-items: center; min-width: 0; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.development-control__detail-story-name svg { color: #9aa8bb; }
-    .development-control__blocker { display: flex; gap: 8px; margin: 16px 18px 0; padding: 11px 12px; border-radius: 6px; font-size: 11px; line-height: 1.5; }
-.development-control__blocker { background: #fff7f5; color: var(--pms-danger); }
-.development-control__blocker div { display: grid; gap: 2px; }
-.development-control__blocker span { color: var(--pms-text-muted); }
 .development-control__editor { display: grid; gap: 18px; }
 .development-control__editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .development-control__editor-grid label { display: grid; gap: 6px; color: var(--pms-text); font-size: 12px; font-weight: 600; }
-.development-control__editor-story-heading { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; border-top: 1px solid var(--pms-border); color: var(--pms-text); }
-.development-control__editor-empty { padding: 16px; border: 1px dashed var(--pms-border); color: var(--pms-text-muted); font-size: 12px; text-align: center; }
-.development-control__editor-story { display: grid; grid-template-columns: minmax(200px, 1.45fr) minmax(150px, .95fr) minmax(160px, 1fr) minmax(100px, .65fr) minmax(84px, .55fr) minmax(84px, .55fr) minmax(250px, 1.4fr) 36px; gap: 8px; align-items: center; padding: 10px; border: 1px solid var(--pms-border); border-radius: 7px; background: #fbfcfe; }
-.development-control__editor-story :deep(.ant-input-number), .development-control__editor-story :deep(.ant-picker) { width: 100%; }
-.development-control__editor-story > .ant-btn { padding-inline: 4px; }
+.development-control__editor-note { margin: 0; padding: 12px 14px; color: var(--pms-text-muted); background: var(--pms-surface-muted); border: 1px dashed var(--pms-border); border-radius: 7px; font-size: 12px; line-height: 1.6; }
 .development-control__editor-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; border-top: 1px solid var(--pms-border); }
 
 @media (max-width: 900px) {
   .development-control__summary { grid-template-columns: repeat(2, 1fr); }
   .development-control__metric:nth-child(odd) { border-left: 0; }
-  .development-control__layout { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {
@@ -681,6 +538,5 @@ watch(
   .development-control__tree-panel { overflow-x: auto; }
       .development-control__tree-head, .development-control__project-row, .development-control__topic-row, .development-control__story-row { min-width: 820px; }
       .development-control__editor-grid { grid-template-columns: 1fr; }
-      .development-control__editor-story { grid-template-columns: 1fr 1fr; }
     }
 </style>

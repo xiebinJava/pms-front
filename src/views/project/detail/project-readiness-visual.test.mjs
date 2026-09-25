@@ -16,14 +16,14 @@ test('places the compact readiness summary inside the project header', () => {
 test('opens all project attention items in a modal instead of expanding the page inline', () => {
   assert.match(card, /<a-modal/)
   assert.doesNotMatch(card, /project-readiness-summary__view-all/)
-  assert.match(card, /v-if="!readiness\.items\.length"/)
+  assert.match(card, /v-if="!visibleItems\.length"/)
   assert.doesNotMatch(card, /expanded = ref\(false\)/)
   assert.doesNotMatch(card, /v-if="expanded" class="project-readiness-card__list"/)
 })
 
 test('compresses readiness details into inline action chips', () => {
   assert.match(card, /project-readiness-summary/)
-  assert.match(card, /v-if="readiness\.criticalCount"/)
+  assert.match(card, /v-if="criticalCount"/)
   assert.match(card, /project-readiness-summary__chip--critical/)
   assert.match(card, /project-readiness-summary__chip--warning/)
   assert.match(card, /project-readiness-summary__next-action/)
@@ -32,6 +32,14 @@ test('compresses readiness details into inline action chips', () => {
   assert.doesNotMatch(card, /project-readiness-summary__view-all/)
   assert.doesNotMatch(card, /project-readiness-card__metrics/)
   assert.doesNotMatch(card, /project-readiness-card__next-panel/)
+})
+
+test('filters future-node issues from readiness counts, next action, and details', () => {
+  assert.match(card, /isCurrentNodeAction/)
+  assert.match(card, /const visibleItems = computed\(\(\) => readiness\.value\.items\.filter\(isCurrentNodeAction\)\)/)
+  assert.match(card, /const criticalCount = computed\(\(\) => visibleItems\.value\.filter/)
+  assert.match(card, /const warningCount = computed\(\(\) => visibleItems\.value\.filter/)
+  assert.match(card, /v-for="item in visibleItems"/)
 })
 
 test('puts the node before its issue status and colors the marker by severity', () => {

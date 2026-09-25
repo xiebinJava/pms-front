@@ -332,7 +332,7 @@ async function loginToLiveProject(page: Page) {
 }
 
 async function createLiveTask(page: Page, title: string, dueDate: string) {
-  await page.getByRole('button', { name: /^添加任务$/ }).first().click()
+  await page.getByRole('button', { name: /添加任务$/ }).first().click()
   const dialog = page.locator('.ant-modal:visible')
   await dialog.locator('input[placeholder="请输入任务标题"]').fill(title)
   await chooseDate(page, dialog.locator('input[placeholder="截止日期"]'), dueDate)

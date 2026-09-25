@@ -343,6 +343,7 @@ export interface NodeDevelopmentControl {
   version?: number
   currentIteration?: string
   canEdit: boolean
+  topicCreationAllowed: boolean
   updatedAt?: string
   summary: NodeDevelopmentSummary
   topics: NodeDevelopmentTopic[]
@@ -371,6 +372,98 @@ export interface NodeDevelopmentControlUpdate {
       sort?: number
     }>
   }>
+}
+
+export type DevelopmentItemType = 'topic' | 'story'
+export type DevelopmentWorkflowStatus = 'NOT_CONFIGURED' | 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'
+
+export interface DevelopmentItemTask {
+  id: number
+  nodeId: number
+  parentId?: number
+  title: string
+  description?: string
+  status: 0 | 1 | 2
+  priority: 0 | 1 | 2
+  assigneeId?: number
+  assigneeName?: string
+  dueDate?: string
+  sort: number
+  version: number
+  children: DevelopmentItemTask[]
+}
+
+export interface DevelopmentItemWorkflowNode {
+  id: number
+  nodeKey: string
+  name: string
+  description?: string
+  deliverable?: string
+  sort: number
+  /** 0 locked, 1 active, 2 completed. */
+  status: 0 | 1 | 2
+  ownerId?: number
+  ownerName?: string
+  startDate?: string
+  endDate?: string
+  version: number
+  fields: WorkflowFieldDefinition[]
+  fieldValues: Record<string, unknown>
+  tasks: DevelopmentItemTask[]
+  runtimeComponents?: string[]
+}
+
+export interface DevelopmentItemWorkflowDetail {
+  itemType: DevelopmentItemType
+  id: number
+  title: string
+  projectId: number | null
+  projectCode?: string
+  projectName?: string
+  sourceNodeId: number | null
+  sourceNodeName?: string
+  topicId: number | null
+  topicTitle?: string
+  ownerId?: number
+  ownerName?: string
+  developmentStatus?: string
+  developmentProgress?: number
+  storyPoints?: number
+  startDate?: string
+  dueDate?: string
+  blocker?: string
+  latestBuildVersion?: string
+  testStatus?: string
+  iterationPlanName?: string
+  workflowConfigured: boolean
+  workflowStatus: DevelopmentWorkflowStatus
+  workflowProgress: number
+  workflowId?: number
+  templateVersionId?: number
+  templateVersionNo?: number
+  completedNodeCount: number
+  totalNodeCount: number
+  nodes: DevelopmentItemWorkflowNode[]
+}
+
+export interface DevelopmentItemNodeUpdate {
+  ownerId?: number
+  startDate?: string
+  endDate?: string
+  fieldValues?: Record<string, unknown>
+  version: number
+}
+
+export interface DevelopmentItemTaskSave {
+  parentId?: number
+  title: string
+  description?: string
+  status: 0 | 1 | 2
+  priority: 0 | 1 | 2
+  assigneeId?: number
+  dueDate?: string
+  sort?: number
+  version?: number
 }
 
 export type NodeScopeDirection = 'IN' | 'OUT'

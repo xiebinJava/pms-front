@@ -33,6 +33,8 @@ export interface WorkflowNodeDefinition {
 
 export interface WorkflowTemplateDefinitionV1 {
   schemaVersion: number
+  sourceProjectNodeKey?: string
+  sourceTopicNodeKey?: string
   nodes: WorkflowNodeDefinition[]
 }
 
@@ -50,7 +52,14 @@ export interface WorkflowNodeDefinitionV2 {
 
 export interface WorkflowTemplateDefinitionV2 {
   schemaVersion: 2
+  sourceProjectNodeKey?: string
+  sourceTopicNodeKey?: string
   nodes: WorkflowNodeDefinitionV2[]
+}
+
+export interface WorkflowProjectNodeOption {
+  key: string
+  name: string
 }
 
 export type WorkflowTemplateDefinition = WorkflowTemplateDefinitionV1 | WorkflowTemplateDefinitionV2
@@ -61,6 +70,7 @@ export interface ProjectType {
   name: string
   description?: string
   status: number
+  projectCreationEnabled?: boolean
   sort: number
   defaultTemplateVersionId?: number
   defaultTemplateId?: number

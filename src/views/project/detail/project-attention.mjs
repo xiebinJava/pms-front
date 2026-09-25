@@ -4,6 +4,12 @@ const SCHEDULE_GROUPS = {
   TASK_DUE_SOON: 'soon',
 }
 
+const FUTURE_NODE_TYPES = new Set([
+  'FUTURE_NODE_OWNER_MISSING',
+  'FUTURE_NODE_SCHEDULE_MISSING',
+  'FUTURE_NODE_TASK_MISSING',
+])
+
 export function buildAttentionRoute(item) {
   const query = {}
   if (item?.nodeId != null) query.node = String(item.nodeId)
@@ -19,6 +25,10 @@ export function attentionTone(severity) {
   return 'info'
 }
 
+export function isCurrentNodeAction(item) {
+  return !FUTURE_NODE_TYPES.has(item?.type)
+}
+
 export function groupAttentionItems(items = []) {
   const groups = {
     overdue: [],
@@ -26,7 +36,7 @@ export function groupAttentionItems(items = []) {
     project: [],
     soon: [],
   }
-  items.forEach((item) => {
+  items.filter(isCurrentNodeAction).forEach((item) => {
     groups[SCHEDULE_GROUPS[item.type] || 'project'].push(item)
   })
   return groups

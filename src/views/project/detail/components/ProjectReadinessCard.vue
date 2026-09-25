@@ -6,7 +6,7 @@ import {
 } from '@ant-design/icons-vue'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { attentionTone } from '../project-attention.mjs'
+import { attentionTone, isCurrentNodeAction } from '../project-attention.mjs'
 import type { ProjectActionItem, ProjectReadiness } from '/@/types/domain'
 
 const props = defineProps<{
@@ -28,7 +28,13 @@ const readiness = computed<ProjectReadiness>(() => props.readiness || {
   warningCount: 0,
   items: [],
 })
-const nextAction = computed(() => readiness.value.nextAction || readiness.value.items[0])
+const visibleItems = computed(() => readiness.value.items.filter(isCurrentNodeAction))
+const criticalCount = computed(() => visibleItems.value.filter((item) => item.severity === 'CRITICAL').length)
+const warningCount = computed(() => visibleItems.value.filter((item) => item.severity === 'WARNING').length)
+const nextAction = computed(() => {
+  const serverNextAction = readiness.value.nextAction
+  return (serverNextAction && isCurrentNodeAction(serverNextAction)) ? serverNextAction : visibleItems.value[0]
+})
 
 function actionLabel(item: ProjectActionItem) {
   if (!item.canAct) return t('detail.attentionView')
@@ -45,20 +51,21 @@ function emitAction(item: ProjectActionItem) {
   <div class="project-readiness-summary" aria-label="项目推进摘要">
     <div class="project-readiness-summary__chips">
       <a-button
-        v-if="readiness.criticalCount"
+        v-if="criticalCount"
         type="text"
         class="project-readiness-summary__chip project-readiness-summary__chip--critical"
         @click="modalOpen = true"
       >
         <ExclamationCircleOutlined />
-        <span>{{ $t('detail.attentionSummaryCritical') }} {{ readiness.criticalCount }}</span>
+        <span>{{ $t('detail.attentionSummaryCritical') }} {{ criticalCount }}</span>
       </a-button>
       <a-button
+        v-if="warningCount"
         type="text"
         class="project-readiness-summary__chip project-readiness-summary__chip--warning"
         @click="modalOpen = true"
       >
-        <span>{{ $t('detail.attentionSummaryWarning') }} {{ readiness.warningCount }}</span>
+        <span>{{ $t('detail.attentionSummaryWarning') }} {{ warningCount }}</span>
       </a-button>
       <a-button
         v-if="nextAction"
@@ -71,7 +78,7 @@ function emitAction(item: ProjectActionItem) {
         <span class="project-readiness-summary__next-title">{{ nextAction.title }}</span>
         <ArrowRightOutlined />
       </a-button>
-      <span v-if="!readiness.items.length" class="project-readiness-summary__clear">
+      <span v-if="!visibleItems.length" class="project-readiness-summary__clear">
         <CheckCircleOutlined /> {{ $t('detail.attentionAllClear') }}
       </span>
     </div>
@@ -86,7 +93,7 @@ function emitAction(item: ProjectActionItem) {
       <p class="project-readiness-modal__hint">{{ $t('detail.attentionHint') }}</p>
       <div class="project-readiness-summary__list">
         <button
-          v-for="item in readiness.items"
+          v-for="item in visibleItems"
           :key="`${item.type}-${item.nodeId || 'project'}-${item.taskId || 'none'}`"
           type="button"
           class="project-readiness-summary__item"

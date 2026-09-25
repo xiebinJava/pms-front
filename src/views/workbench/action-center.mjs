@@ -2,17 +2,25 @@ const PROJECT_TYPES = new Set([
   'PROJECT_MANAGER_MISSING',
   'CURRENT_NODE_OWNER_MISSING',
   'CURRENT_NODE_SCHEDULE_MISSING',
-  'FUTURE_NODE_OWNER_MISSING',
-  'FUTURE_NODE_SCHEDULE_MISSING',
   'HIGH_RISK_OPEN',
 ])
+const FUTURE_NODE_TYPES = new Set([
+  'FUTURE_NODE_OWNER_MISSING',
+  'FUTURE_NODE_SCHEDULE_MISSING',
+  'FUTURE_NODE_TASK_MISSING',
+])
+
+function isCurrentNodeAction(item) {
+  return !FUTURE_NODE_TYPES.has(item?.type)
+}
 
 export function filterActionItems(items = [], filter = 'ALL') {
-  if (filter === 'OVERDUE') return items.filter((item) => item.type === 'TASK_OVERDUE')
-  if (filter === 'TODAY') return items.filter((item) => item.type === 'TASK_DUE_TODAY')
-  if (filter === 'SOON') return items.filter((item) => item.type === 'TASK_DUE_SOON')
-  if (filter === 'PROJECT') return items.filter((item) => PROJECT_TYPES.has(item.type))
-  return items
+  const currentItems = items.filter(isCurrentNodeAction)
+  if (filter === 'OVERDUE') return currentItems.filter((item) => item.type === 'TASK_OVERDUE')
+  if (filter === 'TODAY') return currentItems.filter((item) => item.type === 'TASK_DUE_TODAY')
+  if (filter === 'SOON') return currentItems.filter((item) => item.type === 'TASK_DUE_SOON')
+  if (filter === 'PROJECT') return currentItems.filter((item) => PROJECT_TYPES.has(item.type))
+  return currentItems
 }
 
 export function emptyActionState(filter, context = {}) {

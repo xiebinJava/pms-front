@@ -24,7 +24,7 @@ test('builds node and project routes without undefined query parameters', () => 
   )
 })
 
-test('keeps future-node warnings visually distinct from critical actions', () => {
+test('maps action severity to the correct visual tone', () => {
   assert.equal(attentionTone('CRITICAL'), 'critical')
   assert.equal(attentionTone('WARNING'), 'warning')
   assert.equal(attentionTone('INFO'), 'info')
@@ -41,6 +41,6 @@ test('groups action items by the workbench and detail categories', () => {
   assert.deepEqual(Object.keys(groups), ['overdue', 'today', 'project', 'soon'])
   assert.equal(groups.overdue.length, 1)
   assert.equal(groups.today.length, 1)
-  assert.equal(groups.project.length, 2)
+  assert.equal(groups.project.length, 1)
   assert.equal(groups.soon.length, 0)
 })

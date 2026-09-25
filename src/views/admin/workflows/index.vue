@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import type { Component } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { onBeforeRouteLeave } from 'vue-router'
@@ -11,11 +11,14 @@ import {
 } from '@ant-design/icons-vue'
 import PmsPageHeader from '/@/components/PmsPageHeader.vue'
 import { useUserStore } from '/@/store/user'
+import { WORKFLOW_RUNTIME_COMPONENTS, WorkflowRuntimeComponentKey } from '/@/components/workflow/workflow-component-registry'
 import {
   createWorkflowProjectType,
   createWorkflowTemplate,
   archiveWorkflowTemplate,
   archiveWorkflowTemplateVersion,
+  getWorkflowProjectNodeOptions,
+  getWorkflowTopicNodeOptions,
   getWorkflowTemplate,
   listWorkflowProjectTypes,
   listWorkflowTemplates,
@@ -23,20 +26,25 @@ import {
   saveWorkflowTemplateDraft,
   setWorkflowDefault,
 } from '/@/api/admin-workflow'
-import type { ProjectType, WorkflowContentOrderItem, WorkflowFieldBinding, WorkflowFieldDefinition, WorkflowFieldType, WorkflowNodeDefinitionV2, WorkflowTemplateDefinitionV2, WorkflowTemplateSummary, WorkflowTemplateVersionSummary } from '/@/types/workflow'
+import type { ProjectType, WorkflowContentOrderItem, WorkflowFieldBinding, WorkflowFieldDefinition, WorkflowFieldType, WorkflowNodeDefinitionV2, WorkflowProjectNodeOption, WorkflowTemplateDefinitionV2, WorkflowTemplateSummary, WorkflowTemplateVersionSummary } from '/@/types/workflow'
 import { isWorkflowFieldFullWidth } from '/@/utils/workflow-field-layout.mjs'
+import WorkflowWorkbenchPreview from '/@/components/workflow/WorkflowWorkbenchPreview.vue'
 import {
   FIXED_NODE_BLOCKS,
   addWorkflowField,
+  buildProjectTypeCreatePayload,
   createWorkflowNode,
-  generateNextProjectTypeCode,
+  getWorkflowTemplateEntryStep,
+  normalizeWorkflowDefinitionForProcessType,
   moveWorkflowContentItem,
   moveWorkflowField,
   moveWorkflowNode,
   removeWorkflowField,
   removeWorkflowNode,
+  setTopicSourceProjectNodeKey,
+  setStorySourceTopicNodeKey,
 } from './workflow-template-model.mjs'
-import { normalizeWorkflowDefinition, PROJECT_FIELD_BINDINGS } from './workflow-template-schema.mjs'
+import { PROJECT_FIELD_BINDINGS } from './workflow-template-schema.mjs'
 
 const { t } = useI18n()
 const userStore = useUserStore()
@@ -45,6 +53,10 @@ const loading = ref(false)
 const saving = ref(false)
 const types = ref<ProjectType[]>([])
 const templates = ref<WorkflowTemplateSummary[]>([])
+const workflowProjectNodeOptions = ref<WorkflowProjectNodeOption[]>([])
+const workflowProjectNodeOptionsLoading = ref(false)
+const workflowTopicNodeOptions = ref<WorkflowProjectNodeOption[]>([])
+const workflowTopicNodeOptionsLoading = ref(false)
 const selectedTypeId = ref<number>()
 const selectedTemplateId = ref<number | null>(null)
 const selectedNodeKey = ref('')
@@ -63,18 +75,15 @@ const typeModalOpen = ref(false)
 const mobileInspectorOpen = ref(false)
 const mobileInspectorPanel = ref<HTMLElement>()
 const mobileInspectorTrigger = ref<HTMLElement>()
-const typeForm = reactive({ code: '', name: '', description: '' })
+const typeForm = reactive({ name: '', description: '' })
 let typeListRequestSequence = 0
 let templateListRequestSequence = 0
 let templateDetailRequestSequence = 0
 let typeChangeRequestSequence = 0
 let templateEditSequence = 0
+let workflowProjectNodeOptionsRequest: Promise<void> | undefined
+let workflowTopicNodeOptionsRequest: Promise<void> | undefined
 
-const COMPONENTS = [
-  { key: 'requirement-scope' }, { key: 'solution-design' },
-  { key: 'plan-resource-risk' }, { key: 'development-control' }, { key: 'business-acceptance' },
-  { key: 'release-handover' }, { key: 'value-review' }, { key: 'knowledge-standard' },
-]
 const fieldTypes: WorkflowFieldType[] = ['TEXT', 'TEXTAREA', 'NUMBER', 'RADIO', 'SINGLE_SELECT', 'MULTI_SELECT', 'PERSON', 'PERSON_MULTI', 'DATE', 'DATE_RANGE', 'ATTACHMENT']
 const FIELD_TYPE_ICONS: Record<WorkflowFieldType, Component> = {
   TEXT: FileTextOutlined,
@@ -90,7 +99,18 @@ const FIELD_TYPE_ICONS: Record<WorkflowFieldType, Component> = {
   ATTACHMENT: PaperClipOutlined,
 }
 const selectedType = computed(() => types.value.find((type) => type.id === selectedTypeId.value))
+const availableComponents = computed(() => WORKFLOW_RUNTIME_COMPONENTS
+  .filter(({ key }) => key !== WorkflowRuntimeComponentKey.STORY_SPLIT)
+  .filter((component) => !component.processTypeCodes?.length || component.processTypeCodes.includes(selectedType.value?.code || ''))
+  .map(({ key }) => ({ key })))
 const selectedTemplateSummary = computed(() => templates.value.find((template) => template.id === selectedTemplateId.value))
+const workflowEntryStep = computed(() => getWorkflowTemplateEntryStep({
+  typeCount: types.value.length,
+  selectedTypeId: selectedTypeId.value,
+  templateCount: templates.value.length,
+  selectedTemplateId: selectedTemplateId.value,
+  creatingTemplate: selectedTemplateId.value == null && dirty.value && definition.value.nodes.length > 0,
+}))
 const currentNode = computed(() => definition.value.nodes.find((node) => node.key === selectedNodeKey.value))
 const selectedField = computed(() => currentNode.value?.fields.find((field) => field.key === selectedFieldKey.value))
 const configuredComponents = computed(() => (currentNode.value?.contentOrder || [])
@@ -102,6 +122,55 @@ const selectedNodeIndex = computed(() => definition.value.nodes.findIndex((node)
 const publishedVersion = computed(() => selectedTemplateSummary.value?.publishedVersionNo)
 const workflowVersions = computed(() => [...(selectedTemplateSummary.value?.versions || [])]
   .sort((left, right) => right.versionNo - left.versionNo))
+
+watch(selectedTypeId, (typeId) => {
+  const processTypeCode = types.value.find((type) => type.id === typeId)?.code
+  if (processTypeCode === 'topic-management') {
+    void loadWorkflowProjectNodeOptions()
+  } else if (processTypeCode === 'story-management') {
+    void loadWorkflowTopicNodeOptions()
+  }
+})
+
+function loadWorkflowProjectNodeOptions(): Promise<void> {
+  if (workflowProjectNodeOptions.value.length) return Promise.resolve()
+  if (workflowProjectNodeOptionsRequest) return workflowProjectNodeOptionsRequest
+  workflowProjectNodeOptionsLoading.value = true
+  workflowProjectNodeOptionsRequest = getWorkflowProjectNodeOptions()
+    .then((options) => { workflowProjectNodeOptions.value = Array.isArray(options) ? options : [] })
+    .catch((error) => { message.error((error as Error).message || t('admin.workflow.topicSourceProjectNodeLoadFailed')) })
+    .finally(() => {
+      workflowProjectNodeOptionsLoading.value = false
+      workflowProjectNodeOptionsRequest = undefined
+    })
+  return workflowProjectNodeOptionsRequest
+}
+
+function loadWorkflowTopicNodeOptions(): Promise<void> {
+  if (workflowTopicNodeOptions.value.length) return Promise.resolve()
+  if (workflowTopicNodeOptionsRequest) return workflowTopicNodeOptionsRequest
+  workflowTopicNodeOptionsLoading.value = true
+  workflowTopicNodeOptionsRequest = getWorkflowTopicNodeOptions()
+    .then((options) => { workflowTopicNodeOptions.value = Array.isArray(options) ? options : [] })
+    .catch((error) => { message.error((error as Error).message || t('admin.workflow.storySourceTopicNodeLoadFailed')) })
+    .finally(() => {
+      workflowTopicNodeOptionsLoading.value = false
+      workflowTopicNodeOptionsRequest = undefined
+    })
+  return workflowTopicNodeOptionsRequest
+}
+
+function updateTopicSourceProjectNodeKey(value: unknown) {
+  if (selectedType.value?.code !== 'topic-management') return
+  definition.value = setTopicSourceProjectNodeKey(definition.value, String(value || ''))
+  markDirty()
+}
+
+function updateStorySourceTopicNodeKey(value: unknown) {
+  if (selectedType.value?.code !== 'story-management') return
+  definition.value = setStorySourceTopicNodeKey(definition.value, String(value || ''))
+  markDirty()
+}
 
 function defaultVersionLabel(template: WorkflowTemplateSummary): string {
   const versionNo = template.publishedVersions?.find((version) => version.id === template.defaultTemplateVersionId)?.versionNo
@@ -147,8 +216,14 @@ async function loadTypes(preferredTypeId?: number) {
     }
     selectedTypeId.value = types.value.some((type) => type.id === preferredTypeId)
       ? preferredTypeId
-      : types.value[0].id
-    await loadTemplates()
+      : undefined
+    if (selectedTypeId.value) await loadTemplates()
+    else {
+      templates.value = []
+      templateListRequestSequence += 1
+      templateDetailRequestSequence += 1
+      clearEditor()
+    }
   } catch (error) {
     if (requestSequence === typeListRequestSequence) message.error((error as Error).message || t('admin.workflow.loadFailed'))
   } finally {
@@ -173,8 +248,6 @@ async function loadTemplates(preferredTemplateId?: number) {
     if (requestSequence !== templateListRequestSequence || typeId !== selectedTypeId.value) return
     templates.value = loadedTemplates
     const selected = loadedTemplates.find((template) => template.id === preferredTemplateId)
-      || loadedTemplates.find((template) => template.defaultTemplate)
-      || loadedTemplates[0]
     if (selected) await selectTemplate(selected.id)
     else clearEditor()
   } catch (error) {
@@ -234,7 +307,7 @@ async function selectTemplate(id: number) {
     selectedTemplateId.value = template.id
     templateName.value = template.name
     templateDescription.value = template.description || ''
-    definition.value = normalizeWorkflowDefinition(template.definition)
+    definition.value = normalizeWorkflowDefinitionForProcessType(template.definition, selectedType.value?.code)
     selectedNodeKey.value = definition.value.nodes[0]?.key || ''
     selectedFieldKey.value = firstFieldKey(definition.value.nodes[0])
     dirty.value = false
@@ -316,13 +389,13 @@ async function newTemplate() {
   const requestSequence = ++templateDetailRequestSequence
   templateListRequestSequence += 1
   const base = templates.value.find((template) => template.defaultTemplate) || templates.value[0]
-  let nodes: WorkflowNodeDefinitionV2[] = []
+  let baseDefinition: WorkflowTemplateDefinitionV2 | undefined
   if (base) {
     loading.value = true
     try {
       const baseTemplate = await getWorkflowTemplate(base.id)
       if (requestSequence !== templateDetailRequestSequence || typeId !== selectedTypeId.value) return
-      nodes = normalizeWorkflowDefinition(baseTemplate.definition).nodes
+      baseDefinition = normalizeWorkflowDefinitionForProcessType(baseTemplate.definition, selectedType.value?.code)
     } catch (error) {
       dirty.value = hadUnsavedChanges
       message.error((error as Error).message || t('admin.workflow.loadFailed'))
@@ -333,9 +406,10 @@ async function newTemplate() {
   selectedTemplateId.value = null
   templateName.value = t('admin.workflow.newTemplateName')
   templateDescription.value = ''
-  definition.value = nodes.length
-    ? { schemaVersion: 2, nodes }
+  const initialDefinition: WorkflowTemplateDefinitionV2 = baseDefinition
+    ? { ...baseDefinition, nodes: baseDefinition.nodes }
     : { schemaVersion: 2, nodes: [createWorkflowNode([], { name: t('admin.workflow.newNodeName'), key: 'stage-1' })] }
+  definition.value = normalizeWorkflowDefinitionForProcessType(initialDefinition, selectedType.value?.code)
   selectedNodeKey.value = definition.value.nodes[0]?.key || ''
   selectedFieldKey.value = firstFieldKey(definition.value.nodes[0])
   dirty.value = true
@@ -712,22 +786,18 @@ async function archiveSelectedTemplate() {
 }
 
 async function saveType() {
-  if (!typeForm.code.trim() || !typeForm.name.trim()) { message.warning(t('admin.workflow.typeRequired')); return }
+  if (!typeForm.name.trim()) { message.warning(t('admin.workflow.typeRequired')); return }
   if (!(await confirmDiscard())) return
   try {
-    const created = await createWorkflowProjectType({ ...typeForm, code: typeForm.code.trim(), name: typeForm.name.trim(), sort: types.value.length })
+    const created = await createWorkflowProjectType(buildProjectTypeCreatePayload(typeForm, types.value.length))
     typeModalOpen.value = false
-    Object.assign(typeForm, { code: '', name: '', description: '' })
+    Object.assign(typeForm, { name: '', description: '' })
     await loadTypes(created.id)
   } catch (error) { message.error((error as Error).message || t('admin.workflow.typeSaveFailed')) }
 }
 
 function openTypeModal() {
-  Object.assign(typeForm, {
-    code: generateNextProjectTypeCode(types.value.map((type) => type.code)),
-    name: '',
-    description: '',
-  })
+  Object.assign(typeForm, { name: '', description: '' })
   typeModalOpen.value = true
 }
 
@@ -754,10 +824,9 @@ onMounted(async () => {
   <section class="workflow-admin-page">
     <PmsPageHeader :title="$t('admin.workflow.configTitle')" :description="$t('admin.workflow.description')">
       <template #actions>
-        <div class="workflow-page-actions">
+        <div v-if="workflowEntryStep === 'editor'" class="workflow-page-actions">
           <div class="workflow-page-actions__secondary">
             <a-button @click="previewOpen = true" :disabled="!definition.nodes.length"><EyeOutlined /> {{ $t('admin.workflow.preview') }}</a-button>
-            <a-button v-if="canWrite" @click="newTemplate">{{ $t('admin.workflow.newTemplate') }}</a-button>
           </div>
           <div v-if="canWrite" class="workflow-page-actions__primary">
             <a-button type="primary" :loading="saving" @click="saveDraft"><SaveOutlined /> {{ $t('admin.workflow.saveDraft') }}</a-button>
@@ -768,8 +837,73 @@ onMounted(async () => {
     </PmsPageHeader>
 
     <div class="workflow-editor" :aria-busy="loading || saving" :inert="saving || loading">
-        <a-spin :spinning="loading">
-          <template v-if="selectedTypeId">
+      <a-spin :spinning="loading">
+        <div class="workflow-entry-stack">
+          <section class="workflow-type-picker" data-testid="workflow-type-picker" role="group" :aria-label="$t('admin.workflow.processTypes')">
+            <div class="workflow-entry-heading">
+              <div class="workflow-entry-heading__copy">
+                <h2>{{ $t('admin.workflow.processTypes') }}</h2>
+                <p>{{ $t('admin.workflow.typeHint') }}</p>
+              </div>
+              <a-button v-if="canWrite && types.length" @click="openTypeModal"><PlusOutlined /> {{ $t('admin.workflow.addProcessType') }}</a-button>
+            </div>
+            <div v-if="types.length" class="workflow-choice-grid">
+              <button
+                v-for="type in types"
+                :key="type.id"
+                type="button"
+                class="workflow-choice-card"
+                :class="{ 'is-selected': selectedTypeId === type.id }"
+                :aria-pressed="selectedTypeId === type.id"
+                @click="changeProjectType(type.id)"
+              >
+                <span class="workflow-choice-card__title"><strong>{{ type.name }}</strong><a-tag v-if="selectedTypeId === type.id" color="blue">{{ $t('admin.workflow.selected') }}</a-tag></span>
+                <small>{{ type.description || $t('admin.workflow.typeHint') }}</small>
+              </button>
+            </div>
+          </section>
+
+          <section v-if="workflowEntryStep === 'empty-types'" class="workflow-empty-state" data-testid="workflow-empty-types">
+            <a-empty :description="$t('admin.workflow.noTypes')">
+              <a-button v-if="canWrite" type="primary" @click="openTypeModal"><PlusOutlined /> {{ $t('admin.workflow.addProcessType') }}</a-button>
+            </a-empty>
+          </section>
+
+          <section v-else-if="selectedTypeId" class="workflow-template-picker" data-testid="workflow-template-picker" role="group" :aria-label="$t('admin.workflow.templates')">
+            <div class="workflow-entry-heading">
+              <div class="workflow-entry-heading__copy">
+                <h2>{{ $t('admin.workflow.templates') }} <span>· {{ selectedType?.name }}</span></h2>
+                <p>{{ $t('admin.workflow.templatesHint') }}</p>
+              </div>
+            </div>
+            <div v-if="templates.length" class="workflow-choice-grid workflow-choice-grid--templates">
+              <button
+                v-for="template in templates"
+                :key="template.id"
+                type="button"
+                class="workflow-choice-card workflow-template-choice"
+                :class="{ 'is-selected': selectedTemplateId === template.id }"
+                :aria-pressed="selectedTemplateId === template.id"
+                @click="selectTemplate(template.id)"
+              >
+                <span class="workflow-choice-card__title"><strong>{{ template.name }}</strong><span class="workflow-choice-card__tags"><a-tag v-if="template.defaultTemplate" color="blue">{{ defaultVersionLabel(template) }}</a-tag><a-tag v-if="template.draftVersionNo" color="orange">{{ $t('admin.workflow.draftVersion', { version: template.draftVersionNo }) }}</a-tag><a-tag v-if="template.publishedVersionNo" color="green">{{ $t('admin.workflow.publishedVersion', { version: template.publishedVersionNo }) }}</a-tag><a-tag v-if="!template.publishedVersionNo">{{ $t('admin.workflow.notPublished') }}</a-tag></span></span>
+                <small>{{ template.description || $t('admin.workflow.templatesHint') }}</small>
+              </button>
+              <button v-if="canWrite" type="button" class="workflow-choice-card workflow-template-choice workflow-template-choice--create" @click="newTemplate">
+                <span class="workflow-template-create-icon"><PlusOutlined /></span>
+                <span class="workflow-choice-card__title"><strong>{{ $t('admin.workflow.newTemplate') }}</strong></span>
+                <small>{{ $t('admin.workflow.chooseOrCreate') }}</small>
+              </button>
+            </div>
+            <section v-if="workflowEntryStep === 'empty-templates'" class="workflow-empty-state" data-testid="workflow-empty-templates">
+              <a-empty :description="$t('admin.workflow.noTemplates')">
+                <a-button v-if="canWrite" type="primary" @click="newTemplate"><PlusOutlined /> {{ $t('admin.workflow.newTemplate') }}</a-button>
+              </a-empty>
+            </section>
+            <p v-else-if="workflowEntryStep === 'select-template'" class="workflow-selection-hint">{{ $t('admin.workflow.chooseOrCreate') }}</p>
+          </section>
+
+          <template v-if="workflowEntryStep === 'editor'">
             <section class="workflow-template-bar" data-testid="workflow-template-bar">
               <div class="template-selectors">
                 <div class="template-current">
@@ -784,26 +918,66 @@ onMounted(async () => {
                   </div>
                   <div class="template-current__name"><a-input v-model:value="templateName" :placeholder="$t('admin.workflow.templateName')" :disabled="!canWrite" :aria-label="$t('admin.workflow.templateName')" @input="markDirty" /></div>
                 </div>
-                <div class="template-selector template-selector--type">
-                  <div class="template-selector__heading"><span>{{ $t('admin.workflow.projectTypes') }}</span></div>
-                  <div class="template-selector__control"><a-select :value="selectedTypeId" @change="changeProjectType(Number($event))" :aria-label="$t('admin.workflow.projectTypes')"><a-select-option v-for="type in types" :key="type.id" :value="type.id">{{ type.name }}</a-select-option></a-select><a-button v-if="canWrite" size="small" :aria-label="$t('admin.workflow.addType')" @click="openTypeModal"><PlusOutlined /></a-button></div>
-                </div>
                 <div class="template-selector template-selector--workflow">
                   <div class="template-selector__heading">
-                    <span>{{ $t('admin.workflow.templates') }}</span>
+                    <span>{{ selectedType?.name }}</span>
                     <div class="template-selector__heading-actions">
                       <a-button v-if="canWrite && selectedTemplateId" size="small" data-testid="workflow-version-manager" @click="versionModalOpen = true">{{ $t('admin.workflow.versionManager') }}</a-button>
                       <a-button v-if="canWrite && selectedTemplateSummary?.publishedVersionId && selectedTemplateSummary.defaultTemplateVersionId !== selectedTemplateSummary.publishedVersionId" class="template-selector__default-action" size="small" :disabled="dirty" @click="setAsDefault">{{ $t('admin.workflow.setDefault') }}</a-button>
                       <a-button v-if="canWrite && selectedTemplateSummary && selectedTemplateSummary.code !== 'current-process' && !selectedTemplateSummary.defaultTemplate" size="small" danger data-testid="archive-workflow-template" @click="archiveSelectedTemplate">{{ $t('admin.workflow.archiveTemplate') }}</a-button>
                     </div>
                   </div>
-                  <div class="template-selector__control"><a-select :value="selectedTemplateId ?? undefined" :aria-label="$t('admin.workflow.templates')" :disabled="!templates.length" :placeholder="$t('admin.workflow.noTemplates')" @change="selectTemplate(Number($event))"><a-select-option v-for="template in templates" :key="template.id" :value="template.id">{{ template.name }}{{ template.defaultTemplate ? ` · ${defaultVersionLabel(template)}` : '' }}</a-select-option></a-select><a-button v-if="canWrite" size="small" :aria-label="$t('admin.workflow.newTemplate')" @click="newTemplate"><PlusOutlined /></a-button></div>
+                  <div class="template-selector__selected">{{ $t('admin.workflow.currentTemplate') }}：{{ selectedTemplateSummary?.name || templateName }}</div>
                 </div>
               </div>
               <div class="workflow-template-version-guidance" role="note" data-testid="workflow-template-version-guidance">
                 <InfoCircleOutlined aria-hidden="true" />
                 <span>{{ $t('admin.workflow.versionGuidance') }}</span>
               </div>
+              <section v-if="selectedType?.code === 'topic-management'" class="workflow-topic-binding" data-testid="workflow-topic-binding">
+                <div class="workflow-topic-binding__copy">
+                  <strong>{{ $t('admin.workflow.topicSourceProjectNodeKey') }}</strong>
+                  <p>{{ $t('admin.workflow.topicSourceProjectNodeKeyHint') }}</p>
+                </div>
+                <div class="workflow-topic-binding__control">
+                  <a-select
+                    :value="definition.sourceProjectNodeKey"
+                    :options="workflowProjectNodeOptions.map((option) => ({ value: option.key, label: option.name }))"
+                    :loading="workflowProjectNodeOptionsLoading"
+                    :disabled="!canWrite || workflowProjectNodeOptionsLoading || !workflowProjectNodeOptions.length"
+                    :placeholder="$t('admin.workflow.topicSourceProjectNodeKeyPlaceholder')"
+                    :aria-label="$t('admin.workflow.topicSourceProjectNodeKey')"
+                    show-search
+                    option-filter-prop="label"
+                    @change="updateTopicSourceProjectNodeKey"
+                  />
+                  <small v-if="!workflowProjectNodeOptionsLoading && !workflowProjectNodeOptions.length">
+                    {{ $t('admin.workflow.topicSourceProjectNodeKeyNoOptions') }}
+                  </small>
+                </div>
+              </section>
+              <section v-if="selectedType?.code === 'story-management'" class="workflow-topic-binding" data-testid="workflow-story-binding">
+                <div class="workflow-topic-binding__copy">
+                  <strong>{{ $t('admin.workflow.storySourceTopicNodeKey') }}</strong>
+                  <p>{{ $t('admin.workflow.storySourceTopicNodeKeyHint') }}</p>
+                </div>
+                <div class="workflow-topic-binding__control">
+                  <a-select
+                    :value="definition.sourceTopicNodeKey"
+                    :options="workflowTopicNodeOptions.map((option) => ({ value: option.key, label: option.name }))"
+                    :loading="workflowTopicNodeOptionsLoading"
+                    :disabled="!canWrite || workflowTopicNodeOptionsLoading || !workflowTopicNodeOptions.length"
+                    :placeholder="$t('admin.workflow.storySourceTopicNodeKeyPlaceholder')"
+                    :aria-label="$t('admin.workflow.storySourceTopicNodeKey')"
+                    show-search
+                    option-filter-prop="label"
+                    @change="updateStorySourceTopicNodeKey"
+                  />
+                  <small v-if="!workflowTopicNodeOptionsLoading && !workflowTopicNodeOptions.length">
+                    {{ $t('admin.workflow.storySourceTopicNodeKeyNoOptions') }}
+                  </small>
+                </div>
+              </section>
             </section>
 
             <section class="workflow-canvas-panel" :aria-label="$t('admin.workflow.canvasAria')">
@@ -854,7 +1028,7 @@ onMounted(async () => {
                   </div>
                   <div class="designer-palette-section">
                     <div class="designer-subheading"><strong>{{ $t('admin.workflow.workbenchComponents') }}</strong><small>{{ $t('admin.workflow.workbenchComponentsHint') }}</small></div>
-                    <button v-for="component in COMPONENTS" :key="component.key" type="button" class="designer-palette-item designer-palette-item--compact" :data-testid="`add-workflow-component-${component.key}`" :class="{ 'is-added': configuredComponents.includes(component.key) }" :aria-pressed="configuredComponents.includes(component.key)" :disabled="!canWrite" @click="toggleComponent(component.key, !configuredComponents.includes(component.key))"><span class="field-type-symbol"><CheckOutlined v-if="configuredComponents.includes(component.key)" /><PlusOutlined v-else /></span><span class="designer-palette-item__copy"><strong>{{ componentLabel(component.key) }}</strong><small>{{ $t(`admin.workflow.componentHints.${component.key}`) }}</small></span><span class="palette-state">{{ configuredComponents.includes(component.key) ? $t('admin.workflow.added') : $t('admin.workflow.add') }}</span></button>
+                    <button v-for="component in availableComponents" :key="component.key" type="button" class="designer-palette-item designer-palette-item--compact" :data-testid="`add-workflow-component-${component.key}`" :class="{ 'is-added': configuredComponents.includes(component.key) }" :aria-pressed="configuredComponents.includes(component.key)" :disabled="!canWrite" @click="toggleComponent(component.key, !configuredComponents.includes(component.key))"><span class="field-type-symbol"><CheckOutlined v-if="configuredComponents.includes(component.key)" /><PlusOutlined v-else /></span><span class="designer-palette-item__copy"><strong>{{ componentLabel(component.key) }}</strong><small>{{ $t(`admin.workflow.componentHints.${component.key}`) }}</small></span><span class="palette-state">{{ configuredComponents.includes(component.key) ? $t('admin.workflow.added') : $t('admin.workflow.add') }}</span></button>
                   </div>
                 </aside>
 
@@ -892,7 +1066,7 @@ onMounted(async () => {
                         </div>
                       </section>
                       <section v-else class="designer-content-item designer-workbench-card" :data-content-item="contentItem" :draggable="canWrite" @dragstart="contentDragItem = contentItem" @dragover.prevent @drop.prevent="onContentDrop(contentIndex)" @dragend="contentDragItem = undefined">
-                        <div><strong>{{ contentItemLabel(contentItem) }}</strong><p>{{ $t(`admin.workflow.componentHints.${contentItem.slice('component:'.length)}`) }}</p><div class="designer-workbench-placeholder">{{ $t('admin.workflow.reusedComponent') }}</div></div>
+                        <div class="designer-workbench-card__content"><WorkflowWorkbenchPreview class="designer-workbench-preview" :component-key="contentItem.slice('component:'.length)" /></div>
                         <div class="designer-workbench-actions"><a-button size="small" :disabled="!canWrite || contentIndex === 0" :aria-label="$t('admin.workflow.moveUp')" @click="moveContentItem(contentItem, -1)"><ArrowUpOutlined /></a-button><a-button size="small" :disabled="!canWrite || contentIndex === currentNode.contentOrder.length - 1" :aria-label="$t('admin.workflow.moveDown')" @click="moveContentItem(contentItem, 1)"><ArrowDownOutlined /></a-button><a-button size="small" danger :disabled="!canWrite" :aria-label="$t('admin.workflow.removeComponent')" @click="removeContentItem(contentItem)"><DeleteOutlined /></a-button></div>
                       </section>
                     </template>
@@ -926,16 +1100,16 @@ onMounted(async () => {
 
             <a-empty v-if="!currentNode" :description="$t('admin.workflow.chooseOrCreate')" />
           </template>
-          <a-empty v-else :description="$t('admin.workflow.noTypes')"><a-button v-if="canWrite" type="primary" @click="openTypeModal">{{ $t('admin.workflow.addType') }}</a-button></a-empty>
-        </a-spin>
-      </div>
+        </div>
+      </a-spin>
+    </div>
 
     <a-modal v-model:open="previewOpen" :title="$t('admin.workflow.previewTitle')" width="780px" :footer="null">
       <div class="template-preview-flow"><div v-for="(node, index) in definition.nodes" :key="node.key" class="template-preview-node"><span>{{ String(index + 1).padStart(2, '0') }}</span><strong>{{ node.name }}</strong><small>{{ node.contentOrder.map((item) => contentItemLabel(item)).join(' · ') || $t('admin.workflow.custom') }}</small><div>{{ $t('admin.workflow.fixedBlocksTitle') }}：{{ FIXED_NODE_BLOCKS.map((block) => t(`admin.workflow.fixedBlocks.${block}`)).join('、') }}</div><template v-for="contentItem in node.contentOrder" :key="contentItem"><div v-if="contentItem === 'fields' || contentItem === 'legacy-custom-fields'" class="template-preview-content-item"><b>{{ contentItemLabel(contentItem) }}</b><div v-for="field in fieldsForContentItem(node, contentItem)" :key="field.key" class="preview-field-line">{{ field.label }} · {{ fieldTypeLabel(field.type) }}<b v-if="field.required">*</b></div></div><div v-else class="template-preview-content-item"><b>{{ contentItemLabel(contentItem) }}</b><small>{{ $t(`admin.workflow.componentHints.${contentItem.slice('component:'.length)}`) }}</small></div></template></div></div>
     </a-modal>
 
-    <a-modal v-model:open="typeModalOpen" :title="$t('admin.workflow.addType')" :ok-text="$t('common.save')" :cancel-text="$t('common.cancel')" @ok="saveType">
-      <a-form layout="vertical"><a-form-item :label="$t('admin.workflow.typeCode')"><a-input v-model:value="typeForm.code" placeholder="e.g. product" /></a-form-item><a-form-item :label="$t('admin.workflow.typeName')"><a-input v-model:value="typeForm.name" /></a-form-item><a-form-item :label="$t('admin.workflow.typeDescription')"><a-textarea v-model:value="typeForm.description" :rows="2" /></a-form-item></a-form>
+    <a-modal v-model:open="typeModalOpen" :title="$t('admin.workflow.addProcessType')" :ok-text="$t('common.save')" :cancel-text="$t('common.cancel')" @ok="saveType">
+      <a-form layout="vertical"><a-form-item :label="$t('admin.workflow.typeName')" required><a-input v-model:value="typeForm.name" /></a-form-item><a-form-item :label="$t('admin.workflow.typeDescription')"><a-textarea v-model:value="typeForm.description" :rows="2" /></a-form-item></a-form>
     </a-modal>
 
     <a-modal v-model:open="versionModalOpen" :title="$t('admin.workflow.versionManager')" width="680px" :footer="null" data-testid="workflow-version-modal">
@@ -1103,6 +1277,28 @@ onMounted(async () => {
 }
 
 .workflow-editor { min-width: 0; padding: 0; background: transparent; border: 0; box-shadow: none; }
+.workflow-entry-stack { display: grid; gap: var(--pms-space-4); }
+.workflow-type-picker, .workflow-template-picker, .workflow-empty-state { min-width: 0; padding: var(--pms-space-4); background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); box-shadow: var(--pms-shadow-sm); }
+.workflow-entry-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--pms-space-3); margin-bottom: var(--pms-space-3); }
+.workflow-entry-heading__copy { display: grid; min-width: 0; gap: var(--pms-space-2); }
+.workflow-entry-heading h2 { margin: 0; color: var(--pms-text); font-size: var(--pms-font-size-section); font-weight: 680; line-height: var(--pms-line-height-tight); }
+.workflow-entry-heading h2 span { color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); font-weight: 500; }
+.workflow-entry-heading p, .workflow-selection-hint { margin: 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
+.workflow-choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--pms-space-3); }
+.workflow-choice-card { display: grid; align-content: start; gap: var(--pms-space-2); min-width: 0; min-height: 92px; padding: var(--pms-space-3); color: var(--pms-text); text-align: left; background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); cursor: pointer; transition: border-color var(--pms-motion-fast) ease, background var(--pms-motion-fast) ease, box-shadow var(--pms-motion-fast) ease; }
+.workflow-choice-card:hover { border-color: var(--pms-border-strong); background: var(--pms-surface-muted); }
+.workflow-choice-card:focus-visible { outline: 0; box-shadow: var(--pms-focus-ring); }
+.workflow-choice-card.is-selected { background: var(--pms-primary-soft); border-color: var(--pms-primary); box-shadow: 0 0 0 2px var(--pms-primary-soft); }
+.workflow-choice-card__title, .workflow-choice-card__tags { display: flex; align-items: center; flex-wrap: wrap; gap: var(--pms-space-2); }
+.workflow-choice-card__title { justify-content: space-between; }
+.workflow-choice-card__title strong { min-width: 0; color: var(--pms-text); font-size: var(--pms-font-size-body); font-weight: 680; }
+.workflow-choice-card__title :deep(.ant-tag), .workflow-choice-card__tags :deep(.ant-tag) { margin-inline-end: 0; }
+.workflow-choice-card > small { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-relaxed); }
+.workflow-template-choice { min-height: 112px; }
+.workflow-template-choice--create { align-content: center; justify-items: start; border-style: dashed; }
+.workflow-template-create-icon { display: grid; width: 32px; height: 32px; place-items: center; color: var(--pms-primary); background: var(--pms-primary-soft); border-radius: var(--pms-radius-sm); }
+.workflow-empty-state { background: var(--pms-surface-muted); border-style: dashed; box-shadow: none; }
+.workflow-selection-hint { padding-top: var(--pms-space-3); }
 .workflow-template-bar { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: var(--pms-space-3); margin-bottom: var(--pms-space-4); padding: var(--pms-space-4); background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); box-shadow: var(--pms-shadow-sm); }
 .template-current { display: grid; min-width: 0; gap: var(--pms-space-2); }
 .template-current__heading { display: flex; min-width: 0; min-height: 36px; align-items: center; flex-wrap: wrap; gap: var(--pms-space-2); }
@@ -1111,15 +1307,22 @@ onMounted(async () => {
 .template-current__status :deep(.ant-tag) { margin-inline-end: 0; }
 .template-current__name { display: flex; align-items: center; gap: var(--pms-space-2); min-width: 0; }
 .template-current__name :deep(.ant-input) { min-width: 0; color: var(--pms-text); font-size: var(--pms-font-size-body); font-weight: 650; }
-.template-selectors { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr) minmax(0, 1.15fr); align-items: start; gap: var(--pms-space-3); }
+.template-selectors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--pms-space-3); }
 .template-selector { display: grid; min-width: 0; gap: var(--pms-space-2); }
 .template-selector__heading { display: flex; min-width: 0; min-height: 36px; align-items: center; justify-content: space-between; gap: var(--pms-space-2); }
 .template-selector__heading-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: var(--pms-space-1); }
 .template-selector__default-action { flex: 0 0 auto; white-space: nowrap; }
 .template-selector__control { display: flex; align-items: center; gap: var(--pms-space-2); min-width: 0; }
 .template-selector__control :deep(.ant-select) { flex: 1; min-width: 0; }
+.template-selector__selected { display: flex; min-height: 40px; align-items: center; padding: 0 var(--pms-space-3); color: var(--pms-text); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); font-size: var(--pms-font-size-compact); }
 .workflow-template-version-guidance { display: flex; grid-column: 1 / -1; align-items: flex-start; gap: var(--pms-space-2); padding: var(--pms-space-3); color: var(--pms-text-muted); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
 .workflow-template-version-guidance :deep(.anticon) { flex: 0 0 auto; color: var(--pms-primary); }
+.workflow-topic-binding { display: grid; grid-template-columns: minmax(220px, .72fr) minmax(280px, 1.28fr); align-items: center; gap: var(--pms-space-4); padding: var(--pms-space-3); background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); }
+.workflow-topic-binding__copy strong { color: var(--pms-text); font-size: var(--pms-font-size-body); }
+.workflow-topic-binding__copy p { margin: var(--pms-space-1) 0 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
+.workflow-topic-binding__control { display: grid; gap: var(--pms-space-1); }
+.workflow-topic-binding__control small { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); }
+.workflow-topic-binding__control :deep(.ant-select) { width: 100%; }
 .workflow-version-manager { display: grid; gap: var(--pms-space-3); }
 .workflow-version-manager__description { margin: 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
 .workflow-version-list { display: grid; max-height: min(56vh, 520px); overflow: auto; border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); }
@@ -1249,7 +1452,7 @@ onMounted(async () => {
 .designer-task-columns small { color: var(--pms-primary); font-size: var(--pms-font-size-caption); white-space: nowrap; }
 .workflow-admin-page :deep(.ant-empty) { margin: var(--pms-space-3) 0; }
 @media (max-width: 1200px) {
-  .template-selectors { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr) minmax(0, 1fr); gap: var(--pms-space-2); }
+  .template-selectors { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--pms-space-2); }
   .designer-grid { grid-template-columns: minmax(150px, .7fr) minmax(300px, 2fr) minmax(180px, .82fr); }
 }
 @media (max-width: 980px) {
@@ -1261,12 +1464,17 @@ onMounted(async () => {
 @media (max-width: 700px) {
   .workflow-editor { padding: 0; }
   .workflow-admin-page :deep(.workflow-page-actions) { width: 100%; justify-content: flex-start; }
+  .workflow-type-picker, .workflow-template-picker, .workflow-empty-state { padding: var(--pms-space-3); }
+  .workflow-entry-heading { align-items: flex-start; flex-direction: column; }
+  .workflow-entry-heading > :deep(.ant-btn) { width: 100%; }
+  .workflow-choice-grid { grid-template-columns: minmax(0, 1fr); }
   .workflow-template-bar { padding: var(--pms-space-3); }
   .template-current__heading { align-items: flex-start; }
   .workflow-version-row { align-items: flex-start; flex-direction: column; }
   .workflow-version-row__actions { justify-content: flex-start; }
   .template-selectors { grid-template-columns: minmax(0, 1fr); }
   .template-selectors > .template-current { grid-column: auto; }
+  .workflow-topic-binding { grid-template-columns: minmax(0, 1fr); gap: var(--pms-space-2); }
   .workflow-canvas-panel { padding: var(--pms-space-3); }
   .workflow-node-card { flex-basis: 220px; min-height: 84px; padding-bottom: var(--pms-space-3); }
   .workflow-node-designer { padding: var(--pms-space-3); }

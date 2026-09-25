@@ -78,6 +78,32 @@ const router = createRouter({
           meta: { titleKey: 'route.projectList' },
         },
         {
+          path: 'development/topics',
+          name: 'development-topics',
+          component: () => import('/@/views/development/topics/index.vue'),
+          meta: { titleKey: 'route.developmentTopics' },
+        },
+        {
+          path: 'development/stories',
+          name: 'development-stories',
+          component: () => import('/@/views/development/stories/index.vue'),
+          meta: { titleKey: 'route.developmentStories' },
+        },
+        {
+          path: 'development/topics/:id',
+          name: 'development-topic-detail',
+          component: () => import('/@/views/development/detail/DevelopmentItemDetailPage.vue'),
+          props: { itemType: 'topic' },
+          meta: { titleKey: 'route.developmentTopicDetail', permission: 'project:read' },
+        },
+        {
+          path: 'development/stories/:id',
+          name: 'development-story-detail',
+          component: () => import('/@/views/development/detail/DevelopmentItemDetailPage.vue'),
+          props: { itemType: 'story' },
+          meta: { titleKey: 'route.developmentStoryDetail', permission: 'project:read' },
+        },
+        {
           path: 'projects/dashboard',
           name: 'project-dashboard',
           component: () => import('/@/views/project-dashboard/index.vue'),

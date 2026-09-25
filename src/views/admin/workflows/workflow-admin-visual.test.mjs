@@ -4,6 +4,9 @@ import test from 'node:test'
 import { designTokens } from '../../../styles/design-system.ts'
 
 const source = fs.readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
+const workbenchPreviewSource = fs.existsSync(new URL('../../../components/workflow/WorkflowWorkbenchPreview.vue', import.meta.url))
+  ? fs.readFileSync(new URL('../../../components/workflow/WorkflowWorkbenchPreview.vue', import.meta.url), 'utf8')
+  : ''
 const style = source.match(/<style scoped>([\s\S]*?)<\/style>/)?.[1] || ''
 const template = source.split('<template>')[1]?.split('<style scoped>')[0] || ''
 const spacingScale = new Set([0, ...Object.values(designTokens.spacing || {})])
@@ -12,6 +15,42 @@ test('workflow template typography only uses documented readable type sizes', ()
   const sizes = [...style.matchAll(/font-size:\s*([^;]+)/g)].map((match) => match[1].trim())
   assert.ok(sizes.length > 0, 'expected workflow styles to define typography')
   assert.ok(sizes.every((size) => /^var\(--pms-font-size-(?:caption|compact|body|nav|section|title|display)\)$/.test(size)), `unexpected font sizes: ${sizes.join(', ')}`)
+})
+
+test('topic templates select a backend project-node binding and explain runtime component injection', () => {
+  const api = fs.readFileSync(new URL('../../../api/admin-workflow.ts', import.meta.url), 'utf8')
+  const types = fs.readFileSync(new URL('../../../types/workflow.ts', import.meta.url), 'utf8')
+  const registry = fs.readFileSync(new URL('../../../components/workflow/workflow-component-registry.ts', import.meta.url), 'utf8')
+  const zhLocale = fs.readFileSync(new URL('../../../locales/zh-CN.ts', import.meta.url), 'utf8')
+  const enLocale = fs.readFileSync(new URL('../../../locales/en-US.ts', import.meta.url), 'utf8')
+
+  assert.match(api, /getWorkflowProjectNodeOptions[\s\S]*?\/admin\/workflow-config\/project-node-options/)
+  assert.match(types, /interface WorkflowProjectNodeOption\s*\{\s*key:\s*string\s*name:\s*string/s)
+  assert.match(types, /interface WorkflowTemplateDefinitionV1\s*\{[^}]*sourceProjectNodeKey\?:\s*string/s)
+  assert.match(types, /interface WorkflowTemplateDefinitionV2\s*\{[^}]*sourceProjectNodeKey\?:\s*string/s)
+  assert.match(types, /interface WorkflowTemplateDefinitionV1\s*\{[^}]*sourceTopicNodeKey\?:\s*string/s)
+  assert.match(types, /interface WorkflowTemplateDefinitionV2\s*\{[^}]*sourceTopicNodeKey\?:\s*string/s)
+  assert.match(source, /normalizeWorkflowDefinitionForProcessType\(template\.definition,\s*selectedType\.value\?\.code\)/)
+  assert.match(source, /getWorkflowProjectNodeOptions\(\)/)
+  assert.match(template, /v-if="selectedType\?\.code === 'topic-management'"/)
+  assert.match(template, /v-if="selectedType\?\.code === 'story-management'"/)
+  assert.match(template, /:value="definition\.sourceProjectNodeKey"[\s\S]*?@change="updateTopicSourceProjectNodeKey"/)
+  assert.match(template, /:options="workflowProjectNodeOptions\.map\(\(option\) => \(\{ value: option\.key, label: option\.name \}\)\)"/)
+  assert.match(template, /:aria-label="\$t\('admin\.workflow\.topicSourceProjectNodeKey'\)"/)
+  assert.match(source, /setTopicSourceProjectNodeKey\(definition\.value,\s*String\(value \|\| ''\)\)/)
+  assert.match(zhLocale, /topicSourceProjectNodeKey/)
+  assert.match(enLocale, /topicSourceProjectNodeKey/)
+  assert.match(zhLocale, /发布后会在该项目节点自动加入“专题列表工作台”/)
+  assert.match(enLocale, /automatically adds the Topic List Workbench/)
+  assert.match(registry, /label:\s*'专题列表工作台'/)
+  assert.match(registry, /label:\s*'故事列表工作台'/)
+  assert.match(registry, /processTypeCodes:\s*\['topic-management'\]/)
+})
+
+test('workflow palette only exposes story list workbench for topic templates', () => {
+  assert.match(source, /const availableComponents = computed\(\(\) => WORKFLOW_RUNTIME_COMPONENTS/)
+  assert.match(source, /component\.processTypeCodes\?\.[\s\S]*?includes\(selectedType\.value\?\.code \|\| ''\)/)
+  assert.match(template, /v-for="component in availableComponents"/)
 })
 
 test('workflow layout spacing comes from the documented PMS spacing scale', () => {
@@ -69,11 +108,14 @@ test('workflow node cards keep a uniform height regardless of title wrapping', (
 })
 
 test('workflow editor presents the node field palette, visual canvas, and property inspector', () => {
-  assert.match(template, /class="workflow-template-bar"[\s\S]*?class="workflow-node-designer"/)
+  assert.match(template, /data-testid="workflow-type-picker"[\s\S]*?v-for="type in types"[\s\S]*?:aria-pressed="selectedTypeId === type\.id"/)
+  assert.match(template, /data-testid="workflow-template-picker"[\s\S]*?v-for="template in templates"[\s\S]*?:aria-pressed="selectedTemplateId === template\.id"/)
+  assert.match(template, /v-if="workflowEntryStep === 'editor'"[\s\S]*?class="workflow-template-bar"[\s\S]*?class="workflow-canvas-panel"/)
+  assert.match(template, /workflowEntryStep === 'empty-types'[\s\S]*?\$t\('admin\.workflow\.noTypes'\)/)
+  assert.match(template, /workflowEntryStep === 'empty-templates'[\s\S]*?\$t\('admin\.workflow\.noTemplates'\)/)
+  assert.doesNotMatch(template, /<a-select :value="selectedTypeId"/)
   assert.match(template, /class="designer-panel designer-palette"[\s\S]*?class="designer-panel designer-canvas"[\s\S]*?class="designer-panel designer-inspector"/)
   assert.match(template, /data-testid="designer-fixed-owner"[\s\S]*?data-testid="designer-fixed-schedule"[\s\S]*?data-testid="designer-fixed-task-board"/)
-  assert.match(template, /<a-select :value="selectedTypeId" @change="changeProjectType/)
-  assert.doesNotMatch(template, /<a-select :value="selectedTypeId" :disabled="!canWrite"/)
   assert.match(style, /\.designer-grid\s*\{[^}]*grid-template-columns:\s*minmax\(168px,[^}]+minmax\(196px/)
 })
 
@@ -94,9 +136,9 @@ test('designer fields and inspector adapt to mobile widths', () => {
 })
 
 test('workflow editor normalizes legacy definitions before editing and persists schema v2', () => {
-  assert.match(source, /import\s*\{[^}]*normalizeWorkflowDefinition[^}]*\}\s*from '\.\/workflow-template-schema\.mjs'/)
-  assert.match(source, /definition\.value = normalizeWorkflowDefinition\(template\.definition\)/)
-  assert.match(source, /normalizeWorkflowDefinition\(baseTemplate\.definition\)/)
+  assert.match(source, /import\s*\{[^}]*normalizeWorkflowDefinitionForProcessType[^}]*\}\s*from '\.\/workflow-template-model\.mjs'/)
+  assert.match(source, /definition\.value = normalizeWorkflowDefinitionForProcessType\(template\.definition,\s*selectedType\.value\?\.code\)/)
+  assert.match(source, /baseDefinition = normalizeWorkflowDefinitionForProcessType\(baseTemplate\.definition,\s*selectedType\.value\?\.code\)/)
   assert.match(source, /const definition = ref<WorkflowTemplateDefinitionV2>\(\{ schemaVersion: 2, nodes: \[\] \}\)/)
   assert.match(source, /definition:\s*JSON\.parse\(JSON\.stringify\(definition\.value\)\)/)
 })
@@ -107,6 +149,62 @@ test('content editor uses v2 contentOrder and model helpers rather than legacy c
   assert.match(source, /function moveContentItem\(contentItem: WorkflowContentOrderItem, delta: number\)[\s\S]*?moveWorkflowContentItem/)
   assert.doesNotMatch(source, /node\.components/)
   assert.doesNotMatch(source, /projectBasicInfoFields/)
+})
+
+test('workbench cards render a read-only preview of the actual business content', () => {
+  assert.match(source, /import WorkflowWorkbenchPreview from '\/\@\/components\/workflow\/WorkflowWorkbenchPreview\.vue'/)
+  assert.match(template, /<WorkflowWorkbenchPreview class="designer-workbench-preview"[\s\S]*?:component-key="contentItem\.slice\('component:'\.length\)"/)
+  assert.match(workbenchPreviewSource, /data-workbench-preview="componentKey"/)
+  assert.match(workbenchPreviewSource, /workbenchPreview\.readOnly/)
+  assert.match(workbenchPreviewSource, /workbenchPreview\.readOnlyHint/)
+  assert.match(workbenchPreviewSource, /detail\.requirementScope\.scopeTitle/)
+  assert.match(workbenchPreviewSource, /detail\.requirementScope\.inScope/)
+  assert.match(workbenchPreviewSource, /detail\.requirementScope\.outScope/)
+  assert.match(workbenchPreviewSource, /detail\.requirementScope\.requirementsTitle/)
+  assert.match(workbenchPreviewSource, /detail\.requirementScope\.addRequirement/)
+  assert.match(workbenchPreviewSource, /detail\.requirementScope\.noRequirements/)
+
+  for (const key of [
+    'requirement-scope', 'solution-design', 'plan-resource-risk', 'development-control',
+    'story-list', 'business-acceptance', 'release-handover', 'value-review', 'knowledge-standard',
+  ]) {
+    assert.match(workbenchPreviewSource, new RegExp(`['"]${key}['"]`), `missing preview layout for ${key}`)
+  }
+})
+
+test('business workbench previews reuse the actual project-page section keys and table columns', () => {
+  const actualComponentSources = {
+    solution: fs.readFileSync(new URL('../../../views/project/detail/components/SolutionDesignWorkbench.vue', import.meta.url), 'utf8'),
+    plan: fs.readFileSync(new URL('../../../views/project/detail/components/PlanResourceRiskWorkbench.vue', import.meta.url), 'utf8'),
+    acceptance: fs.readFileSync(new URL('../../../views/project/detail/components/AcceptanceWorkbench.vue', import.meta.url), 'utf8'),
+    release: fs.readFileSync(new URL('../../../views/project/detail/components/ReleaseDecisionHandoverWorkbench.vue', import.meta.url), 'utf8'),
+    value: fs.readFileSync(new URL('../../../views/project/detail/components/ValueReviewWorkbench.vue', import.meta.url), 'utf8'),
+    knowledge: fs.readFileSync(new URL('../../../views/project/detail/components/KnowledgeStandardWorkbench.vue', import.meta.url), 'utf8'),
+  }
+
+  for (const key of [
+    'detail.solutionDesign.package.title', 'detail.solutionDesign.reviews.title', 'detail.solutionDesign.decision.title',
+    'detail.planResourceRisk.iterationTitle', 'detail.planResourceRisk.resourceTitle', 'detail.planResourceRisk.riskTitle',
+    'detail.acceptance.itemsTitle', 'detail.acceptance.defectsTitle', 'detail.acceptance.decisionTitle',
+    'detail.release.infoTitle', 'detail.release.decisionTitle', 'detail.release.handoverTitle',
+    'detail.valueReview.valueTitle', 'detail.valueReview.retrospectiveTitle',
+  ]) {
+    assert.match(workbenchPreviewSource, new RegExp(key.replaceAll('.', '\\.' )), `missing actual section key ${key}`)
+  }
+
+  for (const key of [
+    'solution', 'plan', 'acceptance', 'release', 'value', 'knowledge',
+  ]) {
+    assert.ok(actualComponentSources[key].includes('<section'), `actual ${key} workbench should remain section-based`)
+  }
+
+  for (const column of [
+    'productSolution', 'technicalSolution', 'iterationName', 'iterationGoal', 'role', 'focus', 'risk', 'response',
+    'requirement', 'criteria', 'defectKey', 'defectSeverity', 'version', 'window', 'handoverNotes',
+    'result', 'actualResult', 'asset', 'improvement', 'action', 'dueDate',
+  ]) {
+    assert.match(workbenchPreviewSource, new RegExp(column), `missing actual field ${column}`)
+  }
 })
 
 test('node content and individual field cards support pointer sorting while keeping fixed blocks outside deletion', () => {

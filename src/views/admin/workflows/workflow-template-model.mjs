@@ -1,3 +1,5 @@
+import { normalizeWorkflowDefinition } from './workflow-template-schema.mjs'
+
 export const FIXED_NODE_BLOCKS = Object.freeze(['owner', 'schedule', 'task-board'])
 
 export const DEFAULT_PROJECT_BASIC_INFO_FIELDS = Object.freeze([
@@ -11,12 +13,26 @@ export const DEFAULT_PROJECT_BASIC_INFO_FIELDS = Object.freeze([
   { key: 'followers', label: '关注人', visible: true, required: false },
 ])
 
-export function generateNextProjectTypeCode(existingCodes = []) {
-  const usedCodes = new Set((Array.isArray(existingCodes) ? existingCodes : [])
-    .map((code) => String(code ?? '').trim()))
-  let sequence = 1
-  while (usedCodes.has(String(sequence).padStart(4, '0'))) sequence += 1
-  return String(sequence).padStart(4, '0')
+export function getWorkflowTemplateEntryStep({
+  typeCount,
+  selectedTypeId,
+  templateCount,
+  selectedTemplateId,
+  creatingTemplate = false,
+}) {
+  if (!typeCount) return 'empty-types'
+  if (selectedTypeId == null) return 'select-type'
+  if (!templateCount && !creatingTemplate) return 'empty-templates'
+  if (selectedTemplateId == null && !creatingTemplate) return 'select-template'
+  return 'editor'
+}
+
+export function buildProjectTypeCreatePayload({ name = '', description = '' } = {}, sort = 0) {
+  return {
+    name: String(name).trim(),
+    description: String(description ?? '').trim(),
+    sort,
+  }
 }
 
 export function createUniqueWorkflowKey(existingKeys, requestedKey, fallback = 'field') {
@@ -30,6 +46,28 @@ export function createUniqueWorkflowKey(existingKeys, requestedKey, fallback = '
   let index = 2
   while (used.has(key)) key = `${base}-${index++}`
   return key
+}
+
+export function normalizeWorkflowDefinitionForProcessType(definition, processTypeCode) {
+  const normalized = normalizeWorkflowDefinition(definition)
+  if (processTypeCode === 'topic-management') {
+    const { sourceTopicNodeKey: _storyOnlyBinding, ...topicDefinition } = normalized
+    return topicDefinition
+  }
+  if (processTypeCode === 'story-management') {
+    const { sourceProjectNodeKey: _projectOnlyBinding, ...storyDefinition } = normalized
+    return storyDefinition
+  }
+  const { sourceProjectNodeKey: _projectOnlyBinding, sourceTopicNodeKey: _storyOnlyBinding, ...otherDefinition } = normalized
+  return otherDefinition
+}
+
+export function setTopicSourceProjectNodeKey(definition, nodeKey) {
+  return { ...definition, sourceProjectNodeKey: String(nodeKey || '').trim() }
+}
+
+export function setStorySourceTopicNodeKey(definition, nodeKey) {
+  return { ...definition, sourceTopicNodeKey: String(nodeKey || '').trim() }
 }
 
 function moveByKey(items, key, toIndex) {
