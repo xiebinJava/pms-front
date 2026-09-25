@@ -16,6 +16,8 @@ import DevelopmentItemFlow from './components/DevelopmentItemFlow.vue'
 import DevelopmentItemWorkflowFields from './components/DevelopmentItemWorkflowFields.vue'
 import DevelopmentItemTaskBoard from './components/DevelopmentItemTaskBoard.vue'
 import TopicStorySection from './TopicStorySection.vue'
+import WorkflowNodeShell from '/@/components/workflow/WorkflowNodeShell.vue'
+import WorkflowRuntimeComponentHost from '/@/components/workflow/WorkflowRuntimeComponentHost.vue'
 import { isNodeReadOnly, shouldAutoSaveProfile } from '/@/views/project/detail/workflow'
 import { shouldAutoSaveOnBlur } from '/@/views/project/detail/workflow-config.mjs'
 
@@ -344,31 +346,41 @@ onBeforeUnmount(() => {
             @select="onWorkflowNodeSelect"
           />
 
-          <section v-if="detail.workflowConfigured && selectedNode" class="node-detail-card pms-detail-panel pms-section-panel card-surface">
-            <div class="node-detail-header">
-              <div class="node-detail-title">
-                <span class="node-detail-title__dot" :class="`node-detail-title__dot--${selectedNode.status}`" />
-                <div class="node-detail-title__copy">
-                  <div class="node-detail-title__heading">
-                    <h2>{{ selectedNode.name }}</h2>
-                    <a-tag :color="selectedNode.status === 2 ? 'green' : selectedNode.status === 1 ? 'blue' : 'default'">{{ t(`developmentDetail.nodeStatus.${selectedNode.status === 2 ? 'completed' : selectedNode.status === 1 ? 'active' : 'locked'}`) }}</a-tag>
+          <WorkflowNodeShell
+            v-if="detail.workflowConfigured && selectedNode"
+            class="node-detail-card pms-detail-panel pms-section-panel card-surface"
+            :node-name="selectedNode.name"
+            :node-status="selectedNode.status"
+            :description="selectedNode.description"
+            :deliverable="selectedNode.deliverable"
+          >
+            <template #header>
+              <div class="node-detail-header">
+                <div class="node-detail-title">
+                  <span class="node-detail-title__dot" :class="`node-detail-title__dot--${selectedNode.status}`" />
+                  <div class="node-detail-title__copy">
+                    <div class="node-detail-title__heading">
+                      <h2>{{ selectedNode.name }}</h2>
+                      <a-tag :color="selectedNode.status === 2 ? 'green' : selectedNode.status === 1 ? 'blue' : 'default'">{{ t(`developmentDetail.nodeStatus.${selectedNode.status === 2 ? 'completed' : selectedNode.status === 1 ? 'active' : 'locked'}`) }}</a-tag>
+                    </div>
+                    <p v-if="selectedNode.description" class="node-detail-title__description">{{ selectedNode.description }}</p>
+                    <p v-if="selectedNode.deliverable" class="development-item-detail__deliverable"><InfoCircleOutlined />{{ t('developmentDetail.deliverable') }}：{{ selectedNode.deliverable }}</p>
                   </div>
-                  <p v-if="selectedNode.description" class="node-detail-title__description">{{ selectedNode.description }}</p>
-                  <p v-if="selectedNode.deliverable" class="development-item-detail__deliverable"><InfoCircleOutlined />{{ t('developmentDetail.deliverable') }}：{{ selectedNode.deliverable }}</p>
+                </div>
+                <div class="node-detail-actions">
+                  <a-button
+                    v-if="selectedNode.status === 1"
+                    type="primary"
+                    class="pms-primary-button pms-project-button pms-project-button--primary"
+                    :loading="completingNode"
+                    @click="confirmCompleteNode"
+                  >{{ t('developmentDetail.completeNodeAction') }}</a-button>
                 </div>
               </div>
-              <div class="node-detail-actions">
-                <a-button
-                  v-if="selectedNode.status === 1"
-                  type="primary"
-                  class="pms-primary-button pms-project-button pms-project-button--primary"
-                  :loading="completingNode"
-                  @click="confirmCompleteNode"
-                >{{ t('developmentDetail.completeNodeAction') }}</a-button>
-              </div>
-            </div>
+            </template>
 
-            <div class="node-assignment-row pms-assignment-grid">
+            <template #assignments>
+              <div class="node-assignment-row pms-assignment-grid">
               <div class="node-owner-row" role="group" :aria-label="t('developmentDetail.nodeOwner')">
                 <span class="node-owner-row__label">{{ t('developmentDetail.nodeOwner') }}</span>
                 <div class="node-owner-row__control">
@@ -402,22 +414,35 @@ onBeforeUnmount(() => {
                   <strong v-else>{{ nodeForm.startDate || '—' }} → {{ nodeForm.endDate || '—' }}</strong>
                 </div>
               </div>
-            </div>
+              </div>
+            </template>
 
-            <div v-if="selectedNode.fields?.length" ref="nodeFieldsContainer" @focusout.capture="onNodeFieldsFocusOut">
-              <DevelopmentItemWorkflowFields
-                :model-value="nodeForm.fieldValues"
-                :fields="selectedNode.fields"
-                :person-options="members"
-                :disabled="!selectedNodeEditable || savingNode"
-                @update:model-value="onNodeFieldValuesChange"
+            <template #fields>
+              <div v-if="selectedNode.fields?.length" ref="nodeFieldsContainer" @focusout.capture="onNodeFieldsFocusOut">
+                <DevelopmentItemWorkflowFields
+                  :model-value="nodeForm.fieldValues"
+                  :fields="selectedNode.fields"
+                  :person-options="members"
+                  :disabled="!selectedNodeEditable || savingNode"
+                  @update:model-value="onNodeFieldValuesChange"
+                />
+              </div>
+            </template>
+
+            <template #components>
+              <WorkflowRuntimeComponentHost
+                v-for="componentKey in selectedNode.runtimeComponents || []"
+                :key="componentKey"
+                :component-key="componentKey"
               />
-            </div>
+            </template>
 
-            <div class="development-item-detail__task-section">
-              <DevelopmentItemTaskBoard :item-type="props.itemType" :item-id="detail.id" :node="selectedNode" :members="members" @updated="onDetailUpdated" />
-            </div>
-          </section>
+            <template #tasks>
+              <div class="development-item-detail__task-section">
+                <DevelopmentItemTaskBoard :item-type="props.itemType" :item-id="detail.id" :node="selectedNode" :members="members" @updated="onDetailUpdated" />
+              </div>
+            </template>
+          </WorkflowNodeShell>
 
           <section v-if="props.itemType === 'story' && (detail.blocker || detail.iterationPlanName || detail.storyPoints || detail.latestBuildVersion || detail.testStatus)" class="management-card pms-detail-panel pms-section-panel card-surface">
             <div class="section-title-row pms-section-heading"><h2>{{ t('developmentDetail.developmentInfo') }}</h2></div>

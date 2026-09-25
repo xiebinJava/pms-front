@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons-vue'
 import PmsPageHeader from '/@/components/PmsPageHeader.vue'
 import { useUserStore } from '/@/store/user'
+import { WORKFLOW_RUNTIME_COMPONENTS, WorkflowRuntimeComponentKey } from '/@/components/workflow/workflow-component-registry'
 import {
   createWorkflowProjectType,
   createWorkflowTemplate,
@@ -82,11 +83,9 @@ let templateEditSequence = 0
 let workflowProjectNodeOptionsRequest: Promise<void> | undefined
 let workflowTopicNodeOptionsRequest: Promise<void> | undefined
 
-const COMPONENTS = [
-  { key: 'requirement-scope' }, { key: 'solution-design' },
-  { key: 'plan-resource-risk' }, { key: 'development-control' }, { key: 'business-acceptance' },
-  { key: 'release-handover' }, { key: 'value-review' }, { key: 'knowledge-standard' },
-]
+const COMPONENTS = WORKFLOW_RUNTIME_COMPONENTS
+  .filter(({ key }) => key !== WorkflowRuntimeComponentKey.STORY_SPLIT)
+  .map(({ key }) => ({ key }))
 const fieldTypes: WorkflowFieldType[] = ['TEXT', 'TEXTAREA', 'NUMBER', 'RADIO', 'SINGLE_SELECT', 'MULTI_SELECT', 'PERSON', 'PERSON_MULTI', 'DATE', 'DATE_RANGE', 'ATTACHMENT']
 const FIELD_TYPE_ICONS: Record<WorkflowFieldType, Component> = {
   TEXT: FileTextOutlined,

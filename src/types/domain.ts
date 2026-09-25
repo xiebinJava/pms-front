@@ -410,6 +410,7 @@ export interface DevelopmentItemWorkflowNode {
   fields: WorkflowFieldDefinition[]
   fieldValues: Record<string, unknown>
   tasks: DevelopmentItemTask[]
+  runtimeComponents?: string[]
 }
 
 export interface DevelopmentItemWorkflowDetail {

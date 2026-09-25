@@ -65,6 +65,8 @@ import ReleaseDecisionHandoverWorkbench from './components/ReleaseDecisionHandov
 import ValueReviewWorkbench from './components/ValueReviewWorkbench.vue'
 import KnowledgeStandardWorkbench from './components/KnowledgeStandardWorkbench.vue'
 import WorkflowCustomFields from './components/WorkflowCustomFields.vue'
+import WorkflowNodeShell from '/@/components/workflow/WorkflowNodeShell.vue'
+import WorkflowRuntimeComponentHost from '/@/components/workflow/WorkflowRuntimeComponentHost.vue'
 import ProjectReadinessCard from './components/ProjectReadinessCard.vue'
 import { buildAttentionRoute } from './project-attention.mjs'
 import { missingConfiguredProjectFields, nodeHasComponent, nodeWorkflowContentOrder, nodeWorkflowFields, shouldAutoSaveOnBlur, transitionActiveNode } from './workflow-config.mjs'
@@ -1250,7 +1252,13 @@ onBeforeUnmount(() => {
       <NodeNavigator :nodes="nodes" :active-id="activeNodeId ?? 0" @select="onSelectNode" />
     </section>
 
-    <section v-if="activeNode" class="node-detail-card pms-detail-panel pms-section-panel card-surface">
+    <WorkflowNodeShell
+      v-if="activeNode"
+      class="node-detail-card pms-detail-panel pms-section-panel card-surface"
+      :node-name="activeNode.name"
+      :node-status="activeNode.status"
+      :description="activeNode.description"
+    >
       <div class="node-detail-header">
         <div class="node-detail-title">
           <div class="node-detail-title__copy">
@@ -1357,107 +1365,123 @@ onBeforeUnmount(() => {
          />
        </div>
 
-      <RequirementScopeWorkbench
-        v-if="nodeHasComponent(activeNode, 'requirement-scope')"
-        ref="requirementScopeRef"
-        :key="activeNode.id"
-        :style="componentSlotStyle('requirement-scope')"
-        :project-id="projectId"
-        :node-id="activeNode.id"
-        :node-read-only="activeNodeReadOnly"
-        :can-edit="canEditActiveNode"
-        :can-create-task="Boolean(activeNode.permissions?.canManageTasks)"
-        @baseline-status="onRequirementBaselineStatus"
-        @saved="onRequirementSaved"
-        @create-task="onCreateTaskFromRequirement"
-      />
+      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'requirement-scope')" component-key="requirement-scope">
+        <RequirementScopeWorkbench
+          v-if="nodeHasComponent(activeNode, 'requirement-scope')"
+          ref="requirementScopeRef"
+          :key="activeNode.id"
+          :style="componentSlotStyle('requirement-scope')"
+          :project-id="projectId"
+          :node-id="activeNode.id"
+          :node-read-only="activeNodeReadOnly"
+          :can-edit="canEditActiveNode"
+          :can-create-task="Boolean(activeNode.permissions?.canManageTasks)"
+          @baseline-status="onRequirementBaselineStatus"
+          @saved="onRequirementSaved"
+          @create-task="onCreateTaskFromRequirement"
+        />
+      </WorkflowRuntimeComponentHost>
 
-      <SolutionDesignWorkbench
-        v-if="nodeHasComponent(activeNode, 'solution-design')"
-        :key="activeNode.id"
-        :style="componentSlotStyle('solution-design')"
-        :project-id="projectId"
-        :node-id="activeNode.id"
-        :node-read-only="activeNodeReadOnly"
-        :can-edit="canEditActiveNode"
-        :reviewer-options="nodeOwnerOptions"
-      />
+      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'solution-design')" component-key="solution-design">
+        <SolutionDesignWorkbench
+          v-if="nodeHasComponent(activeNode, 'solution-design')"
+          :key="activeNode.id"
+          :style="componentSlotStyle('solution-design')"
+          :project-id="projectId"
+          :node-id="activeNode.id"
+          :node-read-only="activeNodeReadOnly"
+          :can-edit="canEditActiveNode"
+          :reviewer-options="nodeOwnerOptions"
+        />
+      </WorkflowRuntimeComponentHost>
 
-      <PlanResourceRiskWorkbench
-        v-if="nodeHasComponent(activeNode, 'plan-resource-risk')"
-        ref="planResourceRiskRef"
-        :key="activeNode.id"
-        :style="componentSlotStyle('plan-resource-risk')"
-        :project-id="projectId"
-        :node-id="activeNode.id"
-        :node-roles="activeNode.roles"
-        :owner-options="nodeOwnerOptions"
-        :node-read-only="activeNodeReadOnly"
-        :can-edit="canEditActiveNode"
-        @baseline-status="onPlanBaselineStatus"
-      />
+      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'plan-resource-risk')" component-key="plan-resource-risk">
+        <PlanResourceRiskWorkbench
+          v-if="nodeHasComponent(activeNode, 'plan-resource-risk')"
+          ref="planResourceRiskRef"
+          :key="activeNode.id"
+          :style="componentSlotStyle('plan-resource-risk')"
+          :project-id="projectId"
+          :node-id="activeNode.id"
+          :node-roles="activeNode.roles"
+          :owner-options="nodeOwnerOptions"
+          :node-read-only="activeNodeReadOnly"
+          :can-edit="canEditActiveNode"
+          @baseline-status="onPlanBaselineStatus"
+        />
+      </WorkflowRuntimeComponentHost>
 
-      <AcceptanceWorkbench
-        v-if="nodeHasComponent(activeNode, 'business-acceptance')"
-        ref="acceptanceRef"
-        :key="activeNode.id"
-        :style="componentSlotStyle('business-acceptance')"
-        :project-id="projectId"
-        :node-id="activeNode.id"
-        :node-read-only="activeNodeReadOnly"
-        :can-edit="canEditActiveNode"
-        @baseline-status="onAcceptanceStatus"
-      />
+      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'business-acceptance')" component-key="business-acceptance">
+        <AcceptanceWorkbench
+          v-if="nodeHasComponent(activeNode, 'business-acceptance')"
+          ref="acceptanceRef"
+          :key="activeNode.id"
+          :style="componentSlotStyle('business-acceptance')"
+          :project-id="projectId"
+          :node-id="activeNode.id"
+          :node-read-only="activeNodeReadOnly"
+          :can-edit="canEditActiveNode"
+          @baseline-status="onAcceptanceStatus"
+        />
+      </WorkflowRuntimeComponentHost>
 
-      <DevelopmentControlWorkbench
-        v-if="nodeHasComponent(activeNode, 'development-control')"
-        :key="activeNode.id"
-        :style="componentSlotStyle('development-control')"
-        :project-id="projectId"
-        :node-id="activeNode.id"
-        :project-name="project.name"
-        :project-manager-name="projectManagerDisplay.label"
-        :node-read-only="activeNodeReadOnly"
-        :can-edit="canEditActiveNode"
-        :owner-options="nodeOwnerOptions"
-      />
+      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'development-control')" component-key="development-control">
+        <DevelopmentControlWorkbench
+          v-if="nodeHasComponent(activeNode, 'development-control')"
+          :key="activeNode.id"
+          :style="componentSlotStyle('development-control')"
+          :project-id="projectId"
+          :node-id="activeNode.id"
+          :project-name="project.name"
+          :project-manager-name="projectManagerDisplay.label"
+          :node-read-only="activeNodeReadOnly"
+          :can-edit="canEditActiveNode"
+          :owner-options="nodeOwnerOptions"
+        />
+      </WorkflowRuntimeComponentHost>
 
-      <ReleaseDecisionHandoverWorkbench
-        v-if="nodeHasComponent(activeNode, 'release-handover')"
-        ref="releaseWorkbenchRef"
-        :key="activeNode.id"
-        :style="componentSlotStyle('release-handover')"
-        :project-id="projectId"
-        :node-id="activeNode.id"
-        :node-status="activeNode.status"
-        :node-read-only="activeNodeReadOnly"
-        :can-edit="canEditActiveNode"
-        @completion-ready="onReleaseCompletionReady"
-      />
+      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'release-handover')" component-key="release-handover">
+        <ReleaseDecisionHandoverWorkbench
+          v-if="nodeHasComponent(activeNode, 'release-handover')"
+          ref="releaseWorkbenchRef"
+          :key="activeNode.id"
+          :style="componentSlotStyle('release-handover')"
+          :project-id="projectId"
+          :node-id="activeNode.id"
+          :node-status="activeNode.status"
+          :node-read-only="activeNodeReadOnly"
+          :can-edit="canEditActiveNode"
+          @completion-ready="onReleaseCompletionReady"
+        />
+      </WorkflowRuntimeComponentHost>
 
-      <ValueReviewWorkbench
-        v-if="nodeHasComponent(activeNode, 'value-review')"
-        ref="valueReviewWorkbenchRef"
-        :key="activeNode.id"
-        :style="componentSlotStyle('value-review')"
-        :project-id="projectId"
-        :node-id="activeNode.id"
-        :node-read-only="activeNodeReadOnly"
-        :can-edit="canEditActiveNode"
-        @completion-ready="onValueReviewCompletionReady"
-      />
+      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'value-review')" component-key="value-review">
+        <ValueReviewWorkbench
+          v-if="nodeHasComponent(activeNode, 'value-review')"
+          ref="valueReviewWorkbenchRef"
+          :key="activeNode.id"
+          :style="componentSlotStyle('value-review')"
+          :project-id="projectId"
+          :node-id="activeNode.id"
+          :node-read-only="activeNodeReadOnly"
+          :can-edit="canEditActiveNode"
+          @completion-ready="onValueReviewCompletionReady"
+        />
+      </WorkflowRuntimeComponentHost>
 
-      <KnowledgeStandardWorkbench
-        v-if="nodeHasComponent(activeNode, 'knowledge-standard')"
-        ref="knowledgeStandardRef"
-        :key="activeNode.id"
-        :style="componentSlotStyle('knowledge-standard')"
-        :project-id="projectId"
-        :node-id="activeNode.id"
-        :node-read-only="activeNodeReadOnly"
-        :can-edit="canEditActiveNode"
-        :owner-options="nodeOwnerOptions"
-      />
+      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'knowledge-standard')" component-key="knowledge-standard">
+        <KnowledgeStandardWorkbench
+          v-if="nodeHasComponent(activeNode, 'knowledge-standard')"
+          ref="knowledgeStandardRef"
+          :key="activeNode.id"
+          :style="componentSlotStyle('knowledge-standard')"
+          :project-id="projectId"
+          :node-id="activeNode.id"
+          :node-read-only="activeNodeReadOnly"
+          :can-edit="canEditActiveNode"
+          :owner-options="nodeOwnerOptions"
+        />
+      </WorkflowRuntimeComponentHost>
 
       </div>
 
@@ -1480,7 +1504,7 @@ onBeforeUnmount(() => {
           @task-progress="onTaskProgress"
         />
       </section>
-    </section>
+    </WorkflowNodeShell>
 
     <section class="management-card pms-detail-panel pms-section-panel card-surface">
       <div class="section-title-row section-title-row--compact pms-section-heading">
