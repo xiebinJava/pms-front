@@ -5,6 +5,7 @@ import App from './App.vue'
 import router from './router'
 import { i18n } from './i18n'
 import { useLocaleStore } from './store/locale'
+import { startPmsDshBridges } from '/@/integration/dsh-bridges'
 import 'uno.css'
 import '/@/styles/index.css'
 
@@ -17,3 +18,4 @@ app.use(Antd)
 app.use(router)
 useLocaleStore(pinia).initFromStorage()
 app.mount('#app')
+startPmsDshBridges(router)
