@@ -437,7 +437,7 @@ onBeforeUnmount(() => {
                   :component-key="componentKey"
                 />
                 <WorkflowRuntimeComponentHost v-else :component-key="componentKey">
-                  <DevelopmentStorySplitComponent :topic-id="detail.id" :node-id="selectedNode.id" />
+                  <DevelopmentStorySplitComponent :topic-id="detail.id" :node-id="selectedNode.id" :can-edit="selectedNodeEditable" />
                 </WorkflowRuntimeComponentHost>
               </template>
             </template>

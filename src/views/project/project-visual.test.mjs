@@ -44,6 +44,25 @@ test('project detail cards use the shared panel visual layer', () => {
   assert.match(source, /var\(--pms-shadow-sm\)/)
 })
 
+test('project workflow component order is applied to the host sections that participate in the flex stack', () => {
+  const source = fs.readFileSync(path.join(root, 'views/project/detail/index.vue'), 'utf8')
+  for (const componentKey of [
+    'requirement-scope',
+    'solution-design',
+    'plan-resource-risk',
+    'business-acceptance',
+    'development-control',
+    'release-handover',
+    'value-review',
+    'knowledge-standard',
+  ]) {
+    assert.match(
+      source,
+      new RegExp(`<WorkflowRuntimeComponentHost[^>]*component-key="${componentKey}"[^>]*:style="componentSlotStyle\\('${componentKey}'\\)"`),
+    )
+  }
+})
+
 test('project description remains a plain text control without an image toolbar', () => {
   const source = fs.readFileSync(path.join(root, 'views/project/detail/index.vue'), 'utf8')
   assert.match(source, /project-description-control/)

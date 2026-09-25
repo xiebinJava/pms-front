@@ -7,7 +7,7 @@ import { PlusOutlined, ReloadOutlined } from '@ant-design/icons-vue'
 import { getDevelopmentTopicStories, type DevelopmentTopicStory } from '/@/api/development-item'
 import DevelopmentStoryEditModal from '../DevelopmentStoryEditModal.vue'
 
-const props = defineProps<{ topicId: number; nodeId: number }>()
+const props = defineProps<{ topicId: number; nodeId: number; canEdit: boolean }>()
 const { t } = useI18n()
 const router = useRouter()
 const stories = ref<DevelopmentTopicStory[]>([])
@@ -28,6 +28,7 @@ async function load() {
 }
 
 function openCreate() {
+  if (!props.canEdit) return
   editorOpen.value = true
 }
 
@@ -56,7 +57,7 @@ watch(() => [props.topicId, props.nodeId], () => { void load() })
       </div>
       <div class="development-story-split-component__actions">
         <a-button size="small" @click="load"><ReloadOutlined />{{ t('common.refresh') }}</a-button>
-        <a-button type="primary" size="small" @click="openCreate"><PlusOutlined />{{ t('developmentList.createStory') }}</a-button>
+        <a-button v-if="canEdit" type="primary" size="small" @click="openCreate"><PlusOutlined />{{ t('developmentList.createStory') }}</a-button>
       </div>
     </div>
 

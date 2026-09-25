@@ -1365,12 +1365,11 @@ onBeforeUnmount(() => {
          />
        </div>
 
-      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'requirement-scope')" component-key="requirement-scope">
+      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'requirement-scope')" component-key="requirement-scope" :style="componentSlotStyle('requirement-scope')">
         <RequirementScopeWorkbench
           v-if="nodeHasComponent(activeNode, 'requirement-scope')"
           ref="requirementScopeRef"
           :key="activeNode.id"
-          :style="componentSlotStyle('requirement-scope')"
           :project-id="projectId"
           :node-id="activeNode.id"
           :node-read-only="activeNodeReadOnly"
@@ -1382,11 +1381,10 @@ onBeforeUnmount(() => {
         />
       </WorkflowRuntimeComponentHost>
 
-      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'solution-design')" component-key="solution-design">
+      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'solution-design')" component-key="solution-design" :style="componentSlotStyle('solution-design')">
         <SolutionDesignWorkbench
           v-if="nodeHasComponent(activeNode, 'solution-design')"
           :key="activeNode.id"
-          :style="componentSlotStyle('solution-design')"
           :project-id="projectId"
           :node-id="activeNode.id"
           :node-read-only="activeNodeReadOnly"
@@ -1395,12 +1393,11 @@ onBeforeUnmount(() => {
         />
       </WorkflowRuntimeComponentHost>
 
-      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'plan-resource-risk')" component-key="plan-resource-risk">
+      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'plan-resource-risk')" component-key="plan-resource-risk" :style="componentSlotStyle('plan-resource-risk')">
         <PlanResourceRiskWorkbench
           v-if="nodeHasComponent(activeNode, 'plan-resource-risk')"
           ref="planResourceRiskRef"
           :key="activeNode.id"
-          :style="componentSlotStyle('plan-resource-risk')"
           :project-id="projectId"
           :node-id="activeNode.id"
           :node-roles="activeNode.roles"
@@ -1411,12 +1408,11 @@ onBeforeUnmount(() => {
         />
       </WorkflowRuntimeComponentHost>
 
-      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'business-acceptance')" component-key="business-acceptance">
+      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'business-acceptance')" component-key="business-acceptance" :style="componentSlotStyle('business-acceptance')">
         <AcceptanceWorkbench
           v-if="nodeHasComponent(activeNode, 'business-acceptance')"
           ref="acceptanceRef"
           :key="activeNode.id"
-          :style="componentSlotStyle('business-acceptance')"
           :project-id="projectId"
           :node-id="activeNode.id"
           :node-read-only="activeNodeReadOnly"
@@ -1425,11 +1421,10 @@ onBeforeUnmount(() => {
         />
       </WorkflowRuntimeComponentHost>
 
-      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'development-control')" component-key="development-control">
+      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'development-control')" component-key="development-control" :style="componentSlotStyle('development-control')">
         <DevelopmentControlWorkbench
           v-if="nodeHasComponent(activeNode, 'development-control')"
           :key="activeNode.id"
-          :style="componentSlotStyle('development-control')"
           :project-id="projectId"
           :node-id="activeNode.id"
           :project-name="project.name"
@@ -1440,12 +1435,11 @@ onBeforeUnmount(() => {
         />
       </WorkflowRuntimeComponentHost>
 
-      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'release-handover')" component-key="release-handover">
+      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'release-handover')" component-key="release-handover" :style="componentSlotStyle('release-handover')">
         <ReleaseDecisionHandoverWorkbench
           v-if="nodeHasComponent(activeNode, 'release-handover')"
           ref="releaseWorkbenchRef"
           :key="activeNode.id"
-          :style="componentSlotStyle('release-handover')"
           :project-id="projectId"
           :node-id="activeNode.id"
           :node-status="activeNode.status"
@@ -1455,12 +1449,11 @@ onBeforeUnmount(() => {
         />
       </WorkflowRuntimeComponentHost>
 
-      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'value-review')" component-key="value-review">
+      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'value-review')" component-key="value-review" :style="componentSlotStyle('value-review')">
         <ValueReviewWorkbench
           v-if="nodeHasComponent(activeNode, 'value-review')"
           ref="valueReviewWorkbenchRef"
           :key="activeNode.id"
-          :style="componentSlotStyle('value-review')"
           :project-id="projectId"
           :node-id="activeNode.id"
           :node-read-only="activeNodeReadOnly"
@@ -1469,12 +1462,11 @@ onBeforeUnmount(() => {
         />
       </WorkflowRuntimeComponentHost>
 
-      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'knowledge-standard')" component-key="knowledge-standard">
+      <WorkflowRuntimeComponentHost v-if="nodeHasComponent(activeNode, 'knowledge-standard')" component-key="knowledge-standard" :style="componentSlotStyle('knowledge-standard')">
         <KnowledgeStandardWorkbench
           v-if="nodeHasComponent(activeNode, 'knowledge-standard')"
           ref="knowledgeStandardRef"
           :key="activeNode.id"
-          :style="componentSlotStyle('knowledge-standard')"
           :project-id="projectId"
           :node-id="activeNode.id"
           :node-read-only="activeNodeReadOnly"
