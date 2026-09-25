@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知识沉淀与标准改进 · PMS Demo</title>
+  <style>
+    :root {
+      --primary: #1769e0;
+      --primary-dark: #1258bf;
+      --primary-soft: #eaf2ff;
+      --text: #17243b;
+      --text-2: #40516b;
+      --muted: #71819a;
+      --faint: #9aa8ba;
+      --border: #dce5f0;
+      --border-strong: #cbd8e8;
+      --surface: #fff;
+      --surface-muted: #f6f8fb;
+      --surface-blue: #f4f8ff;
+      --success: #15966a;
+      --success-soft: #eaf8f1;
+      --warning: #d97706;
+      --warning-soft: #fff5e5;
+      --danger: #d04b58;
+      --danger-soft: #fff0f2;
+      --purple: #6551c8;
+      --purple-soft: #f0ecff;
+      --shadow-sm: 0 4px 16px rgba(30, 58, 95, .06);
+      --shadow-md: 0 14px 34px rgba(30, 58, 95, .10);
+      --radius: 14px;
+      --sidebar: 224px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--text); background: #f5f7fb; font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid rgba(23, 105, 224, .20); outline-offset: 2px; }
+    .topbar { position: fixed; inset: 0 0 auto; z-index: 20; height: 62px; display: flex; align-items: center; padding: 0 18px; background: rgba(255,255,255,.96); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); }
+    .brand { width: var(--sidebar); display: flex; align-items: center; gap: 10px; }
+    .brand-mark { width: 30px; height: 30px; display: grid; place-items: center; color: #fff; background: var(--primary); border-radius: 8px; font-weight: 800; box-shadow: 0 4px 10px rgba(23,105,224,.22); }
+    .brand-copy { display: grid; line-height: 1.05; }
+    .brand-copy strong { font-size: 15px; letter-spacing: .02em; }
+    .brand-copy small { margin-top: 4px; color: var(--faint); font-size: 10px; letter-spacing: .04em; }
+    .global-search { width: min(400px, 42vw); height: 34px; display: flex; align-items: center; gap: 8px; margin-left: auto; margin-right: 22px; padding: 0 12px; color: var(--faint); border: 1px solid var(--border-strong); border-radius: 8px; background: #fff; }
+    .global-search input { width: 100%; border: 0; outline: 0; color: var(--text); background: transparent; font-size: 12px; }
+    .global-search input::placeholder { color: var(--faint); }
+    .top-actions { display: flex; align-items: center; gap: 14px; color: var(--muted); }
+    .locale { display: inline-flex; align-items: center; height: 34px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; }
+    .locale span { padding: 5px 9px; border-radius: 6px; font-size: 12px; }
+    .locale span:first-child { color: #fff; background: var(--primary); }
+    .avatar { width: 30px; height: 30px; display: grid; place-items: center; color: #fff; background: var(--primary); border-radius: 50%; font-size: 12px; }
+    .account { display: flex; align-items: center; gap: 7px; color: var(--text-2); font-size: 13px; }
+    .sidebar { position: fixed; top: 62px; bottom: 0; left: 0; z-index: 10; width: var(--sidebar); padding: 18px 10px; overflow-y: auto; background: #fff; border-right: 1px solid var(--border); }
+    .nav-item, .nav-group-title { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0 12px; color: var(--text-2); border-radius: 8px; font-size: 13px; font-weight: 600; }
+    .nav-item { margin: 3px 0; }
+    .nav-item.active { color: var(--primary); background: var(--primary-soft); }
+    .nav-group { margin-top: 17px; }
+    .nav-group:first-child { margin-top: 0; }
+    .nav-group-title { justify-content: space-between; color: var(--text); }
+    .nav-group-title > span { display: flex; align-items: center; gap: 10px; }
+    .nav-sub { margin-left: 13px; padding-left: 10px; border-left: 1px solid var(--border); }
+    .nav-sub .nav-item { font-weight: 500; }
+    .nav-icon { width: 16px; color: var(--muted); text-align: center; }
+    .nav-item.active .nav-icon { color: var(--primary); }
+    .main { margin-left: var(--sidebar); padding: 84px 28px 56px; }
+    .content { max-width: 1240px; margin: 0 auto; }
+    .breadcrumb { display: flex; align-items: center; gap: 8px; margin: 0 0 20px 5px; color: var(--muted); font-size: 12px; }
+    .breadcrumb strong { color: var(--text-2); font-weight: 600; }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+    .project-header { padding: 22px 26px 18px; }
+    .project-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+    .project-title { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .project-title h1 { margin: 0; font-size: 25px; line-height: 1.2; letter-spacing: -.02em; }
+    .tag, .status, .asset-type { display: inline-flex; align-items: center; height: 25px; padding: 0 9px; border-radius: 6px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .tag-active { color: #c56a0b; background: var(--warning-soft); border: 1px solid #ffd49a; }
+    .tag-level { color: var(--purple); background: var(--purple-soft); }
+    .tag-priority { color: #b46308; background: #fff1df; }
+    .header-actions { display: flex; align-items: center; gap: 9px; }
+    .button { min-height: 36px; padding: 0 14px; color: var(--text-2); background: #fff; border: 1px solid var(--border-strong); border-radius: 8px; font-weight: 650; }
+    .button:hover { color: var(--primary); border-color: #a7c5f2; background: var(--primary-soft); }
+    .button:disabled { cursor: not-allowed; color: #a9b6c8; background: #f4f6f9; border-color: var(--border); box-shadow: none; }
+    .button-primary { color: #fff; background: var(--primary); border-color: var(--primary); box-shadow: 0 5px 13px rgba(23,105,224,.18); }
+    .button-primary:hover { color: #fff; background: var(--primary-dark); border-color: var(--primary-dark); }
+    .button-small { min-height: 32px; padding: 0 10px; font-size: 12px; }
+    .button-icon { width: 34px; padding: 0; display: grid; place-items: center; }
+    .project-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0; margin-top: 16px; color: var(--muted); font-size: 12px; }
+    .project-meta-item { display: flex; align-items: center; gap: 7px; padding: 0 22px; border-left: 1px solid var(--border); }
+    .project-meta-item:first-child { padding-left: 0; border-left: 0; }
+    .project-meta-item strong { color: var(--text-2); font-weight: 650; }
+    .header-insights { display: flex; align-items: center; gap: 24px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+    .insight { display: inline-flex; align-items: baseline; gap: 8px; }
+    .insight strong { color: var(--text-2); font-size: 15px; font-weight: 750; }
+    .insight-current strong { color: var(--primary); }
+    .flow-panel { margin-top: 18px; padding: 18px 20px 21px; overflow: hidden; }
+    .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .section-heading h2 { margin: 0; font-size: 15px; letter-spacing: -.01em; }
+    .section-heading small { color: var(--muted); }
+    .flow-scroll { margin-top: 16px; overflow-x: auto; padding: 2px 3px 8px; }
+    .flow-track { display: flex; align-items: stretch; min-width: 1060px; }
+    .flow-node-wrap { display: flex; align-items: center; flex: 1 0 0; }
+    .flow-node { position: relative; width: 100%; min-width: 0; min-height: 86px; padding: 12px 12px 10px 34px; text-align: left; background: #fff; border: 1px solid var(--border-strong); border-radius: 9px; box-shadow: 0 3px 9px rgba(30,58,95,.05); }
+    .flow-node:hover { border-color: #9fc2f5; }
+    .flow-node.selected { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(23,105,224,.12); }
+    .flow-node.done { background: #fbfefc; }
+    .flow-dot { position: absolute; top: 19px; left: 13px; width: 14px; height: 14px; display: grid; place-items: center; border: 2px solid var(--border-strong); border-radius: 50%; }
+    .flow-dot::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--border-strong); }
+    .flow-node.selected .flow-dot { border-color: var(--warning); }
+    .flow-node.selected .flow-dot::after { background: var(--warning); }
+    .flow-node.done .flow-dot { border-color: #8ecfb4; }
+    .flow-node.done .flow-dot::after { width: 6px; height: 3px; border-bottom: 2px solid var(--success); border-left: 2px solid var(--success); border-radius: 0; background: transparent; transform: rotate(-45deg) translate(1px,-1px); }
+    .flow-node strong { display: block; overflow: hidden; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .flow-node small { display: block; margin-top: 5px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .flow-arrow { flex: 0 0 28px; color: #9eacc0; text-align: center; font-size: 18px; }
+    .node-panel { margin-top: 18px; padding: 20px 22px 24px; }
+    .node-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+    .node-title { display: flex; align-items: center; gap: 10px; }
+    .node-status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 4px var(--warning-soft); }
+    .node-status-dot.done { background: var(--success); box-shadow: 0 0 0 4px var(--success-soft); }
+    .node-title h2 { margin: 0; font-size: 18px; }
+    .node-description { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .assignment-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+    .assignment { display: flex; align-items: center; gap: 14px; min-height: 54px; padding: 9px 13px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: 9px; }
+    .assignment-label { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-weight: 650; }
+    .person-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 10px 0 5px; color: var(--text-2); background: #eef2f7; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; }
+    .person-avatar, .mini-avatar { width: 22px; height: 22px; display: grid; place-items: center; color: #fff; background: #aab9cc; border-radius: 50%; font-size: 9px; }
+    .date-field { display: flex; align-items: center; gap: 10px; min-height: 30px; padding: 0 10px; color: var(--text-2); background: #fff; border: 1px solid var(--border-strong); border-radius: 7px; font-size: 12px; }
+    .date-field span { color: var(--faint); }
+    .workbench { margin-top: 18px; padding: 20px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: 10px; }
+    .workbench-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+    .workbench-head h3 { margin: 0; font-size: 15px; }
+    .workbench-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .workbench-state { display: inline-flex; align-items: center; gap: 7px; color: var(--warning); font-size: 12px; font-weight: 700; }
+    .workbench-state.done { color: var(--success); }
+    .workbench-state i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .content-section { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border); }
+    .section-copy h3 { margin: 0; font-size: 15px; }
+    .section-copy p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .section-heading .section-copy { margin-right: auto; }
+    .section-actions { display: flex; align-items: center; gap: 8px; }
+    .summary-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
+    .summary-card { padding: 12px 14px; background: #fff; border: 1px solid var(--border); border-radius: 9px; }
+    .summary-card small { display: block; color: var(--muted); font-size: 11px; }
+    .summary-card strong { display: block; margin-top: 3px; color: var(--text-2); font-size: 15px; }
+    .summary-card em { color: var(--primary); font-size: 11px; font-style: normal; font-weight: 600; }
+    .summary-card strong.success { color: var(--success); }
+    .table-wrap { margin-top: 14px; overflow-x: auto; background: #fff; border: 1px solid var(--border); border-radius: 9px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { padding: 10px 12px; color: var(--muted); background: #f8fafc; font-size: 11px; font-weight: 700; text-align: left; white-space: nowrap; }
+    td { padding: 11px 12px; color: var(--text-2); border-top: 1px solid var(--border); font-size: 12px; vertical-align: middle; }
+    tr:hover td { background: #fbfdff; }
+    .row-title { color: var(--text); font-weight: 700; }
+    .row-note { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .owner-cell { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+    .status-ready { color: var(--success); background: var(--success-soft); }
+    .status-progress { color: var(--warning); background: var(--warning-soft); }
+    .status-pending { color: var(--muted); background: #f1f4f8; }
+    .status-select { min-width: 88px; padding: 5px 8px; color: var(--text-2); border: 1px solid var(--border-strong); border-radius: 6px; background: #fff; font-size: 11px; }
+    .asset-type { height: 22px; color: var(--purple); background: var(--purple-soft); font-size: 11px; }
+    .asset-type.template { color: #47739e; background: #edf5ff; }
+    .asset-type.check { color: #b46308; background: var(--warning-soft); }
+    .asset-type.case { color: var(--success); background: var(--success-soft); }
+    .action-status { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 11px; font-weight: 700; }
+    .action-status i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .action-status.progress { color: var(--warning); }
+    .action-status.pending { color: var(--muted); }
+    .action-status.done { color: var(--success); }
+    .task-board { margin-top: 18px; padding: 20px 22px 24px; }
+    .task-board-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .task-board-head h2 { margin: 0; font-size: 16px; }
+    .task-board-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .task-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+    .task-column { min-height: 148px; padding: 12px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: 9px; }
+    .task-column-head { display: flex; align-items: center; justify-content: space-between; color: var(--text-2); font-size: 12px; font-weight: 700; }
+    .task-column-head span { color: var(--faint); font-weight: 500; }
+    .task-card { margin-top: 10px; padding: 10px; background: #fff; border: 1px solid var(--border); border-radius: 7px; }
+    .task-card strong { display: block; color: var(--text-2); font-size: 12px; }
+    .task-card small { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
+    .toast { position: fixed; right: 24px; bottom: 24px; z-index: 30; max-width: 360px; padding: 11px 14px; color: #fff; background: rgba(23,36,59,.94); border-radius: 8px; box-shadow: var(--shadow-md); opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity .2s ease, transform .2s ease; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    dialog { width: min(520px, calc(100vw - 30px)); padding: 0; color: var(--text); border: 0; border-radius: 12px; box-shadow: var(--shadow-md); }
+    dialog::backdrop { background: rgba(21, 36, 59, .28); }
+    .dialog-body { padding: 20px; }
+    .dialog-body h3 { margin: 0; font-size: 16px; }
+    .dialog-body p { margin: 4px 0 16px; color: var(--muted); font-size: 12px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-field { display: grid; gap: 6px; }
+    .form-field.wide { grid-column: span 2; }
+    .form-field label { color: var(--text-2); font-size: 11px; font-weight: 700; }
+    .form-field input, .form-field select { width: 100%; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: 7px; outline: 0; font-size: 12px; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+    @media (max-width: 900px) {
+      :root { --sidebar: 72px; }
+      .brand { width: 42px; }
+      .brand-copy, .nav-group-title span:last-child, .nav-item span:not(.nav-icon) { display: none; }
+      .nav-item, .nav-group-title { justify-content: center; padding: 0; }
+      .nav-sub { margin-left: 0; padding-left: 0; border-left: 0; }
+      .main { padding: 78px 16px 40px; }
+      .project-header, .node-panel, .task-board { padding-left: 18px; padding-right: 18px; }
+      .summary-strip { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 640px) {
+      .topbar { padding: 0 12px; }
+      .global-search { width: 46vw; margin-right: 10px; }
+      .account strong { display: none; }
+      .main { padding: 76px 10px 30px; }
+      .project-title h1 { font-size: 21px; }
+      .project-header-top, .node-top { display: grid; }
+      .header-actions { justify-content: flex-end; }
+      .project-meta { display: grid; gap: 8px; }
+      .project-meta-item { padding: 0; border: 0; }
+      .header-insights { display: grid; gap: 9px; }
+      .assignment-row, .task-columns { grid-template-columns: 1fr; }
+      .summary-strip { grid-template-columns: 1fr 1fr; }
+      .workbench, .node-panel, .task-board { padding: 14px; }
+      .workbench-head { align-items: flex-start; }
+      .section-heading { align-items: flex-start; }
+      .section-heading, .section-actions { flex-wrap: wrap; }
+      table { min-width: 760px; }
+      .form-grid { grid-template-columns: 1fr; }
+      .form-field.wide { grid-column: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">P</div><div class="brand-copy"><strong>PMS</strong><small>Project Management</small></div></div>
+    <label class="global-search"><span>⌕</span><input placeholder="搜索项目、任务、里程碑、评论" aria-label="搜索"></label>
+    <div class="top-actions"><div class="locale"><span>中</span><span>EN</span></div><span aria-label="通知">♧</span><div class="account"><span class="avatar">管</span><strong>管理员（admin）</strong></div></div>
+  </header>
+  <aside class="sidebar" aria-label="主导航">
+    <div class="nav-item"><span class="nav-icon">◉</span><span>工作台</span></div>
+    <div class="nav-group"><div class="nav-group-title"><span><span class="nav-icon">⌁</span><span>研发管理</span></span><span>⌄</span></div><div class="nav-sub"><div class="nav-item active"><span class="nav-icon">▣</span><span>项目管理</span></div></div></div>
+    <div class="nav-group"><div class="nav-group-title"><span><span class="nav-icon">⚙</span><span>配置管理</span></span><span>⌄</span></div><div class="nav-sub"><div class="nav-item"><span class="nav-icon">♙</span><span>人员与权限</span></div><div class="nav-item"><span class="nav-icon">♧</span><span>组织架构</span></div><div class="nav-item"><span class="nav-icon">♢</span><span>角色管理</span></div><div class="nav-item"><span class="nav-icon">↥</span><span>批量导入</span></div><div class="nav-item"><span class="nav-icon">▤</span><span>审计日志</span></div></div></div>
+    <div class="nav-item" style="margin-top: 18px"><span class="nav-icon">◌</span><span>反馈中心</span></div>
+    <div class="nav-group"><div class="nav-group-title"><span><span class="nav-icon">□</span><span>文档中心</span></span><span>⌄</span></div><div class="nav-sub"><div class="nav-item"><span class="nav-icon">▤</span><span>使用手册</span></div><div class="nav-item"><span class="nav-icon">▧</span><span>业务规则</span></div><div class="nav-item"><span class="nav-icon">⚙</span><span>前端设计规范</span></div></div></div>
+  </aside>
+
+  <main class="main"><div class="content">
+    <div class="breadcrumb"><span>‹ 项目管理</span><span>/</span><strong>项目详情 · Demo</strong></div>
+    <section class="panel project-header">
+      <div class="project-header-top"><div><div class="project-title"><h1>电商中台重构</h1><span class="tag tag-active">进行中</span><span class="tag tag-level">A · 关键项目</span><span class="tag tag-priority">中优先级</span></div><div class="project-meta"><div class="project-meta-item"><span>项目经理：</span><strong>李强（Terry.Li）</strong></div><div class="project-meta-item"><span>业务线：</span><strong>公司总部 / 软件研发中心 / 前台软件研发部</strong></div><div class="project-meta-item"><span>项目周期：</span><strong>2026-09-04 → 2026-10-31</strong></div></div></div><div class="header-actions"><button class="button button-small button-icon" aria-label="更多">⋮</button><button class="button button-primary" id="editProject">✎ 编辑项目</button></div></div>
+      <div class="header-insights"><div class="insight insight-current"><span>当前节点</span><strong>知识沉淀与标准改进</strong></div><div class="insight"><span>项目进度</span><strong>89%</strong><span>8 / 9 个节点</span></div><div class="insight"><span>节点进度</span><strong id="nodeProgress">62%</strong><span id="nodeProgressNote">5 / 8 个事项</span></div></div>
+    </section>
+
+    <section class="panel flow-panel"><div class="section-heading"><h2>项目流程</h2><small>9 个节点</small></div><div class="flow-scroll"><div class="flow-track">
+      <div class="flow-node-wrap"><button class="flow-node done" data-flow="项目立项与启动"><span class="flow-dot"></span><strong>项目立项与启动</strong><small>负责人 赵晨 · 已完成</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node done" data-flow="需求澄清与范围基线"><span class="flow-dot"></span><strong>需求澄清与范围基线</strong><small>负责人 陈宇 · 已完成</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node done" data-flow="方案设计、评审与决策"><span class="flow-dot"></span><strong>方案设计、评审与决策</strong><small>负责人 陈宇 · 已完成</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node done" data-flow="计划、资源与风险基线"><span class="flow-dot"></span><strong>计划、资源与风险基线</strong><small>负责人 李强 · 已完成</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node done" data-flow="开发测试与项目控制"><span class="flow-dot"></span><strong>开发测试与项目控制</strong><small>负责人 李强 · 已完成</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node done" data-flow="业务验收与缺陷闭环"><span class="flow-dot"></span><strong>业务验收与缺陷闭环</strong><small>负责人 赵琳 · 已完成</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node done" data-flow="发布决策与运营交接"><span class="flow-dot"></span><strong>发布决策与运营交接</strong><small>负责人 李强 · 已完成</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node done" data-flow="价值验证与项目复盘"><span class="flow-dot"></span><strong>价值验证与项目复盘</strong><small>负责人 李强 · 已完成</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node selected" data-flow="知识沉淀与标准改进"><span class="flow-dot"></span><strong>知识沉淀与标准改进</strong><small>负责人 李强 · 进行中</small></button></div>
+    </div></div></section>
+
+    <section class="panel node-panel">
+      <div class="node-top"><div><div class="node-title"><span class="node-status-dot" id="nodeDot"></span><h2>知识沉淀与标准改进</h2><span class="tag tag-active" id="nodeStatus">进行中</span></div><p class="node-description">沉淀项目经验与管理标准，更新项目流程和常用检查项，整理可复用的模板、清单与案例，推动改进行动落地。</p></div><button class="button button-primary" id="completeNode">完成节点</button></div>
+      <div class="assignment-row"><div class="assignment"><span class="assignment-label">节点负责人</span><span class="person-chip"><span class="person-avatar">李</span>李强（Terry.Li）</span></div><div class="assignment"><span class="assignment-label">节点排期</span><div class="date-field"><strong>2026-10-28</strong><span>→</span><strong>2026-11-04</strong><span style="margin-left:auto">▣</span></div></div></div>
+
+      <div class="workbench" id="workbench">
+        <div class="workbench-head"><div><h3>知识沉淀工作台</h3><p>围绕标准资产和改进行动，形成可复用的项目知识并推动团队改进。</p></div><div class="workbench-state" id="workbenchState"><i></i><span>沉淀进行中</span></div></div>
+
+        <section class="content-section editable-section" id="assetSection">
+          <div class="section-heading"><div class="section-copy"><h3>标准与知识资产</h3><p>沉淀到团队可以复用的模板、流程、检查清单和案例，不把复盘内容停留在项目文档里。</p></div><div class="section-actions"><span class="status status-ready" id="assetCount">4 项资产</span><button class="button button-small" id="addAsset">＋ 新增资产</button></div></div>
+          <div class="table-wrap"><table id="assetTable"><thead><tr><th style="width:26%">资产名称</th><th style="width:115px">类型</th><th>本次改进内容</th><th style="width:130px">状态</th></tr></thead><tbody>
+            <tr><td><span class="row-title">研发项目启动模板</span><span class="row-note">项目启动阶段</span></td><td><span class="asset-type template">模板</span></td><td>补充目标、成功标准和资源授权字段</td><td><span class="status status-ready">已更新</span></td></tr>
+            <tr><td><span class="row-title">发布前检查清单</span><span class="row-note">发布决策与运营交接</span></td><td><span class="asset-type check">检查清单</span></td><td>增加灰度窗口、回滚条件和观察项</td><td><span class="status status-progress">待评审</span></td></tr>
+            <tr><td><span class="row-title">订单域改造案例</span><span class="row-note">开发测试与项目控制</span></td><td><span class="asset-type case">案例</span></td><td>整理专题拆分、风险前置和联调节奏</td><td><span class="status status-ready">已沉淀</span></td></tr>
+            <tr><td><span class="row-title">风险登记使用说明</span><span class="row-note">计划、资源与风险基线</span></td><td><span class="asset-type template">规范</span></td><td>明确风险负责人、应对措施和复查时间</td><td><span class="status status-pending">待整理</span></td></tr>
+          </tbody></table></div>
+        </section>
+
+        <section class="content-section editable-section" id="actionSection">
+          <div class="section-heading"><div class="section-copy"><h3>改进行动清单</h3><p>改进必须有负责人和计划时间，后续可以转成团队级改进任务。</p></div><div class="section-actions"><span class="status status-progress" id="actionCount">1 / 3 已完成</span><button class="button button-small" id="addAction">＋ 新增行动</button></div></div>
+          <div class="table-wrap"><table id="actionTable"><thead><tr><th style="width:34%">改进行动</th><th style="width:16%">负责人</th><th style="width:145px">计划完成</th><th style="width:125px">状态</th></tr></thead><tbody>
+            <tr><td><span class="row-title">把故事拆分前置到计划评审阶段</span><span class="row-note">减少开发中途补拆分和范围漂移</span></td><td><span class="owner-cell"><span class="mini-avatar">李</span>李强</span></td><td>2026-11-08</td><td><select class="status-select action-select" aria-label="行动状态"><option>待开始</option><option>进行中</option><option selected>已完成</option></select></td></tr>
+            <tr><td><span class="row-title">将发布检查清单纳入节点完成前检查</span><span class="row-note">统一发布前的最小确认项</span></td><td><span class="owner-cell"><span class="mini-avatar">赵</span>赵琳</span></td><td>2026-11-12</td><td><select class="status-select action-select" aria-label="行动状态"><option>待开始</option><option selected>进行中</option><option>已完成</option></select></td></tr>
+            <tr><td><span class="row-title">建立项目案例检索索引</span><span class="row-note">便于后续按领域和问题检索</span></td><td><span class="owner-cell"><span class="mini-avatar">陈</span>陈宇</span></td><td>2026-11-15</td><td><select class="status-select action-select" aria-label="行动状态"><option selected>待开始</option><option>进行中</option><option>已完成</option></select></td></tr>
+          </tbody></table></div>
+        </section>
+
+      </div>
+    </section>
+
+    <section class="panel task-board"><div class="task-board-head"><div><h2>任务看板</h2><p>任务仍然独立管理；知识沉淀工作台只记录方法、资产和改进行动。</p></div><button class="button button-small" id="addTask">＋ 添加任务</button></div><div class="task-columns"><div class="task-column"><div class="task-column-head">待办 <span>1</span></div><div class="task-card"><strong>整理项目复盘报告</strong><small>负责人：李强 · 11-05</small></div></div><div class="task-column"><div class="task-column-head">进行中 <span>1</span></div><div class="task-card"><strong>更新发布检查清单</strong><small>负责人：赵琳 · 11-12</small></div></div><div class="task-column"><div class="task-column-head">已完成 <span>1</span></div><div class="task-card"><strong>沉淀订单域改造案例</strong><small>负责人：陈宇 · 已完成</small></div></div></div></section>
+  </div></main>
+
+  <dialog id="addDialog"><div class="dialog-body"><h3 id="dialogTitle">新增改进行动</h3><p id="dialogDescription">补充一条可执行的改进行动，保存后会出现在行动清单中。</p><form id="addForm"><div class="form-grid"><div class="form-field wide"><label for="itemName">行动名称</label><input id="itemName" required placeholder="例如：建立接口变更评审模板"></div><div class="form-field"><label for="itemOwner">负责人</label><input id="itemOwner" required placeholder="例如：王敏"></div><div class="form-field"><label for="itemDate">计划完成</label><input id="itemDate" required placeholder="例如：2026-11-20"></div></div><div class="dialog-actions"><button type="button" class="button button-small" id="cancelDialog">取消</button><button type="submit" class="button button-primary button-small">添加行动</button></div></form></div></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script>
+    const toast = document.getElementById('toast')
+    let toastTimer
+    function showToast(message) {
+      toast.textContent = message
+      toast.classList.add('show')
+      clearTimeout(toastTimer)
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2200)
+    }
+
+    document.querySelectorAll('[data-flow]').forEach((button) => button.addEventListener('click', () => {
+      document.querySelectorAll('[data-flow]').forEach((item) => item.classList.remove('selected'))
+      button.classList.add('selected')
+      showToast(`Demo：已切换到「${button.dataset.flow}」节点`)
+    }))
+    document.getElementById('editProject').addEventListener('click', () => showToast('Demo：这里预留项目资料编辑入口'))
+    document.getElementById('addTask').addEventListener('click', () => showToast('Demo：任务仍由任务看板独立维护'))
+
+    function updateActionSummary() {
+      const selects = [...document.querySelectorAll('.action-select')]
+      const done = selects.filter((select) => select.value === '已完成').length
+      document.getElementById('actionCount').textContent = `${done} / ${selects.length} 已完成`
+      document.getElementById('actionCount').className = `status ${done === selects.length ? 'status-ready' : 'status-progress'}`
+    }
+    document.querySelectorAll('.action-select').forEach((select) => select.addEventListener('change', () => {
+      showToast(`Demo：行动状态已更新为「${select.value}」`)
+      updateActionSummary()
+    }))
+
+    const dialog = document.getElementById('addDialog')
+    const form = document.getElementById('addForm')
+    document.getElementById('addAction').addEventListener('click', () => { form.reset(); dialog.showModal() })
+    document.getElementById('cancelDialog').addEventListener('click', () => dialog.close())
+    form.addEventListener('submit', (event) => {
+      event.preventDefault()
+      const name = document.getElementById('itemName').value.trim()
+      const owner = document.getElementById('itemOwner').value.trim()
+      const date = document.getElementById('itemDate').value.trim()
+      const row = document.createElement('tr')
+      const nameCell = document.createElement('td')
+      nameCell.innerHTML = '<span class="row-title"></span><span class="row-note">新增改进行动</span>'
+      nameCell.querySelector('.row-title').textContent = name
+      const ownerCell = document.createElement('td')
+      ownerCell.innerHTML = '<span class="owner-cell"><span class="mini-avatar"></span></span>'
+      ownerCell.querySelector('.mini-avatar').textContent = owner.slice(0, 1)
+      ownerCell.querySelector('.owner-cell').append(owner)
+      const dateCell = document.createElement('td')
+      dateCell.textContent = date
+      const statusCell = document.createElement('td')
+      statusCell.innerHTML = '<select class="status-select action-select" aria-label="行动状态"><option selected>待开始</option><option>进行中</option><option>已完成</option></select>'
+      statusCell.querySelector('select').addEventListener('change', () => { showToast(`Demo：行动状态已更新为「${statusCell.querySelector('select').value}」`); updateActionSummary() })
+      row.append(nameCell, ownerCell, dateCell, statusCell)
+      document.querySelector('#actionTable tbody').append(row)
+      dialog.close()
+      showToast('Demo：改进行动已添加')
+      updateActionSummary()
+    })
+
+    const completeNode = document.getElementById('completeNode')
+    completeNode.addEventListener('click', () => {
+      completeNode.disabled = true
+      completeNode.textContent = '节点已完成'
+      document.getElementById('nodeDot').classList.add('done')
+      document.getElementById('nodeStatus').textContent = '已完成'
+      document.getElementById('nodeStatus').classList.remove('tag-active')
+      document.getElementById('nodeStatus').style.color = 'var(--success)'
+      document.getElementById('nodeStatus').style.background = 'var(--success-soft)'
+      document.getElementById('nodeStatus').style.borderColor = '#b8e2cf'
+      document.getElementById('workbenchState').classList.add('done')
+      document.getElementById('workbenchState').querySelector('span').textContent = '节点已完成'
+      showToast('Demo：知识沉淀与标准改进节点已完成')
+    })
+  </script>
+</body>
+</html>

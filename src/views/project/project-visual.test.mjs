@@ -2,6 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
+import { createI18n } from 'vue-i18n'
+import enUS from '../../locales/en-US.ts'
 
 const root = path.resolve(import.meta.dirname, '../..')
 
@@ -11,28 +13,52 @@ test('project list uses the shared page header and table panel', () => {
   assert.match(source, /pms-table-panel/)
 })
 
+test('priority tags display the label without a decorative urgency icon', () => {
+  const source = fs.readFileSync(path.join(root, 'views/project/list/index.vue'), 'utf8')
+  assert.match(source, /class="pms-priority-tag"/)
+  assert.doesNotMatch(source, /ExclamationCircleOutlined/)
+})
+
+test('urgent priority tags use a soft red treatment instead of saturated red', () => {
+  const projectList = fs.readFileSync(path.join(root, 'views/project/list/index.vue'), 'utf8')
+  const workbench = fs.readFileSync(path.join(root, 'views/workbench/index.vue'), 'utf8')
+  const feedback = fs.readFileSync(path.join(root, 'views/feedback/index.vue'), 'utf8')
+  const projectDetail = fs.readFileSync(path.join(root, 'views/project/detail/index.vue'), 'utf8')
+  const taskKanban = fs.readFileSync(path.join(root, 'views/project/detail/components/TaskKanban.vue'), 'utf8')
+  const globalStyles = fs.readFileSync(path.join(root, 'styles/index.css'), 'utf8')
+  const themeStyles = fs.readFileSync(path.join(root, 'styles/pms-theme.css'), 'utf8')
+  assert.match(projectList, /pms-priority-tag--urgent/)
+  assert.match(workbench, /pms-priority-tag--urgent/)
+  assert.match(feedback, /pms-priority-tag--urgent/)
+  assert.match(projectDetail, /pms-project-badge--priority-urgent/)
+  assert.match(taskKanban, /pms-project-badge--priority-urgent/)
+  assert.match(globalStyles, /\.pms-priority-tag--urgent\s*\{[^}]*color:\s*var\(--pms-danger\)[^}]*background:\s*var\(--pms-danger-soft\)/)
+  assert.match(globalStyles, /\.pms-priority-tag--urgent\s*\{[^}]*box-shadow:\s*none/)
+  assert.match(themeStyles, /\.pms-project-badge--priority-urgent\s*\{[^}]*color:\s*var\(--pms-danger\)[^}]*background:\s*var\(--pms-danger-soft\)/)
+  assert.doesNotMatch(globalStyles, /\.pms-priority-tag--urgent\s*\{[^}]*#f5222d/)
+})
+
 test('project detail cards use the shared panel visual layer', () => {
   const source = fs.readFileSync(path.join(root, 'views/project/detail/index.vue'), 'utf8')
   assert.match(source, /pms-detail-panel/)
   assert.match(source, /var\(--pms-shadow-sm\)/)
 })
 
-test('project description image toolbar has an explicit action and responsive hint', () => {
+test('project description remains a plain text control without an image toolbar', () => {
   const source = fs.readFileSync(path.join(root, 'views/project/detail/index.vue'), 'utf8')
-  assert.match(source, /project-description-toolbar__action/)
-  assert.match(source, /project-description-toolbar__hint/)
-  assert.match(source, /flex-wrap:\s*wrap/)
+  assert.match(source, /project-description-control/)
+  assert.doesNotMatch(source, /project-description-toolbar|insertImage|descriptionImage|PictureOutlined/)
 })
 
 test('project list date cells allow the range to wrap into two lines', () => {
-  const styleSource = fs.readFileSync(path.join(root, 'styles/fs-insight.css'), 'utf8')
+  const styleSource = fs.readFileSync(path.join(root, 'styles/pms-theme.css'), 'utf8')
   assert.match(styleSource, /\.pms-project-date-range\s*\{[\s\S]*white-space:\s*normal;/)
   assert.match(styleSource, /\.pms-project-date-range\s*\{[\s\S]*min-width:\s*100px;/)
   assert.match(styleSource, /\.pms-project-date-range__to/)
 })
 
 test('shared filter controls keep one height and aligned inner controls', () => {
-  const styleSource = fs.readFileSync(path.join(root, 'styles/fs-insight.css'), 'utf8')
+  const styleSource = fs.readFileSync(path.join(root, 'styles/pms-theme.css'), 'utf8')
   assert.match(styleSource, /\.pms-filter-control[\s\S]*height:\s*var\(--pms-control-height\)/)
   assert.match(styleSource, /\.pms-filter-control\.ant-select[\s\S]*\.ant-select-selector[\s\S]*align-items:\s*center/)
   assert.match(styleSource, /\.pms-filter-button[\s\S]*align-items:\s*center/)
@@ -42,4 +68,79 @@ test('project filter toolbar switches to a two-column mobile layout', () => {
   const source = fs.readFileSync(path.join(root, 'views/project/list/index.vue'), 'utf8')
   assert.match(source, /\.pms-table-toolbar__filters\s*\{[\s\S]*grid-template-columns:/)
   assert.match(source, /\.pms-search-input\s*\{[\s\S]*grid-column:\s*1\s*\/\s*-1;/)
+})
+
+test('project detail exposes labelled assignment and collaboration regions', () => {
+  const source = fs.readFileSync(path.join(root, 'views/project/detail/index.vue'), 'utf8')
+  assert.match(source, /class="node-owner-row"[^>]*role="group"[^>]*aria-label=/)
+  assert.match(source, /class="[^"]*node-schedule-row[^"]*"[^>]*role="group"[^>]*aria-label=/)
+  assert.match(source, /class="project-collaboration-tabs"/)
+})
+
+test('task cards reserve an accessible action region for the hover affordance', () => {
+  const source = fs.readFileSync(path.join(root, 'views/project/detail/components/TaskKanban.vue'), 'utf8')
+  assert.match(source, /class="pms-task-card__actions"[^>]*role="group"[^>]*aria-label=/)
+  assert.match(source, /\.pms-task-card__actions\s*\{[\s\S]*min-width:/)
+})
+
+test('task schedule presentation consumes server-provided schedule state', () => {
+  const kanban = fs.readFileSync(path.join(root, 'views/project/detail/components/TaskKanban.vue'), 'utf8')
+  assert.match(kanban, /scheduleState/)
+  assert.match(kanban, /overdueDays/)
+  assert.doesNotMatch(kanban, /new Date\(\).*dueDate/)
+})
+
+test('schedule timelines render overdue task treatment without dependency lines', () => {
+  const chart = fs.readFileSync(path.join(root, 'views/project/detail/components/ProjectScheduleChart.vue'), 'utf8')
+  const calendar = fs.readFileSync(path.join(root, 'views/project/detail/components/ProjectScheduleCalendar.vue'), 'utf8')
+  assert.match(chart, /gantt-legend--overdue/)
+  assert.match(chart, /gantt-mark--task\.gantt-mark--overdue/)
+  assert.match(chart, /overdueDays/)
+  assert.match(calendar, /cal-chip--overdue/)
+  assert.match(calendar, /overdueDays/)
+  assert.doesNotMatch(chart, /dependency|<svg|<canvas/i)
+  assert.doesNotMatch(calendar, /dependency|<svg|<canvas/i)
+})
+
+test('pluralizes the one-day English overdue timeline tooltip', () => {
+  const i18n = createI18n({
+    legacy: false,
+    locale: 'en-US',
+    messages: { 'en-US': enUS },
+  })
+
+  assert.equal(i18n.global.t('schedule.overdueMeta', { date: '2026-09-14', days: 1 }, 1), 'Due 2026-09-14 · Overdue 1 day')
+})
+
+test('project buttons expose a shared semantic visual contract', () => {
+  const styleSource = fs.readFileSync(path.join(root, 'styles/pms-theme.css'), 'utf8')
+  assert.match(styleSource, /\.pms-project-button\s*\{[\s\S]*border-radius:\s*8px;/)
+  assert.match(styleSource, /\.pms-project-button--primary\s*\{/)
+  assert.match(styleSource, /\.pms-project-button--secondary\s*\{/)
+  assert.match(styleSource, /\.pms-project-button--text\s*\{/)
+  assert.match(styleSource, /\.pms-project-button--danger\s*\{/)
+  assert.match(styleSource, /\.pms-project-button:focus-visible\s*\{/)
+  assert.match(styleSource, /\.pms-project-button:disabled[^{]*\{/)
+})
+
+test('project action surfaces opt into semantic button variants', () => {
+  const sources = [
+    'views/project/list/index.vue',
+    'views/project/detail/index.vue',
+    'views/project/detail/components/Milestones.vue',
+    'views/project/detail/components/Members.vue',
+    'views/project/detail/components/Comments.vue',
+    'views/project/detail/components/TaskKanban.vue',
+    'views/project/detail/components/TaskWorkPanel.vue',
+    'views/project/detail/components/ProjectScheduleCalendar.vue',
+    'views/project/detail/components/ProjectScheduleChart.vue',
+  ].map((file) => fs.readFileSync(path.join(root, file), 'utf8')).join('\n')
+
+  assert.match(sources, /pms-project-button--primary/)
+  assert.match(sources, /pms-project-button--secondary/)
+  assert.match(sources, /pms-project-button--text/)
+  assert.match(sources, /pms-project-button--danger/)
+
+  const navigator = fs.readFileSync(path.join(root, 'views/project/detail/components/NodeNavigator.vue'), 'utf8')
+  assert.doesNotMatch(navigator, /pms-project-button/)
 })

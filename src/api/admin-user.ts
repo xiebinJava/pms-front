@@ -20,6 +20,10 @@ export function inviteUser(payload: Record<string, unknown>) {
   return http.post<{ userId: number; activationUrl: string; expiresAt: string }>('/admin/users/invite', payload)
 }
 
+export function reinviteUser(id: number) {
+  return http.post<{ userId: number; activationUrl: string; expiresAt: string }>(`/admin/users/${id}/reinvite`)
+}
+
 export function changePrimaryPosition(id: number, payload: Record<string, unknown>) {
   return http.put(`/admin/users/${id}/primary-position`, payload)
 }

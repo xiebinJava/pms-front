@@ -38,12 +38,14 @@ export function createTask(projectId: number | string, data: Partial<Task>): Pro
   return http.post(`/projects/${projectId}/tasks`, data)
 }
 
-export function updateTask(id: number, data: Partial<Task>): Promise<Task> {
+export type TaskUpdatePayload = Partial<Task> & { clearDueDate?: boolean }
+
+export function updateTask(id: number, data: TaskUpdatePayload): Promise<Task> {
   return http.put(`/tasks/${id}`, data)
 }
 
-export function moveTask(id: number, status: number): Promise<Task> {
-  return http.put(`/tasks/${id}/move`, { status })
+export function moveTask(id: number, status: number, version: number): Promise<Task> {
+  return http.put(`/tasks/${id}/move`, { status, version })
 }
 
 export function deleteTask(id: number): Promise<void> {

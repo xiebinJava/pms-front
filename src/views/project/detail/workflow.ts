@@ -23,7 +23,7 @@ export interface NodeDetailField {
 }
 
 export interface ProjectProfileFieldDefinition {
-  key: 'description' | 'priority' | 'schedule' | 'businessLine'
+  key: 'description' | 'priority' | 'projectLevel' | 'schedule' | 'businessLine'
   label: string
   wide?: boolean
   multiline?: boolean
@@ -36,7 +36,7 @@ export interface TaskFormDraft {
   status: number
   priority: number
   assigneeId?: number
-  milestoneId?: number
+  requirementId?: number
   dueDate?: string | null
   parentId?: number
 }
@@ -66,12 +66,24 @@ function stripUsernameSuffix(value: string, username?: string): string {
 }
 
 /** 统一清理后端历史格式，避免“中文名（英文名） (英文名)”重复展示。 */
-export function normalizePersonDisplayLabel(value?: string): string | undefined {
-  let text = value?.trim()
+export function normalizePersonDisplayLabel(value?: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  let text = value.trim()
   if (!text) return undefined
   text = text.replace(/\s*（([^（）]+)）\s*\(\1\)$/i, '（$1）')
   text = text.replace(/^(.+?)\s*\(([^()]+)\)$/, '$1（$2）')
   return text.trim()
+}
+
+/** tagRender labels may be VNodes; use them only when they are plain text. */
+export function resolvePersonSelectLabel(
+  value: number | string,
+  renderedLabel: unknown,
+  optionLabel?: unknown,
+): string {
+  return normalizePersonDisplayLabel(renderedLabel)
+    || normalizePersonDisplayLabel(optionLabel)
+    || formatPersonLabel({ id: Number(value) })
 }
 
 export function formatPersonLabel(user: {
@@ -98,17 +110,137 @@ export function formatPersonLabel(user: {
 }
 
 export function getPersonDisplay(
-  option?: { label?: string; avatar?: string },
+  option?: { label?: unknown; avatar?: string },
   fallback?: string,
 ): { label: string; avatar?: string } {
   return {
-    label: normalizePersonDisplayLabel(option?.label || fallback) || '待确认',
+    label: normalizePersonDisplayLabel(option?.label) || normalizePersonDisplayLabel(fallback) || '待确认',
     avatar: option?.avatar,
   }
 }
 
 export function getSinglePersonSelection(values: number[]): number | undefined {
   return values.at(-1)
+}
+
+export const RECENT_PERSON_LIMIT = 6
+export const RECENT_PERSON_STORAGE_PREFIX = 'pms.recent-people.v1'
+
+export interface RecentPersonStorage {
+  getItem(key: string): string | null
+  setItem(key: string, value: string): void
+}
+
+function isPersonOption(value: unknown): value is PersonOption {
+  if (!value || typeof value !== 'object') return false
+  const option = value as PersonOption
+  return Number.isFinite(option.value) && typeof option.label === 'string' && option.label.trim().length > 0
+}
+
+export function recentPeopleStorageKey(userId?: number | null): string {
+  return userId == null ? RECENT_PERSON_STORAGE_PREFIX : `${RECENT_PERSON_STORAGE_PREFIX}.${userId}`
+}
+
+export function readRecentPeople(
+  storage?: RecentPersonStorage | null,
+  userId?: number | null,
+): PersonOption[] {
+  if (!storage) return []
+  try {
+    const parsed = JSON.parse(storage.getItem(recentPeopleStorageKey(userId)) || '[]')
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(isPersonOption).slice(0, RECENT_PERSON_LIMIT)
+  } catch {
+    return []
+  }
+}
+
+export function rememberRecentPeople(
+  selected: Array<PersonOption | undefined | null>,
+  storage?: RecentPersonStorage | null,
+  userId?: number | null,
+): PersonOption[] {
+  const incoming = selected.filter(isPersonOption)
+  const merged: PersonOption[] = []
+  const seen = new Set<number>()
+  for (const option of [...incoming, ...readRecentPeople(storage, userId)]) {
+    if (seen.has(option.value)) continue
+    seen.add(option.value)
+    merged.push({
+      value: option.value,
+      label: option.label,
+      avatar: option.avatar,
+    })
+    if (merged.length >= RECENT_PERSON_LIMIT) break
+  }
+  try {
+    storage?.setItem(recentPeopleStorageKey(userId), JSON.stringify(merged))
+  } catch {
+    // Private mode or a full quota should not block the current session list.
+  }
+  return merged
+}
+
+export function pickFallbackPeople(
+  recent: PersonOption[],
+  pool: PersonOption[],
+  limit = RECENT_PERSON_LIMIT,
+  random: () => number = Math.random,
+): PersonOption[] {
+  const picked = recent.filter(isPersonOption).slice(0, limit)
+  const seen = new Set(picked.map((option) => option.value))
+  const candidates = pool.filter((option) => isPersonOption(option) && !seen.has(option.value))
+  for (let index = candidates.length - 1; index > 0; index -= 1) {
+    const swapWith = Math.floor(random() * (index + 1))
+    const current = candidates[index]
+    candidates[index] = candidates[swapWith]
+    candidates[swapWith] = current
+  }
+  for (const option of candidates) {
+    if (picked.length >= limit) break
+    picked.push({
+      value: option.value,
+      label: option.label,
+      avatar: option.avatar,
+    })
+  }
+  return picked
+}
+
+export function listPersonSelectOptions(input: {
+  keyword?: string
+  recent?: PersonOption[]
+  fallback?: PersonOption[]
+  options?: PersonOption[]
+  searchResults?: PersonOption[]
+  random?: () => number
+}): PersonOption[] {
+  if (input.keyword?.trim()) return [...(input.searchResults || [])]
+  const preferred = new Map<number, PersonOption>()
+  for (const option of [...(input.recent || []), ...(input.options || [])]) {
+    if (!isPersonOption(option) || preferred.has(option.value)) continue
+    preferred.set(option.value, option)
+    if (preferred.size >= RECENT_PERSON_LIMIT) break
+  }
+  return pickFallbackPeople([...preferred.values()], input.fallback || [], RECENT_PERSON_LIMIT, input.random)
+}
+
+export const NOTE_ASSIGNED_PROJECT_MEMBER = 'noteAssignedProjectMember'
+export const REMEMBER_PERSON_OPTION = 'rememberPersonOption'
+
+export function isSelectableAccount(status?: string | null): boolean {
+  return status === 'ACTIVE'
+}
+
+export function mergeMemberIdsAfterRefresh(
+  formIds: number[],
+  serverIds: number[],
+  knownIds: number[],
+  membersDirty: boolean,
+): number[] {
+  if (!membersDirty) return [...serverIds]
+  const addedOnServer = serverIds.filter((id) => !knownIds.includes(id))
+  return [...new Set([...formIds, ...addedOnServer])]
 }
 
 export function isKickoffNode(nodeKey?: string): boolean {
@@ -119,6 +251,7 @@ export function getProjectProfileFields(): ProjectProfileFieldDefinition[] {
   return [
     { key: 'description', label: 'detail.profileDescription', wide: true, multiline: true },
     { key: 'priority', label: 'detail.profilePriority' },
+    { key: 'projectLevel', label: 'detail.profileProjectLevel' },
     { key: 'schedule', label: 'detail.profileSchedule' },
     { key: 'businessLine', label: 'detail.businessLine' },
   ]
@@ -135,6 +268,73 @@ export function buildBusinessLineOptions(units: OrgUnit[]): BusinessLineOption[]
       ...(children.length ? { children } : {}),
     }]
   })
+}
+
+export function hoverBusinessLinePath(currentPath: number[], columnIndex: number, value: number): number[] {
+  return [...currentPath.slice(0, columnIndex), value]
+}
+
+export function getBusinessLineLabels(options: BusinessLineOption[], path?: number[]): string[] {
+  if (!path?.length) return []
+  const labels: string[] = []
+  let current = options
+  for (const id of path) {
+    const match = current.find((option) => option.value === id)
+    if (!match) break
+    labels.push(match.label)
+    current = match.children || []
+  }
+  return labels
+}
+
+export function getBusinessLineDisplay(options: BusinessLineOption[], path?: number[], fallback?: string): string {
+  const labels = getBusinessLineLabels(options, path)
+  return labels.length ? labels.join(' / ') : fallback || ''
+}
+
+export interface BusinessLineTreeRow {
+  value: number
+  label: string
+  path: number[]
+  depth: number
+  hasChildren: boolean
+  expanded: boolean
+}
+
+export function filterBusinessLineOptions(options: BusinessLineOption[], keyword = ''): BusinessLineOption[] {
+  const query = keyword.trim().toLowerCase()
+  if (!query) return options
+  return options.flatMap((option) => {
+    if (option.label.toLowerCase().includes(query)) return [option]
+    const children = filterBusinessLineOptions(option.children || [], keyword)
+    return children.length ? [{ ...option, children }] : []
+  })
+}
+
+export function getBusinessLineTreeRows(
+  options: BusinessLineOption[],
+  expandedPath: number[] = [],
+  expandAll = false,
+  parentPath: number[] = [],
+): BusinessLineTreeRow[] {
+  const rows: BusinessLineTreeRow[] = []
+  for (const option of options) {
+    const path = [...parentPath, option.value]
+    const hasChildren = Boolean(option.children?.length)
+    const expanded = hasChildren && (expandAll || expandedPath[parentPath.length] === option.value)
+    rows.push({
+      value: option.value,
+      label: option.label,
+      path,
+      depth: parentPath.length,
+      hasChildren,
+      expanded,
+    })
+    if (expanded) {
+      rows.push(...getBusinessLineTreeRows(option.children || [], expandedPath, expandAll, path))
+    }
+  }
+  return rows
 }
 
 export function getOrgUnitPath(units: OrgUnit[], targetId?: number): number[] {
@@ -189,7 +389,6 @@ export function getProjectOverallProgress(
 }
 
 export function getProjectStatusTone(status?: number): ProjectStatusTone {
-  if (status === 1) return 'active'
   if (status === 2) return 'completed'
   if (status === 3) return 'terminated'
   if (status === 4) return 'deleted'
@@ -199,6 +398,40 @@ export function getProjectStatusTone(status?: number): ProjectStatusTone {
 
 export function getNodeOwnerDisplay(name?: string): string {
   return name?.trim() || ''
+}
+
+export function defaultNodeOwnerId(firstNode: boolean, creatorId?: number, projectManagerId?: number): number | undefined {
+  return firstNode ? creatorId : projectManagerId
+}
+
+export function shouldAssignDefaultNodeOwner(
+  currentOwnerId?: number,
+  previousManagerId?: number,
+  nextOwnerId?: number,
+  readOnly = false,
+): boolean {
+  if (readOnly || nextOwnerId == null || currentOwnerId === nextOwnerId) return false
+  return currentOwnerId == null || currentOwnerId === previousManagerId
+}
+
+export function listDefaultNodeOwnerAssignments<T extends { ownerId?: number; status: number }>(
+  nodes: T[],
+  creatorId?: number,
+  projectManagerId?: number,
+  previousManagerId?: number,
+): Array<{ index: number; node: T; ownerId: number }> {
+  return nodes.flatMap((node, index) => {
+    const ownerId = defaultNodeOwnerId(index === 0, creatorId, projectManagerId)
+    if (!shouldAssignDefaultNodeOwner(
+      node.ownerId,
+      index === 0 ? undefined : previousManagerId,
+      ownerId,
+      isNodeReadOnly(node.status),
+    ) || ownerId == null) {
+      return []
+    }
+    return [{ index, node, ownerId }]
+  })
 }
 
 export function buildTaskPayload(form: TaskFormDraft, nodeId: number) {
@@ -244,6 +477,26 @@ export function getFlowNodeState(status: number): FlowNodeState {
 export function getNodeProgress(doneCount: number, totalCount: number): number {
   if (totalCount <= 0) return 0
   return Math.round((doneCount / totalCount) * 100)
+}
+
+/** Keep unloaded and empty nodes distinct from nodes with tasks at 0% completion. */
+export function getCurrentNodeTaskProgress(
+  summary: { done: number; total: number } | null | undefined,
+): number | null | undefined {
+  if (!summary) return undefined
+  if (summary.total <= 0) return null
+  return getNodeProgress(summary.done, summary.total)
+}
+
+/** Choose a useful node when the detail page first opens. */
+export function getInitialActiveNodeId(
+  nodes: Array<Pick<ProjectNode, 'id' | 'status'>>,
+): number | null {
+  const current = nodes.find((node) => node.status === 1)
+  if (current) return current.id
+
+  const completed = nodes.filter((node) => node.status === 2)
+  return completed.at(-1)?.id ?? nodes[0]?.id ?? null
 }
 
 export function canRollbackNode(_sort: number, status: number): boolean {

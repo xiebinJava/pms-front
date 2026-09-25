@@ -6,7 +6,7 @@ import test from 'node:test'
 const root = path.resolve(import.meta.dirname, '..')
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8')
 
-test('application chrome exposes fs-insight navigation primitives', () => {
+test('application chrome exposes theme navigation primitives', () => {
   const source = read('layout/Index.vue')
   assert.match(source, /pms-nav-list/)
   assert.match(source, /pms-nav-link/)
@@ -46,7 +46,7 @@ test('admin surfaces use the shared visual workspace primitives', () => {
 })
 
 test('deep visual layer defines control, section, and motion contracts', () => {
-  const source = read('styles/fs-insight.css')
+  const source = read('styles/pms-theme.css')
   assert.match(source, /\.pms-nav-link\s*\{/)
   assert.match(source, /\.pms-detail-hero\s*\{/)
   assert.match(source, /\.pms-task-card__surface\s*\{/)
@@ -55,7 +55,7 @@ test('deep visual layer defines control, section, and motion contracts', () => {
 
 test('admin navigation keeps the group relationship legible and user control chrome clean', () => {
   const layout = read('layout/Index.vue')
-  const source = read('styles/fs-insight.css')
+  const source = read('styles/pms-theme.css')
   assert.match(layout, /pms-nav-section-label__arrow/)
   assert.match(source, /\.pms-user-menu\s*\{[\s\S]*border:\s*0;/)
   assert.match(source, /\.pms-nav-section-label\s*\{[\s\S]*font-size:\s*13px;/)

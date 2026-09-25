@@ -33,7 +33,7 @@
 
 ## 响应式与视觉
 
-- 继续复用 `fs-insight.css` 中的冷灰背景、白色面板、深蓝主色和低阴影令牌。
+- 继续复用 `pms-theme.css` 中的冷灰背景、白色面板、深蓝主色和低阴影令牌。
 - 桌面端采用“概览四列 + 任务/项目两列 + 动态”布局，卡片使用统一的面板和状态标签。
 - 760px 以下自动变为单列；任务和项目列表允许内容换行，不产生页面级横向溢出。
 - 空数据、加载中和请求失败均提供明确的中文状态提示与重试入口。
@@ -45,7 +45,7 @@
 - `src/views/workbench/index.vue`：工作台页面与数据聚合。
 - `src/views/workbench/workbench.ts`：纯函数数据转换与指标计算，便于测试。
 - `src/views/workbench/workbench.test.mjs`：工作台指标、过滤、排序和降级逻辑测试。
-- `src/styles/fs-insight.css`：仅补充工作台响应式布局样式。
+- `src/styles/pms-theme.css`：仅补充工作台响应式布局样式。
 
 ## 验收标准
 

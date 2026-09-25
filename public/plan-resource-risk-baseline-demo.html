@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>计划、资源与风险基线 · PMS Demo</title>
+  <style>
+    :root {
+      --primary: #1769e0;
+      --primary-dark: #1258bf;
+      --primary-soft: #eaf2ff;
+      --text: #17243b;
+      --text-2: #40516b;
+      --muted: #71819a;
+      --faint: #9aa8ba;
+      --border: #dce5f0;
+      --border-strong: #cbd8e8;
+      --surface: #fff;
+      --surface-muted: #f6f8fb;
+      --surface-blue: #f4f8ff;
+      --success: #15966a;
+      --success-soft: #eaf8f1;
+      --warning: #d97706;
+      --warning-soft: #fff5e5;
+      --danger: #d04b58;
+      --danger-soft: #fff0f2;
+      --purple: #6551c8;
+      --purple-soft: #f0ecff;
+      --shadow-sm: 0 4px 16px rgba(30, 58, 95, .06);
+      --shadow-md: 0 14px 34px rgba(30, 58, 95, .10);
+      --radius: 14px;
+      --sidebar: 224px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--text); background: #f5f7fb; font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid rgba(23, 105, 224, .20); outline-offset: 2px; }
+    .topbar { position: fixed; inset: 0 0 auto; z-index: 20; height: 62px; display: flex; align-items: center; padding: 0 18px; background: rgba(255,255,255,.96); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); }
+    .brand { width: var(--sidebar); display: flex; align-items: center; gap: 10px; }
+    .brand-mark { width: 30px; height: 30px; display: grid; place-items: center; color: #fff; background: var(--primary); border-radius: 8px; font-weight: 800; box-shadow: 0 4px 10px rgba(23,105,224,.22); }
+    .brand-copy { display: grid; line-height: 1.05; }
+    .brand-copy strong { font-size: 15px; letter-spacing: .02em; }
+    .brand-copy small { margin-top: 4px; color: var(--faint); font-size: 10px; letter-spacing: .04em; }
+    .global-search { width: min(400px, 42vw); height: 34px; display: flex; align-items: center; gap: 8px; margin-left: auto; margin-right: 22px; padding: 0 12px; color: var(--faint); border: 1px solid var(--border-strong); border-radius: 8px; background: #fff; }
+    .global-search input { width: 100%; border: 0; outline: 0; color: var(--text); background: transparent; font-size: 12px; }
+    .global-search input::placeholder { color: var(--faint); }
+    .top-actions { display: flex; align-items: center; gap: 14px; color: var(--muted); }
+    .locale { display: inline-flex; align-items: center; height: 34px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; }
+    .locale span { padding: 5px 9px; border-radius: 6px; font-size: 12px; }
+    .locale span:first-child { color: #fff; background: var(--primary); }
+    .avatar { width: 30px; height: 30px; display: grid; place-items: center; color: #fff; background: var(--primary); border-radius: 50%; font-size: 12px; }
+    .account { display: flex; align-items: center; gap: 7px; color: var(--text-2); font-size: 13px; }
+    .sidebar { position: fixed; top: 62px; bottom: 0; left: 0; z-index: 10; width: var(--sidebar); padding: 18px 10px; overflow-y: auto; background: #fff; border-right: 1px solid var(--border); }
+    .nav-item, .nav-group-title { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0 12px; color: var(--text-2); border-radius: 8px; font-size: 13px; font-weight: 600; }
+    .nav-item { margin: 3px 0; }
+    .nav-item.active { color: var(--primary); background: var(--primary-soft); }
+    .nav-group { margin-top: 17px; }
+    .nav-group:first-child { margin-top: 0; }
+    .nav-group-title { justify-content: space-between; color: var(--text); }
+    .nav-group-title > span { display: flex; align-items: center; gap: 10px; }
+    .nav-sub { margin-left: 13px; padding-left: 10px; border-left: 1px solid var(--border); }
+    .nav-sub .nav-item { font-weight: 500; }
+    .nav-icon { width: 16px; color: var(--muted); text-align: center; }
+    .nav-item.active .nav-icon { color: var(--primary); }
+    .main { margin-left: var(--sidebar); padding: 84px 28px 56px; }
+    .content { max-width: 1240px; margin: 0 auto; }
+    .breadcrumb { display: flex; align-items: center; gap: 8px; margin: 0 0 20px 5px; color: var(--muted); font-size: 12px; }
+    .breadcrumb strong { color: var(--text-2); font-weight: 600; }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+    .project-header { padding: 22px 26px 18px; }
+    .project-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+    .project-title { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .project-title h1 { margin: 0; font-size: 25px; line-height: 1.2; letter-spacing: -.02em; }
+    .tag, .status, .risk-level { display: inline-flex; align-items: center; height: 25px; padding: 0 9px; border-radius: 6px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .tag-active { color: #c56a0b; background: var(--warning-soft); border: 1px solid #ffd49a; }
+    .tag-level { color: var(--purple); background: var(--purple-soft); }
+    .tag-priority { color: #b46308; background: #fff1df; }
+    .header-actions { display: flex; align-items: center; gap: 9px; }
+    .button { min-height: 36px; padding: 0 14px; color: var(--text-2); background: #fff; border: 1px solid var(--border-strong); border-radius: 8px; font-weight: 650; }
+    .button:hover { color: var(--primary); border-color: #a7c5f2; background: var(--primary-soft); }
+    .button:disabled { cursor: not-allowed; color: #a9b6c8; background: #f4f6f9; border-color: var(--border); box-shadow: none; }
+    .button-primary { color: #fff; background: var(--primary); border-color: var(--primary); box-shadow: 0 5px 13px rgba(23,105,224,.18); }
+    .button-primary:hover { color: #fff; background: var(--primary-dark); border-color: var(--primary-dark); }
+    .button-small { min-height: 32px; padding: 0 10px; font-size: 12px; }
+    .button-icon { width: 34px; padding: 0; display: grid; place-items: center; }
+    .project-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0; margin-top: 16px; color: var(--muted); font-size: 12px; }
+    .project-meta-item { display: flex; align-items: center; gap: 7px; padding: 0 22px; border-left: 1px solid var(--border); }
+    .project-meta-item:first-child { padding-left: 0; border-left: 0; }
+    .project-meta-item strong { color: var(--text-2); font-weight: 650; }
+    .header-insights { display: flex; align-items: center; gap: 24px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+    .insight { display: inline-flex; align-items: baseline; gap: 8px; }
+    .insight strong { color: var(--text-2); font-size: 15px; font-weight: 750; }
+    .insight-current strong { color: var(--primary); }
+    .flow-panel { margin-top: 18px; padding: 18px 20px 21px; overflow: hidden; }
+    .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .section-heading h2 { margin: 0; font-size: 15px; letter-spacing: -.01em; }
+    .section-heading small { color: var(--muted); }
+    .flow-scroll { margin-top: 16px; overflow-x: auto; padding: 2px 3px 8px; }
+    .flow-track { display: flex; align-items: stretch; min-width: 1060px; }
+    .flow-node-wrap { display: flex; align-items: center; flex: 1 0 0; }
+    .flow-node { position: relative; width: 100%; min-width: 0; min-height: 86px; padding: 12px 12px 10px 34px; text-align: left; background: #fff; border: 1px solid var(--border-strong); border-radius: 9px; box-shadow: 0 3px 9px rgba(30,58,95,.05); }
+    .flow-node:hover { border-color: #9fc2f5; }
+    .flow-node.selected { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(23,105,224,.12); }
+    .flow-node.done { background: #fbfefc; }
+    .flow-dot { position: absolute; top: 19px; left: 13px; width: 14px; height: 14px; display: grid; place-items: center; border: 2px solid var(--border-strong); border-radius: 50%; }
+    .flow-dot::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--border-strong); }
+    .flow-node.selected .flow-dot { border-color: var(--warning); }
+    .flow-node.selected .flow-dot::after { background: var(--warning); }
+    .flow-node.done .flow-dot { border-color: #8ecfb4; }
+    .flow-node.done .flow-dot::after { width: 6px; height: 3px; border-bottom: 2px solid var(--success); border-left: 2px solid var(--success); border-radius: 0; background: transparent; transform: rotate(-45deg) translate(1px,-1px); }
+    .flow-node strong { display: block; overflow: hidden; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .flow-node small { display: block; margin-top: 5px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .flow-arrow { flex: 0 0 28px; color: #9eacc0; text-align: center; font-size: 18px; }
+    .node-panel { margin-top: 18px; padding: 20px 22px 24px; }
+    .node-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+    .node-title { display: flex; align-items: center; gap: 10px; }
+    .node-status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 4px var(--warning-soft); }
+    .node-status-dot.done { background: var(--success); box-shadow: 0 0 0 4px var(--success-soft); }
+    .node-title h2 { margin: 0; font-size: 18px; }
+    .node-description { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .assignment-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+    .assignment { display: flex; align-items: center; gap: 14px; min-height: 54px; padding: 9px 13px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: 9px; }
+    .assignment-label { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-weight: 650; }
+    .person-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 10px 0 5px; color: var(--text-2); background: #eef2f7; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; }
+    .person-avatar { width: 21px; height: 21px; display: grid; place-items: center; color: #fff; background: #aab9cc; border-radius: 50%; font-size: 9px; }
+    .date-field { display: flex; align-items: center; gap: 10px; min-height: 30px; padding: 0 10px; color: var(--text-2); background: #fff; border: 1px solid var(--border-strong); border-radius: 7px; font-size: 12px; }
+    .date-field span { color: var(--faint); }
+    .workbench { margin-top: 18px; padding: 20px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: 10px; }
+    .workbench-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+    .workbench-head h3 { margin: 0; font-size: 15px; }
+    .workbench-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .workbench-state { display: inline-flex; align-items: center; gap: 7px; color: var(--warning); font-size: 12px; font-weight: 700; }
+    .workbench-state.done { color: var(--success); }
+    .workbench-state i, .risk-state i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .source-strip { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; padding: 12px 14px; color: var(--text-2); background: var(--surface-blue); border: 1px solid #cfe0f8; border-radius: 9px; }
+    .source-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .source-icon { width: 28px; height: 28px; display: grid; place-items: center; color: var(--primary); background: #dceaff; border-radius: 7px; }
+    .source-copy { min-width: 0; }
+    .source-copy strong { display: block; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .source-copy small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+    .text-link, .action-link { padding: 0; color: var(--primary); background: transparent; border: 0; font-size: 12px; font-weight: 650; }
+    .content-section { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border); }
+    .section-copy h3 { margin: 0; font-size: 15px; }
+    .section-copy p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .section-heading .section-copy { margin-right: auto; }
+    .section-actions { display: flex; align-items: center; gap: 8px; }
+    .summary-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+    .summary-card { padding: 12px 14px; background: #fff; border: 1px solid var(--border); border-radius: 9px; }
+    .summary-card small { display: block; color: var(--muted); font-size: 11px; }
+    .summary-card strong { display: block; margin-top: 3px; color: var(--text-2); font-size: 15px; }
+    .summary-card em { color: var(--primary); font-size: 11px; font-style: normal; font-weight: 600; }
+    .table-wrap { margin-top: 14px; overflow-x: auto; background: #fff; border: 1px solid var(--border); border-radius: 9px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { padding: 10px 12px; color: var(--muted); background: #f8fafc; font-size: 11px; font-weight: 700; text-align: left; white-space: nowrap; }
+    td { padding: 11px 12px; color: var(--text-2); border-top: 1px solid var(--border); font-size: 12px; vertical-align: middle; }
+    tr:hover td { background: #fbfdff; }
+    .row-title { color: var(--text); font-weight: 700; }
+    .row-note { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .owner-cell { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+    .mini-avatar { width: 22px; height: 22px; display: grid; place-items: center; color: #fff; background: #aab9cc; border-radius: 50%; font-size: 9px; }
+    .date-text { white-space: nowrap; color: var(--text-2); }
+    .date-text span { color: var(--faint); padding: 0 5px; }
+    .status-ready { color: var(--success); background: var(--success-soft); }
+    .status-progress { color: var(--warning); background: var(--warning-soft); }
+    .status-pending { color: var(--muted); background: #f1f4f8; }
+    .risk-level { height: 23px; font-size: 11px; }
+    .risk-high { color: #bf4d3d; background: var(--danger-soft); }
+    .risk-medium { color: #b46308; background: var(--warning-soft); }
+    .risk-low { color: #47739e; background: #edf5ff; }
+    .risk-state { display: inline-flex; align-items: center; gap: 6px; color: var(--warning); font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .risk-state.open { color: var(--warning); }
+    .risk-state.mitigated { color: var(--success); }
+    .baseline-card { margin-top: 14px; padding: 15px; background: var(--surface-blue); border: 1px solid #cfe0f8; border-radius: 10px; }
+    .baseline-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .baseline-head h4 { margin: 0; font-size: 13px; }
+    .baseline-head p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+    .baseline-state { display: inline-flex; align-items: center; gap: 6px; color: var(--warning); font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .baseline-state.done { color: var(--success); }
+    .baseline-state i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .check-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+    .check-item { display: flex; align-items: flex-start; gap: 8px; padding: 10px; color: var(--muted); background: #fff; border: 1px solid var(--border); border-radius: 7px; font-size: 11px; }
+    .check-item i { width: 16px; height: 16px; display: grid; place-items: center; flex: 0 0 auto; color: #fff; background: #aab9cc; border-radius: 50%; font-size: 10px; font-style: normal; }
+    .check-item.done { color: var(--text-2); background: var(--success-soft); border-color: #c4ead6; }
+    .check-item.done i { background: var(--success); }
+    .baseline-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 15px; }
+    .baseline-hint { color: var(--muted); font-size: 11px; }
+    .baseline-actions { display: flex; gap: 8px; }
+    .locked .editable-section { opacity: .72; }
+    .locked input, .locked select { color: var(--muted); background: #f7f9fc; }
+    .toast { position: fixed; right: 24px; bottom: 24px; z-index: 30; max-width: 360px; padding: 11px 14px; color: #fff; background: rgba(23,36,59,.94); border-radius: 8px; box-shadow: var(--shadow-md); opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity .2s ease, transform .2s ease; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    dialog { width: min(480px, calc(100vw - 30px)); padding: 0; color: var(--text); border: 0; border-radius: 12px; box-shadow: var(--shadow-md); }
+    dialog::backdrop { background: rgba(21, 36, 59, .28); }
+    .dialog-body { padding: 20px; }
+    .dialog-body h3 { margin: 0; font-size: 16px; }
+    .dialog-body p { margin: 4px 0 16px; color: var(--muted); font-size: 12px; }
+    .form-grid { display: grid; gap: 12px; }
+    .form-field { display: grid; gap: 6px; }
+    .form-field label { color: var(--text-2); font-size: 11px; font-weight: 700; }
+    .form-field input, .form-field select { width: 100%; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: 7px; outline: 0; font-size: 12px; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+    @media (max-width: 900px) {
+      :root { --sidebar: 72px; }
+      .brand { width: 42px; }
+      .brand-copy, .nav-group-title span:last-child, .nav-item span:not(.nav-icon) { display: none; }
+      .nav-item, .nav-group-title { justify-content: center; padding: 0; }
+      .nav-sub { margin-left: 0; padding-left: 0; border-left: 0; }
+      .main { padding: 78px 16px 40px; }
+      .project-header, .node-panel { padding-left: 18px; padding-right: 18px; }
+      .project-meta-item { padding: 0 12px; }
+      .summary-strip { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .topbar { padding: 0 12px; }
+      .global-search { width: 46vw; margin-right: 10px; }
+      .account strong { display: none; }
+      .main { padding: 76px 10px 30px; }
+      .project-title h1 { font-size: 21px; }
+      .project-header-top, .node-top { display: grid; }
+      .header-actions { justify-content: flex-end; }
+      .project-meta { display: grid; gap: 8px; }
+      .project-meta-item { padding: 0; border: 0; }
+      .header-insights { display: grid; gap: 9px; }
+      .assignment-row, .check-list { grid-template-columns: 1fr; }
+      .workbench, .node-panel { padding: 14px; }
+      .workbench-head, .source-strip, .baseline-footer { align-items: flex-start; }
+      .source-strip, .baseline-footer { display: grid; }
+      .section-heading { align-items: flex-start; }
+      .section-heading, .section-actions { flex-wrap: wrap; }
+      table { min-width: 760px; }
+      .baseline-actions { justify-content: flex-end; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">P</div><div class="brand-copy"><strong>PMS</strong><small>Project Management</small></div></div>
+    <label class="global-search"><span>⌕</span><input placeholder="搜索项目、任务、里程碑、评论" aria-label="搜索"></label>
+    <div class="top-actions"><div class="locale"><span>中</span><span>EN</span></div><span aria-label="通知">♧</span><div class="account"><span class="avatar">管</span><strong>管理员（admin）</strong></div></div>
+  </header>
+  <aside class="sidebar" aria-label="主导航">
+    <div class="nav-item"><span class="nav-icon">◉</span><span>工作台</span></div>
+    <div class="nav-group"><div class="nav-group-title"><span><span class="nav-icon">⌁</span><span>研发管理</span></span><span>⌄</span></div><div class="nav-sub"><div class="nav-item active"><span class="nav-icon">▣</span><span>项目管理</span></div></div></div>
+    <div class="nav-group"><div class="nav-group-title"><span><span class="nav-icon">⚙</span><span>配置管理</span></span><span>⌄</span></div><div class="nav-sub"><div class="nav-item"><span class="nav-icon">♙</span><span>人员与权限</span></div><div class="nav-item"><span class="nav-icon">♧</span><span>组织架构</span></div><div class="nav-item"><span class="nav-icon">♢</span><span>角色管理</span></div><div class="nav-item"><span class="nav-icon">↥</span><span>批量导入</span></div><div class="nav-item"><span class="nav-icon">▤</span><span>审计日志</span></div></div></div>
+    <div class="nav-item" style="margin-top: 18px"><span class="nav-icon">◌</span><span>反馈中心</span></div>
+    <div class="nav-group"><div class="nav-group-title"><span><span class="nav-icon">□</span><span>文档中心</span></span><span>⌄</span></div><div class="nav-sub"><div class="nav-item"><span class="nav-icon">▤</span><span>使用手册</span></div><div class="nav-item"><span class="nav-icon">▧</span><span>业务规则</span></div><div class="nav-item"><span class="nav-icon">⚙</span><span>前端设计规范</span></div></div></div>
+  </aside>
+  <main class="main"><div class="content">
+    <div class="breadcrumb"><span>‹ 项目管理</span><span>/</span><strong>项目详情</strong></div>
+    <section class="panel project-header">
+      <div class="project-header-top"><div><div class="project-title"><h1>电商中台重构</h1><span class="tag tag-active">进行中</span><span class="tag tag-level">A · 关键项目</span><span class="tag tag-priority">中优先级</span></div><div class="project-meta"><div class="project-meta-item"><span>项目经理：</span><strong>李强（Terry.Li）</strong></div><div class="project-meta-item"><span>业务线：</span><strong>公司总部 / 软件研发中心 / 前台软件研发部 / 前台商城Team</strong></div><div class="project-meta-item"><span>项目周期：</span><strong>2026-09-04 → 2026-10-31</strong></div></div></div><div class="header-actions"><button class="button button-small button-icon" aria-label="更多">⋮</button><button class="button button-primary"><span style="display:inline-flex;vertical-align:-2px;margin-right:5px">✎</span>编辑项目</button></div></div>
+      <div class="header-insights"><div class="insight insight-current"><span>当前节点</span><strong>计划、资源与风险基线</strong></div><div class="insight"><span>项目进度</span><strong>33%</strong><span>3 / 9 个节点</span></div><div class="insight"><span>节点进度</span><strong>40%</strong><span>4 / 10 个任务</span></div></div>
+    </section>
+    <section class="panel flow-panel"><div class="section-heading"><h2>项目流程</h2><small>9 个节点</small></div><div class="flow-scroll"><div class="flow-track">
+      <div class="flow-node-wrap"><button class="flow-node done" data-flow="项目立项与启动"><span class="flow-dot"></span><strong>项目立项与启动</strong><small>负责人 赵晨 · 已完成</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node done" data-flow="需求澄清与范围基线"><span class="flow-dot"></span><strong>需求澄清与范围基线</strong><small>负责人 陈宇 · 已完成</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node done" data-flow="方案设计、评审与决策"><span class="flow-dot"></span><strong>方案设计、评审与决策</strong><small>负责人 陈宇 · 已完成</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node selected" data-flow="计划、资源与风险基线"><span class="flow-dot"></span><strong>计划、资源与风险基线</strong><small>负责人 李强 · 进行中</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node" data-flow="开发测试与项目控制"><span class="flow-dot"></span><strong>开发测试与项目控制</strong><small>负责人 待分配 · 未开始</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node" data-flow="业务验收与缺陷闭环"><span class="flow-dot"></span><strong>业务验收与缺陷闭环</strong><small>负责人 待分配 · 未开始</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node" data-flow="发布决策与运营交接"><span class="flow-dot"></span><strong>发布决策与运营交接</strong><small>负责人 待分配 · 未开始</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node" data-flow="价值验证与项目复盘"><span class="flow-dot"></span><strong>价值验证与项目复盘</strong><small>负责人 待分配 · 未开始</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node" data-flow="知识沉淀与标准改进"><span class="flow-dot"></span><strong>知识沉淀与标准改进</strong><small>负责人 待分配 · 未开始</small></button></div>
+    </div></div></section>
+    <section class="panel node-panel">
+      <div class="node-top"><div><div class="node-title"><span class="node-status-dot" id="nodeDot"></span><h2>计划、资源与风险基线</h2><span class="tag tag-active" id="nodeStatus">进行中</span></div><p class="node-description">把已确认的方案拆成可执行的计划，明确关键责任与资源，并提前登记影响交付的风险。</p></div><button class="button button-primary" id="completeNode" disabled>完成节点</button></div>
+      <div class="assignment-row"><div class="assignment"><span class="assignment-label">节点负责人</span><span class="person-chip"><span class="person-avatar">李</span>李强（Terry.Li）</span></div><div class="assignment"><span class="assignment-label">节点排期</span><div class="date-field"><strong>2026-09-25</strong><span>→</span><strong>2026-10-03</strong><span style="margin-left:auto">▣</span></div></div></div>
+      <div class="workbench" id="workbench">
+        <div class="workbench-head"><div><h3>计划与风险工作台</h3><p>只维护本节点的基线信息；具体执行仍回到项目任务和甘特图。</p></div><div class="workbench-state" id="workbenchState"><i></i><span>基线编制中</span></div></div>
+        <div class="source-strip"><div class="source-main"><span class="source-icon">✓</span><span class="source-copy"><strong>方案设计、评审与决策 · v1.0 已确认</strong><small>本节点承接已确认方案，不重复编辑范围和方案内容。</small></span></div><button class="text-link" id="viewSource">查看方案决策 ↗</button></div>
+        <section class="content-section editable-section" id="planSection"><div class="section-heading"><div class="section-copy"><h3>执行计划</h3><p>用少量计划项表达里程碑和关键交付，不在这里复制任务看板。</p></div><div class="section-actions"><span class="status status-ready" id="planCount">4 个计划项</span><button class="button button-small" id="addPlan">＋ 新增计划项</button></div></div>
+          <div class="summary-strip"><div class="summary-card"><small>计划周期</small><strong>2026-10-05 <em>→</em> 2026-10-31</strong></div><div class="summary-card"><small>关键里程碑</small><strong>3 个</strong></div><div class="summary-card"><small>已明确负责人</small><strong>4 / 4 项</strong></div></div>
+          <div class="table-wrap"><table id="planTable"><thead><tr><th style="width:25%">计划项 / 里程碑</th><th style="width:16%">负责人</th><th style="width:22%">计划日期</th><th>交付物或依赖</th><th style="width:90px">状态</th></tr></thead><tbody>
+            <tr><td><span class="row-title">接口与数据梳理</span><span class="row-note">关键前置工作</span></td><td><span class="owner-cell"><span class="mini-avatar">周</span>周宁</span></td><td class="date-text">10-05 <span>→</span> 10-09</td><td>接口清单、数据迁移范围</td><td><span class="status status-ready">已确认</span></td></tr>
+            <tr><td><span class="row-title">订单域改造迭代</span><span class="row-note">第一批实施范围</span></td><td><span class="owner-cell"><span class="mini-avatar">陈</span>陈宇</span></td><td class="date-text">10-10 <span>→</span> 10-17</td><td>订单状态服务与联调记录</td><td><span class="status status-progress">进行中</span></td></tr>
+            <tr><td><span class="row-title">商品资料改造迭代</span><span class="row-note">第二批实施范围</span></td><td><span class="owner-cell"><span class="mini-avatar">韩</span>韩梅</span></td><td class="date-text">10-13 <span>→</span> 10-22</td><td>商品资料服务、回归清单</td><td><span class="status status-pending">待开始</span></td></tr>
+            <tr><td><span class="row-title">灰度发布里程碑</span><span class="row-note">计划检查点</span></td><td><span class="owner-cell"><span class="mini-avatar">李</span>李强</span></td><td class="date-text">10-31 <span>→</span> 10-31</td><td>灰度发布决策材料</td><td><span class="status status-pending">待开始</span></td></tr>
+          </tbody></table></div>
+        </section>
+        <section class="content-section editable-section" id="resourceSection"><div class="section-heading"><div class="section-copy"><h3>资源与责任</h3><p>只确认关键角色和投入重点，不做复杂的工时填报。</p></div><span class="status status-ready">4 个关键角色</span></div>
+          <div class="table-wrap"><table id="resourceTable"><thead><tr><th style="width:23%">角色</th><th style="width:19%">负责人</th><th>投入重点</th><th style="width:130px">当前状态</th></tr></thead><tbody>
+            <tr><td><span class="row-title">项目经理</span><span class="row-note">计划统筹与基线维护</span></td><td><span class="owner-cell"><span class="mini-avatar">李</span>李强</span></td><td>协调计划、资源冲突和节点变更</td><td><span class="status status-ready">已确认</span></td></tr>
+            <tr><td><span class="row-title">技术负责人</span><span class="row-note">技术实施与迁移</span></td><td><span class="owner-cell"><span class="mini-avatar">周</span>周宁</span></td><td>接口梳理、数据迁移与技术风险</td><td><span class="status status-ready">已确认</span></td></tr>
+            <tr><td><span class="row-title">产品负责人</span><span class="row-note">范围与业务优先级</span></td><td><span class="owner-cell"><span class="mini-avatar">陈</span>陈宇</span></td><td>确认批次范围、验收口径和业务协调</td><td><span class="status status-ready">已确认</span></td></tr>
+            <tr><td><span class="row-title">测试负责人</span><span class="row-note">质量与验证资源</span></td><td><span class="owner-cell"><span class="mini-avatar">赵</span>赵琳</span></td><td>制定测试窗口、回归范围和发布前检查</td><td><span class="status status-progress">待排期</span></td></tr>
+          </tbody></table></div>
+        </section>
+        <section class="content-section editable-section" id="riskSection"><div class="section-heading"><div class="section-copy"><h3>风险登记</h3><p>登记会影响交付的关键风险，并明确应对责任；不做复杂的风险评分。</p></div><div class="section-actions"><span class="status status-ready" id="riskCount">3 项风险</span><button class="button button-small" id="addRisk">＋ 新增风险</button></div></div>
+          <div class="table-wrap"><table id="riskTable"><thead><tr><th style="width:25%">风险</th><th style="width:80px">等级</th><th style="width:15%">负责人</th><th>应对措施</th><th style="width:100px">状态</th></tr></thead><tbody>
+            <tr><td><span class="row-title">历史数据质量不稳定</span><span class="row-note">可能影响迁移与联调</span></td><td><span class="risk-level risk-high">高</span></td><td>周宁</td><td>先做样本核验，异常数据单独登记处理</td><td><span class="risk-state open"><i></i>跟进中</span></td></tr>
+            <tr><td><span class="row-title">业务窗口与开发排期冲突</span><span class="row-note">可能压缩联调时间</span></td><td><span class="risk-level risk-medium">中</span></td><td>李强</td><td>提前锁定业务演练窗口，冲突时按批次调整</td><td><span class="risk-state open"><i></i>跟进中</span></td></tr>
+            <tr><td><span class="row-title">灰度发布影响存量用户</span><span class="row-note">需要明确回滚条件</span></td><td><span class="risk-level risk-medium">中</span></td><td>赵琳</td><td>补充监控指标和回滚检查清单</td><td><span class="risk-state mitigated"><i></i>已有措施</span></td></tr>
+          </tbody></table></div>
+        </section>
+        <section class="content-section"><div class="baseline-card" id="baselineCard"><div class="baseline-head"><div><h4>基线确认</h4><p>计划、关键责任和风险登记完成后，确认本节点的执行基线。</p></div><span class="baseline-state" id="baselineState"><i></i><span>待确认</span></span></div><div class="check-list"><div class="check-item done" id="checkPlan"><i>✓</i><span>已有可执行计划和关键里程碑</span></div><div class="check-item done" id="checkResource"><i>✓</i><span>关键角色与责任已明确</span></div><div class="check-item done" id="checkRisk"><i>✓</i><span>关键风险已登记并有应对措施</span></div></div><div class="baseline-footer"><span class="baseline-hint" id="baselineHint">确认后将进入：<strong>开发测试与项目控制</strong>，已确认内容会被锁定。</span><div class="baseline-actions"><button class="button button-small" id="saveDraft">保存草稿</button><button class="button button-small" id="reopenBaseline" hidden>重新打开</button><button class="button button-primary button-small" id="confirmBaseline">确认计划与风险基线</button></div></div></div></section>
+      </div>
+    </section>
+  </div></main>
+  <dialog id="addDialog"><div class="dialog-body"><h3 id="dialogTitle">新增计划项</h3><p id="dialogDescription">补充一个关键计划项，保存后会出现在本节点的基线中。</p><form id="addForm"><div class="form-grid"><div class="form-field"><label for="itemName">名称</label><input id="itemName" required placeholder="例如：业务联调与演练"></div><div class="form-field"><label for="itemOwner">负责人</label><input id="itemOwner" required placeholder="例如：赵琳"></div><div class="form-field"><label for="itemDate">计划日期</label><input id="itemDate" required placeholder="例如：10-20 → 10-24"></div><div class="form-field"><label for="itemNote">交付物 / 应对措施</label><input id="itemNote" required placeholder="简要说明结果"></div></div><div class="dialog-actions"><button type="button" class="button button-small" id="cancelDialog">取消</button><button type="submit" class="button button-primary button-small">添加</button></div></form></div></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script>
+    const toast = document.getElementById('toast')
+    let toastTimer
+    function showToast(message) {
+      toast.textContent = message
+      toast.classList.add('show')
+      clearTimeout(toastTimer)
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2200)
+    }
+    document.querySelectorAll('[data-flow]').forEach((button) => button.addEventListener('click', () => {
+      document.querySelectorAll('[data-flow]').forEach((item) => item.classList.remove('selected'))
+      button.classList.add('selected')
+      showToast(`Demo：已切换到「${button.dataset.flow}」节点`)
+    }))
+    document.getElementById('viewSource').addEventListener('click', () => showToast('Demo：将打开已确认的方案决策记录'))
+    let baselineConfirmed = false
+    const baselineCard = document.getElementById('baselineCard')
+    const confirmBaseline = document.getElementById('confirmBaseline')
+    const reopenBaseline = document.getElementById('reopenBaseline')
+    const completeNode = document.getElementById('completeNode')
+    function setBaselineLocked(locked) {
+      baselineConfirmed = locked
+      baselineCard.classList.toggle('locked', locked)
+      document.querySelectorAll('.editable-section input, .editable-section select, .editable-section button').forEach((control) => control.disabled = locked)
+      confirmBaseline.hidden = locked
+      reopenBaseline.hidden = !locked
+      document.getElementById('baselineState').classList.toggle('done', locked)
+      document.getElementById('baselineState').querySelector('span').textContent = locked ? '已确认' : '待确认'
+      document.getElementById('workbenchState').classList.toggle('done', locked)
+      document.getElementById('workbenchState').querySelector('span').textContent = locked ? '基线已确认' : '基线编制中'
+      completeNode.disabled = !locked
+      document.getElementById('baselineHint').innerHTML = locked ? '基线已锁定。如需调整，请先重新打开；确认后将进入：<strong>开发测试与项目控制</strong>。': '确认后将进入：<strong>开发测试与项目控制</strong>，已确认内容会被锁定。'
+    }
+    document.getElementById('saveDraft').addEventListener('click', () => showToast('Demo：计划、资源和风险已保存为草稿'))
+    confirmBaseline.addEventListener('click', () => { setBaselineLocked(true); showToast('Demo：计划与风险基线已确认并锁定') })
+    reopenBaseline.addEventListener('click', () => { setBaselineLocked(false); showToast('Demo：基线已重新打开，可继续调整') })
+    completeNode.addEventListener('click', () => { completeNode.disabled = true; completeNode.textContent = '节点已完成'; document.getElementById('nodeDot').classList.add('done'); document.getElementById('nodeStatus').textContent = '已完成'; document.getElementById('nodeStatus').classList.remove('tag-active'); document.getElementById('nodeStatus').style.color = 'var(--success)'; document.getElementById('nodeStatus').style.background = 'var(--success-soft)'; document.getElementById('nodeStatus').style.borderColor = '#b8e2cf'; showToast('Demo：计划、资源与风险基线节点已完成') })
+    const dialog = document.getElementById('addDialog')
+    const form = document.getElementById('addForm')
+    let dialogMode = 'plan'
+    document.getElementById('addPlan').addEventListener('click', () => { dialogMode = 'plan'; document.getElementById('dialogTitle').textContent = '新增计划项'; document.getElementById('dialogDescription').textContent = '补充一个关键计划项，保存后会出现在本节点的基线中。'; form.reset(); dialog.showModal() })
+    document.getElementById('addRisk').addEventListener('click', () => { dialogMode = 'risk'; document.getElementById('dialogTitle').textContent = '新增风险'; document.getElementById('dialogDescription').textContent = '登记一个会影响交付的风险，并补充负责人和应对措施。'; form.reset(); dialog.showModal() })
+    document.getElementById('cancelDialog').addEventListener('click', () => dialog.close())
+    form.addEventListener('submit', (event) => {
+      event.preventDefault()
+      const name = document.getElementById('itemName').value.trim()
+      const owner = document.getElementById('itemOwner').value.trim()
+      const date = document.getElementById('itemDate').value.trim()
+      const note = document.getElementById('itemNote').value.trim()
+      if (dialogMode === 'plan') {
+        document.querySelector('#planTable tbody').insertAdjacentHTML('beforeend', `<tr><td><span class="row-title">${name}</span><span class="row-note">新增计划项</span></td><td><span class="owner-cell"><span class="mini-avatar">${owner.slice(0, 1)}</span>${owner}</span></td><td class="date-text">${date}</td><td>${note}</td><td><span class="status status-pending">待开始</span></td></tr>`)
+        document.getElementById('planCount').textContent = `${document.querySelectorAll('#planTable tbody tr').length} 个计划项`
+        showToast('Demo：计划项已添加')
+      } else {
+        document.querySelector('#riskTable tbody').insertAdjacentHTML('beforeend', `<tr><td><span class="row-title">${name}</span><span class="row-note">新增风险</span></td><td><span class="risk-level risk-medium">中</span></td><td>${owner}</td><td>${note}</td><td><span class="risk-state open"><i></i>跟进中</span></td></tr>`)
+        document.getElementById('riskCount').textContent = `${document.querySelectorAll('#riskTable tbody tr').length} 项风险`
+        showToast('Demo：风险已登记')
+      }
+      dialog.close()
+    })
+  </script>
+</body>
+</html>

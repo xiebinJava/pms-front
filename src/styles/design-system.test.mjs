@@ -3,7 +3,8 @@ import fs from 'node:fs'
 import test from 'node:test'
 import { designTokens } from './design-system.ts'
 
-const globalStyles = fs.readFileSync(new URL('./fs-insight.css', import.meta.url), 'utf8')
+const globalStyles = fs.readFileSync(new URL('./pms-theme.css', import.meta.url), 'utf8')
+const tokenStyles = fs.readFileSync(new URL('./index.css', import.meta.url), 'utf8')
 
 test('matches the PMS visual token contract', () => {
   assert.equal(designTokens.primary, '#0A5DC2')
@@ -17,7 +18,11 @@ test('matches the PMS visual token contract', () => {
   assert.equal(designTokens.text, '#18212E')
   assert.equal(designTokens.radius, 8)
   assert.equal(designTokens.controlHeight, 36)
+  assert.equal(designTokens.controlHeightCompact, 32)
+  assert.equal(designTokens.focusRing, '0 0 0 3px rgb(10 93 194 / 14%)')
+  assert.equal(designTokens.motionFast, '120ms')
   assert.match(designTokens.shadowSm, /0 1px 2px/)
+  assert.match(designTokens.shadowInteractive, /0 4px 14px/)
   assert.deepEqual(designTokens.fontSize, {
     body: 13,
     compact: 12,
@@ -26,12 +31,23 @@ test('matches the PMS visual token contract', () => {
     title: 20,
     display: 22,
   })
+  assert.deepEqual(designTokens.spacing, { 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32 })
   assert.equal(designTokens.lineHeight.normal, 1.45)
 })
 
-test('exposes shared fs-insight visual primitives', () => {
+test('exposes shared PMS theme visual primitives', () => {
   assert.match(globalStyles, /\.pms-panel(?:\s*,|\s*\{)/)
   assert.match(globalStyles, /\.pms-page-header(?:\s*,|\s*\{)/)
   assert.match(globalStyles, /\.pms-button--primary(?:\s*,|\s*\{)/)
   assert.match(globalStyles, /\.pms-state-card\s*\{/)
+  assert.match(globalStyles, /--pms-control-height-compact:\s*32px/)
+  assert.match(globalStyles, /--pms-focus-ring:\s*0 0 0 3px rgb\(10 93 194 \/ 14%\)/)
+  assert.match(globalStyles, /--pms-motion-fast:\s*120ms/)
+  assert.match(tokenStyles, /--pms-space-2:\s*8px/)
+  assert.match(tokenStyles, /--pms-space-3:\s*12px/)
+  assert.match(tokenStyles, /--pms-space-4:\s*16px/)
+  assert.match(tokenStyles, /--pms-space-5:\s*20px/)
+  assert.match(tokenStyles, /--pms-space-6:\s*24px/)
+  assert.match(tokenStyles, /--pms-space-8:\s*32px/)
+  assert.match(globalStyles, /\.pms-interactive-surface\s*\{/)
 })

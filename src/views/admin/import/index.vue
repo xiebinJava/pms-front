@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
-import { previewImport, commitImport, downloadImportTemplate } from '/@/api/admin-import'
+import { previewImport, commitImport, downloadImportErrors, downloadImportTemplate } from '/@/api/admin-import'
 import type { ImportPreview } from '/@/types/api'
 import PmsPageHeader from '/@/components/PmsPageHeader.vue'
 const { t } = useI18n()
@@ -34,11 +34,14 @@ async function commit() {
     message.error((error as Error).message || t('admin.import.commitFailed'))
   } finally { loading.value = false }
 }
-function downloadErrors() {
+async function downloadErrors() {
   if (!preview.value?.errors.length) return
-  const content = `${t('admin.import.errorCsvHeader')}\n${preview.value.errors.map(error => [error.row, error.field, error.message].map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n')}`
-  const url = URL.createObjectURL(new Blob([`\uFEFF${content}`], { type: 'text/csv;charset=utf-8' }))
-  const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${type.value}-import-errors.csv`; anchor.click(); URL.revokeObjectURL(url)
+  try {
+    const blob = await downloadImportErrors(preview.value.jobId)
+    const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${type.value}-import-errors.csv`; anchor.click(); URL.revokeObjectURL(url)
+  } catch (error) {
+    message.error((error as Error).message || t('admin.import.downloadErrorsFailed'))
+  }
 }
 async function downloadTemplate() {
   try {

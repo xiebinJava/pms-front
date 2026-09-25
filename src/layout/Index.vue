@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { BellOutlined, BookOutlined, CloudUploadOutlined, DashboardOutlined, DownOutlined, ExperimentOutlined, LogoutOutlined, MenuOutlined, ProjectOutlined, SearchOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined } from '@ant-design/icons-vue'
+import { BellOutlined, BookOutlined, CloudUploadOutlined, DashboardOutlined, DownOutlined, ExperimentOutlined, LineChartOutlined, LogoutOutlined, MenuOutlined, ProjectOutlined, SearchOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, MessageOutlined, NodeIndexOutlined } from '@ant-design/icons-vue'
 import { useUserStore } from '/@/store/user'
 import LocaleSwitch from '/@/components/LocaleSwitch.vue'
 import { message } from 'ant-design-vue'
@@ -10,7 +10,11 @@ import { getNotifications, getUnreadNotificationCount, markAllNotificationsRead,
 import { searchWorkspace } from '/@/api/search'
 import { formatDateTime } from '/@/utils/format'
 import type { SearchResult, UserNotification } from '/@/types/domain'
-import { canSearch, firstSearchHit, notificationRoute, searchHitRoute } from './chrome'
+import { canSearch, firstSearchHit, NOTIFICATIONS_CHANGED_EVENT, notificationRoute, searchHitRoute } from './chrome'
+import { notificationTypeClass, notificationTypeKey } from '/@/views/notifications/notification-center'
+import { installDshAuthBridge } from '/@/integration/dsh-auth-bridge'
+import { installDshContextBridge, type DshContextBridgeController } from '/@/integration/dsh-context-bridge'
+import { installDshRefreshBridge } from '/@/integration/dsh-refresh-bridge'
 
 const route = useRoute()
 const router = useRouter()
@@ -22,51 +26,71 @@ const navOpen = ref(false)
 // Keep both workspace groups visible by default; users can collapse either group
 // without losing the active route or its permission-filtered child links.
 const projectNavOpen = ref(true)
+const analysisNavOpen = ref(true)
 const configNavOpen = ref(true)
+const docsNavOpen = ref(true)
 const passwordForm = reactive({ currentPassword: '', newPassword: '', confirmPassword: '' })
 const searchQuery = ref('')
 const searchOpen = ref(false)
 const searchLoading = ref(false)
-const searchResult = ref<SearchResult>({ projects: [], tasks: [], milestones: [], comments: [] })
+const searchResult = ref<SearchResult>({ projects: [], tasks: [], comments: [] })
 const notifyOpen = ref(false)
 const notifyLoading = ref(false)
 const notifications = ref<UserNotification[]>([])
 const unreadCount = ref(0)
+// Being rendered in an iframe is enough to enable the DSH auth bridge, but it
+// must not hide PMS navigation. The full PMS page is the business workspace;
+// compact chrome is an explicit opt-in via `?embed=1` only.
+const isDshFrame = computed(() => typeof window !== 'undefined' && window.self !== window.top)
+const isEmbedded = computed(() => route.query.embed === '1')
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 let unreadTimer: ReturnType<typeof setInterval> | null = null
+let stopDshAuthBridge: (() => void) | null = null
+let stopDshRefreshBridge: (() => void) | null = null
+let dshContextBridge: DshContextBridgeController | null = null
+let stopDshContextRouteWatch: (() => void) | null = null
 
-const emptySearch = (): SearchResult => ({ projects: [], tasks: [], milestones: [], comments: [] })
+const emptySearch = (): SearchResult => ({ projects: [], tasks: [], comments: [] })
 const can = (permission: string) => userStore.can(permission)
 const searchHasHits = computed(() => Boolean(
   searchResult.value.projects.length
   || searchResult.value.tasks.length
-  || searchResult.value.milestones.length
   || searchResult.value.comments.length,
 ))
 const canReadProjects = computed(() => can('project:read'))
-
 const selectedKeys = computed(() => {
   if (route.path.startsWith('/dashboard')) return ['dashboard']
+  if (route.path.startsWith('/feedback')) return ['feedback']
+  if (route.path.startsWith('/manual/business-rules')) return ['manual-business-rules']
+  if (route.path.startsWith('/manual/design-system')) return ['manual-design-system']
   if (route.path.startsWith('/manual')) return ['manual']
+  if (route.path.startsWith('/projects/dashboard')) return ['enterprise-project-board']
   if (route.path.startsWith('/projects')) return ['projects']
   if (route.path.startsWith('/admin/users')) return ['admin-users']
   if (route.path.startsWith('/admin/org')) return ['admin-org']
   if (route.path.startsWith('/admin/roles')) return ['admin-roles']
   if (route.path.startsWith('/admin/audit')) return ['admin-audit']
   if (route.path.startsWith('/admin/import')) return ['admin-import']
+  if (route.path.startsWith('/admin/workflows')) return ['admin-workflows']
   return []
 })
 
-const canConfig = computed(() => ['admin:user:read', 'admin:org:read', 'admin:role:read', 'admin:audit:read', 'admin:import:write'].some(can))
+const canConfig = computed(() => ['admin:user:read', 'admin:org:read', 'admin:role:read', 'admin:audit:read', 'admin:import:write', 'admin:workflow:read', 'admin:workflow:write'].some(can))
 
 const menuRoutes: Record<string, string> = {
   dashboard: '/dashboard',
   manual: '/manual#quick-start',
+  'manual-business-rules': '/manual/business-rules#identity',
+  'manual-design-system': '/manual/design-system#principles',
+  'project-dashboard': '/projects/dashboard',
+  'enterprise-project-board': '/projects/dashboard',
   projects: '/projects',
+  feedback: '/feedback',
   'admin-users': '/admin/users',
   'admin-org': '/admin/org',
   'admin-roles': '/admin/roles',
   'admin-import': '/admin/import',
+  'admin-workflows': '/admin/workflows',
   'admin-audit': '/admin/audit',
 }
 
@@ -160,7 +184,7 @@ async function loadNotifications() {
   notifyLoading.value = true
   try {
     notifications.value = await getNotifications()
-    unreadCount.value = notifications.value.filter((item) => !item.readAt).length
+    await refreshUnreadCount()
   } catch {
     notifications.value = []
   } finally {
@@ -173,13 +197,18 @@ function onNotifyOpenChange(open: boolean) {
   if (open) void loadNotifications()
 }
 
+function openNotificationCenter() {
+  notifyOpen.value = false
+  void router.push('/notifications')
+}
+
 async function openNotification(item: UserNotification) {
   notifyOpen.value = false
   if (!item.readAt) {
     try {
       await markNotificationRead(item.id)
       item.readAt = new Date().toISOString()
-      unreadCount.value = Math.max(0, unreadCount.value - 1)
+      await refreshUnreadCount()
     } catch { /* keep the list usable even if the mark-read call fails */ }
   }
   const target = notificationRoute(item)
@@ -189,10 +218,26 @@ async function openNotification(item: UserNotification) {
 async function onMarkAllRead() {
   await markAllNotificationsRead()
   notifications.value = notifications.value.map((item) => ({ ...item, readAt: item.readAt || new Date().toISOString() }))
-  unreadCount.value = 0
+  await refreshUnreadCount()
+}
+
+function onNotificationsChanged() {
+  void refreshUnreadCount()
 }
 
 onMounted(async () => {
+  if (isDshFrame.value) {
+    stopDshAuthBridge = installDshAuthBridge()
+    stopDshRefreshBridge = installDshRefreshBridge()
+    dshContextBridge = installDshContextBridge(() => ({
+      path: route.path,
+      fullPath: route.fullPath,
+      params: route.params,
+      query: route.query,
+    }))
+    stopDshContextRouteWatch = watch(() => route.fullPath, () => dshContextBridge?.sync())
+  }
+  window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, onNotificationsChanged)
   if (userStore.token && !userStore.user) {
     try {
       await userStore.fetchMe()
@@ -207,14 +252,24 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  stopDshAuthBridge?.()
+  stopDshAuthBridge = null
+  stopDshRefreshBridge?.()
+  stopDshRefreshBridge = null
+  stopDshContextRouteWatch?.()
+  stopDshContextRouteWatch = null
+  dshContextBridge?.stop()
+  dshContextBridge = null
   if (searchTimer) clearTimeout(searchTimer)
   if (unreadTimer) clearInterval(unreadTimer)
+  window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, onNotificationsChanged)
 })
 
 </script>
 
 <template>
-  <div class="pms-shell">
+  <div class="pms-shell" :class="{ 'pms-shell--embedded': isEmbedded }">
+    <a class="pms-skip-link" href="#pms-main-content">{{ $t('nav.skipToContent') }}</a>
     <header class="pms-topbar">
       <div class="pms-topbar__left">
         <button class="pms-mobile-menu" type="button" :aria-label="$t('nav.toggle')" @click="navOpen = !navOpen">
@@ -260,13 +315,6 @@ onBeforeUnmount(() => {
                     <small>{{ hit.projectName }}</small>
                   </button>
                 </section>
-                <section v-if="searchResult.milestones.length">
-                  <h3>{{ $t('layout.searchMilestones') }}</h3>
-                  <button v-for="hit in searchResult.milestones" :key="`m-${hit.id}`" type="button" @mousedown.prevent="openSearchHit(hit)">
-                    <strong>{{ hit.title }}</strong>
-                    <small>{{ hit.projectName }}</small>
-                  </button>
-                </section>
                 <section v-if="searchResult.comments.length">
                   <h3>{{ $t('layout.searchComments') }}</h3>
                   <button v-for="hit in searchResult.comments" :key="`c-${hit.id}`" type="button" @mousedown.prevent="openSearchHit(hit)">
@@ -303,11 +351,17 @@ onBeforeUnmount(() => {
                   :class="{ 'pms-notify-item--unread': !item.readAt }"
                   @click="openNotification(item)"
                 >
+                  <span class="pms-notify-item__type" :class="notificationTypeClass(item.type)">
+                    {{ $t(notificationTypeKey(item.type)) }}
+                  </span>
                   <strong>{{ item.title }}</strong>
                   <span>{{ item.content }}</span>
                   <small>{{ formatDateTime(item.createdAt) }}</small>
                 </button>
               </a-spin>
+              <button class="pms-notify-view-all" type="button" @click="openNotificationCenter">
+                {{ $t('layout.viewAllNotifications') }}
+              </button>
             </div>
           </template>
         </a-dropdown>
@@ -335,19 +389,29 @@ onBeforeUnmount(() => {
 
     <div class="pms-shell-body">
       <aside class="pms-sidebar" :class="{ 'pms-sidebar--open': navOpen }">
-        <nav class="pms-nav" @click="handleMenuClick">
+        <nav class="pms-nav" :aria-label="$t('nav.primary')" @click="handleMenuClick">
           <div class="pms-nav-list">
             <div class="pms-nav-group">
-              <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('dashboard') }" type="button" @click.stop="handleMenuClick({ key: 'dashboard' })">
+              <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('dashboard') }" :aria-current="selectedKeys.includes('dashboard') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'dashboard' })">
                 <DashboardOutlined /><span>{{ $t('nav.dashboard') }}</span>
               </button>
+            </div>
+            <div v-if="canReadProjects" class="pms-nav-group pms-nav-group--analysis">
+              <button class="pms-nav-section-label" :class="{ 'pms-nav-section-label--active': selectedKeys.includes('enterprise-project-board') }" type="button" aria-controls="pms-analysis-subnav" :aria-expanded="analysisNavOpen" @click.stop="analysisNavOpen = !analysisNavOpen">
+                <LineChartOutlined /><span>{{ $t('nav.businessAnalysis') }}</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !analysisNavOpen }" />
+              </button>
+              <div v-if="analysisNavOpen" id="pms-analysis-subnav" class="pms-nav-subnav">
+                <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('enterprise-project-board') }" :aria-current="selectedKeys.includes('enterprise-project-board') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'enterprise-project-board' })">
+                  <DashboardOutlined /><span>{{ $t('nav.enterpriseProjectBoard') }}</span>
+                </button>
+              </div>
             </div>
             <div class="pms-nav-group pms-nav-group--projects">
               <button class="pms-nav-section-label" :class="{ 'pms-nav-section-label--active': selectedKeys.includes('projects') }" type="button" aria-controls="pms-project-subnav" :aria-expanded="projectNavOpen" @click.stop="projectNavOpen = !projectNavOpen">
                 <ExperimentOutlined /><span>{{ $t('nav.rdManagement') }}</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !projectNavOpen }" />
               </button>
               <div v-if="projectNavOpen" id="pms-project-subnav" class="pms-nav-subnav">
-                <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('projects') }" type="button" :aria-label="$t('nav.projectsTab')" @click.stop="handleMenuClick({ key: 'projects' })">
+                <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('projects') }" :aria-current="selectedKeys.includes('projects') ? 'page' : undefined" type="button" :aria-label="$t('nav.projectsTab')" @click.stop="handleMenuClick({ key: 'projects' })">
                   <ProjectOutlined /><span>{{ $t('nav.projects') }}</span>
                 </button>
               </div>
@@ -357,33 +421,52 @@ onBeforeUnmount(() => {
                 <SettingOutlined /><span>{{ $t('nav.configuration') }}</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !configNavOpen }" />
               </button>
               <div v-if="configNavOpen" id="pms-config-subnav" class="pms-nav-subnav">
-                <button v-if="can('admin:user:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-users') }" type="button" @click.stop="handleMenuClick({ key: 'admin-users' })">
+                    <button v-if="can('admin:user:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-users') }" :aria-current="selectedKeys.includes('admin-users') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'admin-users' })">
                   <TeamOutlined /><span>{{ $t('nav.users') }}</span>
                 </button>
-                <button v-if="can('admin:org:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-org') }" type="button" @click.stop="handleMenuClick({ key: 'admin-org' })">
+                    <button v-if="can('admin:org:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-org') }" :aria-current="selectedKeys.includes('admin-org') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'admin-org' })">
                   <ApartmentOutlined /><span>{{ $t('nav.org') }}</span>
                 </button>
-                <button v-if="can('admin:role:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-roles') }" type="button" @click.stop="handleMenuClick({ key: 'admin-roles' })">
+                    <button v-if="can('admin:role:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-roles') }" :aria-current="selectedKeys.includes('admin-roles') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'admin-roles' })">
                   <SafetyCertificateOutlined /><span>{{ $t('nav.roles') }}</span>
                 </button>
-                <button v-if="can('admin:import:write')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-import') }" type="button" @click.stop="handleMenuClick({ key: 'admin-import' })">
+                <button v-if="can('admin:import:write')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-import') }" :aria-current="selectedKeys.includes('admin-import') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'admin-import' })">
                   <CloudUploadOutlined /><span>{{ $t('nav.import') }}</span>
                 </button>
-                <button v-if="can('admin:audit:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-audit') }" type="button" @click.stop="handleMenuClick({ key: 'admin-audit' })">
+                <button v-if="can('admin:workflow:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-workflows') }" :aria-current="selectedKeys.includes('admin-workflows') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'admin-workflows' })">
+                  <NodeIndexOutlined /><span>{{ $t('nav.workflows') }}</span>
+                </button>
+                <button v-if="can('admin:audit:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('admin-audit') }" :aria-current="selectedKeys.includes('admin-audit') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'admin-audit' })">
                   <AuditOutlined /><span>{{ $t('nav.audit') }}</span>
                 </button>
               </div>
             </div>
-            <div class="pms-nav-group pms-nav-group--manual">
-              <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('manual') }" type="button" @click.stop="handleMenuClick({ key: 'manual' })">
-                <BookOutlined /><span>{{ $t('nav.manual') }}</span>
+            <div v-if="can('feedback:read') || can('feedback:write')" class="pms-nav-group pms-nav-group--feedback">
+                  <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('feedback') }" :aria-current="selectedKeys.includes('feedback') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'feedback' })">
+                <MessageOutlined /><span>{{ $t('nav.feedback') }}</span>
               </button>
+            </div>
+            <div class="pms-nav-group pms-nav-group--docs">
+              <button class="pms-nav-section-label" :class="{ 'pms-nav-section-label--active': selectedKeys.some(key => key.startsWith('manual')) }" type="button" aria-controls="pms-docs-subnav" :aria-expanded="docsNavOpen" @click.stop="docsNavOpen = !docsNavOpen">
+                <BookOutlined /><span>{{ $t('nav.docs') }}</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !docsNavOpen }" />
+              </button>
+              <div v-if="docsNavOpen" id="pms-docs-subnav" class="pms-nav-subnav">
+                    <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('manual') }" :aria-current="selectedKeys.includes('manual') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'manual' })">
+                  <BookOutlined /><span>{{ $t('nav.manual') }}</span>
+                </button>
+                    <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('manual-business-rules') }" :aria-current="selectedKeys.includes('manual-business-rules') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'manual-business-rules' })">
+                  <AuditOutlined /><span>{{ $t('nav.businessRules') }}</span>
+                </button>
+                    <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('manual-design-system') }" :aria-current="selectedKeys.includes('manual-design-system') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'manual-design-system' })">
+                  <SettingOutlined /><span>{{ $t('nav.designSystem') }}</span>
+                </button>
+              </div>
             </div>
           </div>
         </nav>
       </aside>
       <button v-if="navOpen" class="pms-sidebar-scrim" type="button" :aria-label="$t('nav.close')" @click="navOpen = false" />
-      <main class="pms-main-content">
+      <main id="pms-main-content" class="pms-main-content">
         <router-view v-slot="{ Component }">
           <component :is="Component" />
         </router-view>
@@ -397,5 +480,6 @@ onBeforeUnmount(() => {
         <a-form-item :label="$t('layout.confirmPassword')"><a-input-password v-model:value="passwordForm.confirmPassword" /></a-form-item>
       </a-form>
     </a-modal>
+
   </div>
 </template>

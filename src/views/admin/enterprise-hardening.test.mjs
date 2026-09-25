@@ -55,4 +55,6 @@ test('audit log actions are localized with secondary codes', () => {
   assert.match(source, /auditActionLabel/)
   assert.match(source, /admin\.audit\.\$\{action\}/)
   assert.match(locale, /USER_PRIMARY_POSITION_CHANGED/)
+  assert.match(source, /NODE_REQUIREMENT_SCOPE_CONFIRMED/)
+  assert.match(locale, /NODE_SOLUTION_REVIEW_COMPLETED/)
 })

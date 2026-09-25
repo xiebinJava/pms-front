@@ -5,7 +5,7 @@ import { useRoute } from 'vue-router'
 import { theme } from 'ant-design-vue'
 import { useLocaleStore } from '/@/store/locale'
 import { designTokens } from './styles/design-system'
-import './styles/fs-insight.css'
+import './styles/pms-theme.css'
 
 const route = useRoute()
 const { t, locale } = useI18n()

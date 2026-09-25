@@ -22,6 +22,21 @@ test('permission choices use locale keys with lowercase English codes and locali
   assert.match(source, /cancel-text="\$t\('common\.cancel'\)"/)
 })
 
+test('role editor lists every backend permission code so the count matches the checkboxes', () => {
+  for (const code of [
+    'admin:user:read', 'admin:user:write', 'admin:org:read', 'admin:org:write',
+    'admin:role:read', 'admin:role:write', 'admin:import:write', 'admin:audit:read',
+    'project:read', 'project:create', 'project:write', 'project:manage', 'project:comment:write',
+    'feedback:read', 'feedback:write', 'feedback:manage',
+  ]) {
+    assert.match(source, new RegExp(code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+  assert.match(source, /selectedPermissions/)
+  assert.match(source, /admin\.roles\.permProjectCreate/)
+  assert.match(source, /admin\.roles\.permProjectManage/)
+  assert.match(source, /admin\.roles\.permFeedbackManage/)
+})
+
 test('role editing validates permissions, custom organizations, and respects write permission', () => {
   assert.match(source, /admin\.roles\.permRequired/)
   assert.match(source, /admin\.roles\.customOrgRequired/)

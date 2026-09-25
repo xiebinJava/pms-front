@@ -4,12 +4,12 @@ import { useI18n } from 'vue-i18n'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { Modal, message } from 'ant-design-vue'
 import { createMilestone, deleteMilestone, getMilestones, updateMilestone } from '/@/api/milestone'
-import { milestoneStatusKey, MilestoneStatus, statusTagColor } from '/@/enums'
+import { milestoneStatusKey, milestoneStatusTagColor, MilestoneStatus } from '/@/enums'
 import { formatDate } from '/@/utils/format'
 import type { Milestone } from '/@/types/domain'
 
 const props = withDefaults(defineProps<{ projectId: number; canManage?: boolean }>(), {
-  canManage: true,
+  canManage: false,
 })
 const { t } = useI18n()
 
@@ -29,7 +29,6 @@ const rules = computed(() => ({ title: [{ required: true, message: t('milestone.
 const columns = computed(() => [
   { title: t('milestone.name'), key: 'title' },
   { title: t('common.status'), key: 'status', width: 100 },
-  { title: t('milestone.progress'), key: 'progress', width: 180 },
   { title: t('milestone.dueDate'), key: 'dueDate', width: 120 },
   { title: t('common.actions'), key: 'action', width: 144 },
 ])
@@ -99,7 +98,7 @@ onMounted(loadData)
 <template>
   <div class="flex items-center justify-between mb-4">
     <span class="pms-muted-text">{{ $t('milestone.count', { count: list.length }) }}</span>
-    <a-button v-if="canManage" type="primary" class="pms-primary-button" @click="openCreate">
+    <a-button v-if="canManage" type="primary" class="pms-primary-button pms-project-button pms-project-button--primary" @click="openCreate">
       <PlusOutlined /> {{ $t('milestone.create') }}
     </a-button>
   </div>
@@ -112,22 +111,14 @@ onMounted(loadData)
         <div class="pms-faint-text mt-1">{{ record.description || '—' }}</div>
       </template>
       <template v-else-if="column.key === 'status'">
-        <a-tag :color="statusTagColor[record.status]">{{ $t(milestoneStatusKey(record.status)) }}</a-tag>
-      </template>
-      <template v-else-if="column.key === 'progress'">
-        <a-progress
-          :percent="record.taskCount === 0 ? 0 : Math.round((record.doneTaskCount / record.taskCount) * 100)"
-          size="small"
-          style="width: 120px"
-        />
-        <div class="pms-faint-text">{{ record.doneTaskCount }}/{{ record.taskCount }}</div>
+        <a-tag :color="milestoneStatusTagColor(record.status)">{{ $t(milestoneStatusKey(record.status)) }}</a-tag>
       </template>
       <template v-else-if="column.key === 'dueDate'">{{ formatDate(record.dueDate) }}</template>
       <template v-else-if="column.key === 'action'">
         <div class="milestone-actions">
           <template v-if="canManage">
-            <a-button type="link" size="small" @click="openEdit(record)">{{ $t('common.edit') }}</a-button>
-            <a-button type="link" danger size="small" @click="onDelete(record)">{{ $t('common.delete') }}</a-button>
+            <a-button type="link" size="small" class="pms-project-button pms-project-button--text" @click="openEdit(record)">{{ $t('common.edit') }}</a-button>
+            <a-button type="link" danger size="small" class="pms-project-button pms-project-button--text pms-project-button--danger" @click="onDelete(record)">{{ $t('common.delete') }}</a-button>
           </template>
           <span v-else class="pms-faint-text">{{ $t('common.readonly') }}</span>
         </div>
@@ -136,7 +127,7 @@ onMounted(loadData)
     </a-table>
   </div>
 
-  <a-modal v-model:open="modalState.open" :title="modalState.editingId ? $t('milestone.edit') : $t('milestone.create')" @ok="onSave">
+  <a-modal v-model:open="modalState.open" class="pms-project-modal" :title="modalState.editingId ? $t('milestone.edit') : $t('milestone.create')" @ok="onSave">
     <a-form ref="formRef" :model="form" :rules="rules" layout="vertical">
       <a-form-item :label="$t('milestone.nameLabel')" name="title">
         <a-input v-model:value="form.title" :placeholder="$t('milestone.namePlaceholder')" />
@@ -165,15 +156,16 @@ onMounted(loadData)
 .milestone-actions :deep(.ant-btn) {
   min-height: 28px;
   height: 28px;
-  padding: 0 7px;
+  padding: 0 8px;
   color: var(--pms-primary);
   background: transparent;
   border: 0;
-  border-radius: 5px;
+  border-radius: 8px;
   box-shadow: none;
   font-size: 12px;
   font-weight: 680;
   line-height: 1;
+  transition: color var(--pms-motion-fast) ease, background-color var(--pms-motion-fast) ease;
 }
 .milestone-actions :deep(.ant-btn:hover),
 .milestone-actions :deep(.ant-btn:focus-visible) {

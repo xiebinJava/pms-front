@@ -1,5 +1,5 @@
 import { http } from '/@/plugins/http'
-import type { WorkbenchActivity, WorkbenchSummary, WorkbenchTask } from '/@/views/workbench/workbench'
+import type { WorkbenchActionCenter, WorkbenchActivity, WorkbenchSummary, WorkbenchTask } from '/@/views/workbench/workbench'
 import type { Project } from '/@/types/domain'
 
 export interface WorkbenchPayload {
@@ -7,6 +7,7 @@ export interface WorkbenchPayload {
   tasks: WorkbenchTask[]
   projects: Project[]
   activities: WorkbenchActivity[]
+  actionCenter?: WorkbenchActionCenter
 }
 
 export function getWorkbench(): Promise<WorkbenchPayload> {

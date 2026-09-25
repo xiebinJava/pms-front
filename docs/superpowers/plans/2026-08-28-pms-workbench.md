@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- 使用冷灰背景、白色面板、深蓝主色、低阴影和现有 `fs-insight.css` 视觉令牌。
+- 使用冷灰背景、白色面板、深蓝主色、低阴影和现有 `pms-theme.css` 视觉令牌。
 - 工作台桌面端采用“概览四列 + 任务/项目两列 + 动态”布局，760px 以下变为单列。
 - 项目管理作为“研发管理”子页签，配置管理原有权限过滤和路由保持不变。
 - 不新增数据库表、后端业务规则或第三方依赖。
@@ -27,7 +27,7 @@
 - Create `src/views/workbench/workbench.ts`: 纯函数数据转换与指标计算，便于测试。
 - Create `src/views/workbench/workbench.test.mjs`: 工作台指标、过滤、排序和降级逻辑测试。
 - Modify `src/layout/index.test.mjs`: 研发管理与工作台入口结构测试。
-- Modify `src/styles/fs-insight.css`: 工作台网格、概览卡、列表和移动端布局。
+- Modify `src/styles/pms-theme.css`: 工作台网格、概览卡、列表和移动端布局。
 - Create `src/views/workbench/workbench-visual.test.mjs`: 工作台视觉结构契约测试。
 
 ### Task 1: 建立工作台聚合函数的失败测试
@@ -274,7 +274,7 @@ import fs from 'node:fs'
 import test from 'node:test'
 
 const source = fs.readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
-const styleSource = fs.readFileSync(new URL('../../styles/fs-insight.css', import.meta.url), 'utf8')
+const styleSource = fs.readFileSync(new URL('../../styles/pms-theme.css', import.meta.url), 'utf8')
 
 test('workbench exposes the agreed work sections and responsive layout hooks', () => {
   for (const label of ['我的工作', '工作概览', '我的任务', '项目进展', '最近动态']) assert.match(source, new RegExp(label))
@@ -306,7 +306,7 @@ Render four overview cards, task rows that call `router.push(`/projects/${task.p
 
 - [ ] **Step 5: Add the scoped workbench styles**
 
-Add the named layout hooks to `fs-insight.css`. Use a four-column overview grid, a two-column content grid, consistent panel padding and shadow tokens, and a `@media (max-width: 760px)` rule that changes both grids to one column. Ensure task/project rows can wrap long names and do not create page-level overflow.
+Add the named layout hooks to `pms-theme.css`. Use a four-column overview grid, a two-column content grid, consistent panel padding and shadow tokens, and a `@media (max-width: 760px)` rule that changes both grids to one column. Ensure task/project rows can wrap long names and do not create page-level overflow.
 
 - [ ] **Step 6: Run the focused workbench tests**
 
@@ -317,7 +317,7 @@ Expected: all workbench tests pass.
 ### Task 5: Full verification and browser review
 
 **Files:**
-- Modify only if verification finds a regression in `src/layout/Index.vue`, `src/router/index.ts`, `src/views/workbench/index.vue`, or `src/styles/fs-insight.css`.
+- Modify only if verification finds a regression in `src/layout/Index.vue`, `src/router/index.ts`, `src/views/workbench/index.vue`, or `src/styles/pms-theme.css`.
 
 - [ ] **Step 1: Run all frontend tests and static checks**
 

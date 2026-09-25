@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
-import type { Milestone, Project, ProjectNode, Task } from '/@/types/domain'
+import type { NodeIterationPlan, Project, ProjectNode, Task } from '/@/types/domain'
 
-export type ScheduleTone = 'project' | 'active' | 'completed' | 'locked' | 'terminated' | 'milestone' | 'task'
+export type ScheduleTone = 'project' | 'active' | 'due-today' | 'completed' | 'overdue' | 'locked' | 'terminated' | 'iteration-plan' | 'task'
 
 export interface TimelineDay {
   date: string
@@ -44,7 +44,7 @@ export interface ScheduleBar {
 
 export interface ScheduleMarker {
   id: string
-  kind: 'milestone' | 'task'
+  kind: 'iteration-plan' | 'task'
   refId: number
   title: string
   date: string
@@ -52,11 +52,12 @@ export interface ScheduleMarker {
   tone: ScheduleTone
   nodeId?: number
   status?: number
+  overdueDays?: number
 }
 
 export interface ScheduleLane {
   id: string
-  kind: 'project' | 'node' | 'milestone' | 'task'
+  kind: 'project' | 'node' | 'iteration-plan' | 'task'
   title: string
   subtitle?: string
   tone: ScheduleTone
@@ -80,13 +81,14 @@ export interface ScheduleModel {
 
 export interface CalendarEvent {
   id: string
-  kind: 'project' | 'node' | 'milestone' | 'task'
+  kind: 'project' | 'node' | 'iteration-plan' | 'task'
   refId: number
   title: string
   date: string
   endDate?: string
   tone: ScheduleTone
   nodeId?: number
+  overdueDays?: number
 }
 
 export interface CalendarDayCell {
@@ -129,9 +131,11 @@ export function nodeScheduleTone(status?: number): ScheduleTone {
   return 'locked'
 }
 
-export function taskMarkerTone(status?: number): ScheduleTone {
-  if (status === 2) return 'completed'
-  if (status === 1) return 'active'
+export function taskMarkerTone(task: Pick<Task, 'status' | 'scheduleState'>): ScheduleTone {
+  if (task.status === 2 || task.scheduleState === 'COMPLETED') return 'completed'
+  if (task.scheduleState === 'OVERDUE') return 'overdue'
+  if (task.scheduleState === 'DUE_TODAY') return 'due-today'
+  if (task.status === 1) return 'active'
   return 'task'
 }
 
@@ -140,6 +144,75 @@ export function dayWidthForSpan(dayCount: number): number {
   if (dayCount <= 72) return 24
   if (dayCount <= 120) return 18
   return 14
+}
+
+export function clampDayWidth(value: number, min = 14, max = 52): number {
+  if (!Number.isFinite(value)) return min
+  return Math.min(max, Math.max(min, Math.round(value)))
+}
+
+export type ScheduleDragMode = 'move' | 'resize-start' | 'resize-end'
+
+export function applyScheduleDrag(input: {
+  start: string
+  end: string
+  mode: ScheduleDragMode
+  deltaDays: number
+  minDate?: string
+  maxDate?: string
+}): { start: string; end: string } | undefined {
+  const start = toDateKey(input.start)
+  const end = toDateKey(input.end)
+  if (!start || !end || start > end || !Number.isFinite(input.deltaDays)) return undefined
+
+  const minDate = toDateKey(input.minDate)
+  const maxDate = toDateKey(input.maxDate)
+  if (minDate && maxDate && minDate > maxDate) return undefined
+
+  const shift = (date: string, days: number) => dayjs(date).add(days, 'day').format('YYYY-MM-DD')
+  let nextStart = start
+  let nextEnd = end
+
+  if (input.mode === 'move') {
+    let delta = Math.round(input.deltaDays)
+    if (minDate && shift(start, delta) < minDate) delta += dayjs(minDate).diff(dayjs(shift(start, delta)), 'day')
+    if (maxDate && shift(end, delta) > maxDate) delta -= dayjs(shift(end, delta)).diff(dayjs(maxDate), 'day')
+    nextStart = shift(start, delta)
+    nextEnd = shift(end, delta)
+  } else if (input.mode === 'resize-start') {
+    nextStart = shift(start, Math.round(input.deltaDays))
+    if (minDate && nextStart < minDate) nextStart = minDate
+    if (nextStart > end) nextStart = end
+  } else {
+    nextEnd = shift(end, Math.round(input.deltaDays))
+    if (maxDate && nextEnd > maxDate) nextEnd = maxDate
+    if (nextEnd < start) nextEnd = start
+  }
+
+  return { start: nextStart, end: nextEnd }
+}
+
+export function createScheduleFromDrag(input: {
+  anchor: string
+  current: string
+  minDate?: string
+  maxDate?: string
+}): { start: string; end: string } | undefined {
+  const anchor = toDateKey(input.anchor)
+  const current = toDateKey(input.current)
+  if (!anchor || !current) return undefined
+
+  const minDate = toDateKey(input.minDate)
+  const maxDate = toDateKey(input.maxDate)
+  if (minDate && maxDate && minDate > maxDate) return undefined
+
+  const clamp = (date: string) => {
+    if (minDate && date < minDate) return minDate
+    if (maxDate && date > maxDate) return maxDate
+    return date
+  }
+  const dates = [clamp(anchor), clamp(current)].sort()
+  return { start: dates[0], end: dates[1] }
 }
 
 function collectKeys(values: Array<string | undefined>): string[] {
@@ -235,19 +308,19 @@ export function buildScheduleModel(input: {
   project: Project
   nodes: ProjectNode[]
   tasks?: Task[]
-  milestones?: Milestone[]
+  iterationPlans?: NodeIterationPlan[]
   selectedNodeId?: number | null
   today?: string
 }): ScheduleModel {
   const nodeRanges = input.nodes.flatMap((node) => [node.startDate, node.endDate])
   const taskDates = (input.tasks || []).map((task) => task.dueDate)
-  const milestoneDates = (input.milestones || []).map((milestone) => milestone.dueDate)
+  const iterationPlanDates = (input.iterationPlans || []).flatMap((plan) => [plan.startDate, plan.dueDate])
   const window = buildTimelineWindow([
     input.project.startDate,
     input.project.endDate,
     ...nodeRanges,
     ...taskDates,
-    ...milestoneDates,
+    ...iterationPlanDates,
   ], input.today)
 
   const lanes: ScheduleLane[] = []
@@ -301,28 +374,27 @@ export function buildScheduleModel(input: {
     })
   })
 
-  const milestoneMarkers: ScheduleMarker[] = []
-  ;(input.milestones || []).forEach((milestone) => {
-    const date = toDateKey(milestone.dueDate)
+  const iterationPlanMarkers: ScheduleMarker[] = []
+  ;(input.iterationPlans || []).forEach((plan) => {
+    const date = toDateKey(plan.dueDate || plan.startDate)
     if (!date || date < window.start || date > window.end) return
-    milestoneMarkers.push({
-      id: `milestone-${milestone.id}`,
-      kind: 'milestone',
-      refId: milestone.id,
-      title: milestone.title,
+    iterationPlanMarkers.push({
+      id: `iteration-plan-${plan.id || plan.sort || date}`,
+      kind: 'iteration-plan',
+      refId: plan.id || 0,
+      title: plan.name,
       date,
       offset: offsetOf(window, date),
-      tone: 'milestone',
-      status: milestone.status,
+      tone: 'iteration-plan',
     })
   })
 
   lanes.push({
-    id: 'milestones',
-    kind: 'milestone',
+    id: 'iteration-plans',
+    kind: 'iteration-plan',
     title: '',
-    tone: 'milestone',
-    markers: milestoneMarkers,
+    tone: 'iteration-plan',
+    markers: iterationPlanMarkers,
   })
 
   const taskMarkers: ScheduleMarker[] = []
@@ -336,9 +408,10 @@ export function buildScheduleModel(input: {
       title: task.title,
       date,
       offset: offsetOf(window, date),
-      tone: taskMarkerTone(task.status),
+      tone: taskMarkerTone(task),
       nodeId: task.nodeId,
       status: task.status,
+      overdueDays: task.overdueDays,
     })
   })
 
@@ -357,7 +430,7 @@ export function buildCalendarEvents(input: {
   project: Project
   nodes: ProjectNode[]
   tasks?: Task[]
-  milestones?: Milestone[]
+  iterationPlans?: NodeIterationPlan[]
 }): CalendarEvent[] {
   const events: CalendarEvent[] = []
   const projectStart = toDateKey(input.project.startDate)
@@ -390,16 +463,16 @@ export function buildCalendarEvents(input: {
     })
   })
 
-  ;(input.milestones || []).forEach((milestone) => {
-    const date = toDateKey(milestone.dueDate)
+  ;(input.iterationPlans || []).forEach((plan) => {
+    const date = toDateKey(plan.dueDate || plan.startDate)
     if (!date) return
     events.push({
-      id: `milestone-${milestone.id}`,
-      kind: 'milestone',
-      refId: milestone.id,
-      title: milestone.title,
+      id: `iteration-plan-${plan.id || plan.sort || date}`,
+      kind: 'iteration-plan',
+      refId: plan.id || 0,
+      title: plan.name,
       date,
-      tone: 'milestone',
+      tone: 'iteration-plan',
     })
   })
 
@@ -412,8 +485,9 @@ export function buildCalendarEvents(input: {
       refId: task.id,
       title: task.title,
       date,
-      tone: taskMarkerTone(task.status),
+      tone: taskMarkerTone(task),
       nodeId: task.nodeId,
+      overdueDays: task.overdueDays,
     })
   })
 
@@ -451,7 +525,7 @@ export function buildCalendarWeeks(
         inMonth: dayjs(date).month() + 1 === month,
         isToday: date === todayKey,
         isWeekend: weekday === 0 || weekday === 6,
-        events: events.filter((event) => event.kind === 'milestone' || event.kind === 'task')
+        events: events.filter((event) => event.kind === 'iteration-plan' || event.kind === 'task')
           .filter((event) => event.date === date),
       })
     }

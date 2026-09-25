@@ -1,55 +1,75 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, provide, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeftOutlined,
-  CheckOutlined,
+  MoreOutlined,
   NodeIndexOutlined,
-  PictureOutlined,
   RollbackOutlined,
 } from '@ant-design/icons-vue'
 import { Modal, message } from 'ant-design-vue'
+import { apiErrorMessage } from '/@/plugins/http'
 import { getFollowers } from '/@/api/follower'
-import { addMember, getMembers } from '/@/api/member'
+import { getMembers } from '/@/api/member'
 import { getTask, getTasks } from '/@/api/task'
-import { getMilestones } from '/@/api/milestone'
-import { getProject, restoreProject, terminateProject, updateProject, uploadProjectImage } from '/@/api/project'
+import { getIterationPlans } from '/@/api/iteration-plan'
+import { getProject, restoreProject, terminateProject, updateProject } from '/@/api/project'
+import type { ProjectUpdatePayload } from '/@/api/project'
 import { completeNode, getNodes, rollbackNode, updateNodeOwner, updateNodeSchedule } from '/@/api/node'
 import { getProjectOrgTree } from '/@/api/admin-org'
-import { searchUsers } from '/@/api/user'
-import { priorityKey, projectStatusKey, Priority, statusTagColor } from '/@/enums'
-import { formatDate, formatDateTime } from '/@/utils/format'
 import {
-  canRollbackNode,
+  nodeStatusTagColor,
+  priorityKey,
+  projectLevelKey,
+  projectStatusKey,
+  projectStatusTagColor,
+  ProjectLevel,
+  Priority,
+} from '/@/enums'
+import { formatDate } from '/@/utils/format'
+import {
   buildBusinessLineOptions,
-  findOrgUnitById,
-  getElapsedDays,
-  getMissingKickoffProfileFields,
+  getBusinessLineDisplay,
   formatPersonLabel,
   getNodeOwnerDisplay,
   getPersonDisplay,
-  getProjectProfileFields,
   getProjectManagerDisplay,
-  getProjectOverallProgress,
+  getCurrentNodeTaskProgress,
+  getNodeProgress,
   getNodeStatusMeta,
   getOrgUnitPath,
-  getProjectStatusTone,
+  getInitialActiveNodeId,
+  listDefaultNodeOwnerAssignments,
   isNodeReadOnly,
-  isKickoffNode,
+  mergeMemberIdsAfterRefresh,
   normalizeRequiredReason,
+  NOTE_ASSIGNED_PROJECT_MEMBER,
+  REMEMBER_PERSON_OPTION,
   shouldAutoSaveProfile,
 } from './workflow'
 import NodeNavigator from './components/NodeNavigator.vue'
 import TaskKanban from './components/TaskKanban.vue'
 import ProjectScheduleChart from './components/ProjectScheduleChart.vue'
 import ProjectScheduleCalendar from './components/ProjectScheduleCalendar.vue'
-import Milestones from './components/Milestones.vue'
 import Members from './components/Members.vue'
 import Comments from './components/Comments.vue'
 import PersonSelect from './components/PersonSelect.vue'
+import BusinessLineSelect from './components/BusinessLineSelect.vue'
+import RequirementScopeWorkbench from './components/RequirementScopeWorkbench.vue'
+import SolutionDesignWorkbench from './components/SolutionDesignWorkbench.vue'
+import PlanResourceRiskWorkbench from './components/PlanResourceRiskWorkbench.vue'
+import AcceptanceWorkbench from './components/AcceptanceWorkbench.vue'
+import DevelopmentControlWorkbench from './components/DevelopmentControlWorkbench.vue'
+import ReleaseDecisionHandoverWorkbench from './components/ReleaseDecisionHandoverWorkbench.vue'
+import ValueReviewWorkbench from './components/ValueReviewWorkbench.vue'
+import KnowledgeStandardWorkbench from './components/KnowledgeStandardWorkbench.vue'
+import WorkflowCustomFields from './components/WorkflowCustomFields.vue'
+import ProjectReadinessCard from './components/ProjectReadinessCard.vue'
+import { buildAttentionRoute } from './project-attention.mjs'
+import { missingConfiguredProjectFields, nodeHasComponent, nodeWorkflowContentOrder, nodeWorkflowFields, shouldAutoSaveOnBlur, transitionActiveNode } from './workflow-config.mjs'
 import type { PersonOption } from './workflow'
-import type { Milestone, OrgUnit, Project, ProjectMember, ProjectNode, Task, User } from '/@/types/domain'
+import type { NodeIterationPlan, NodeRequirement, OrgUnit, Project, ProjectActionItem, ProjectMember, ProjectNode, Task, User } from '/@/types/domain'
 
 const route = useRoute()
 const router = useRouter()
@@ -65,42 +85,79 @@ const focusNodeId = computed(() => {
   const value = Number(Array.isArray(raw) ? raw[0] : raw)
   return Number.isFinite(value) && value > 0 ? value : null
 })
-const focusMilestoneId = computed(() => {
-  const raw = route.query.milestone
-  const value = Number(Array.isArray(raw) ? raw[0] : raw)
-  return Number.isFinite(value) && value > 0 ? value : null
-})
-
 const project = ref<Project | null>(null)
 const nodes = ref<ProjectNode[]>([])
 const loading = ref(false)
+const loadError = ref(false)
 const submitting = ref(false)
 const rollingBack = ref(false)
 const lifecycleSaving = ref(false)
 const nodeOwnerSaving = ref(false)
 const profileDirty = ref(false)
+const profileMembersDirty = ref(false)
+const profileFollowersDirty = ref(false)
 const profileSaving = ref(false)
+const membersRevision = ref(0)
+const knownMemberIds = ref<number[]>([])
 let profileSavePromise: Promise<void> | null = null
-const descriptionImageInput = ref<HTMLInputElement | null>(null)
-const descriptionImageUploading = ref(false)
+let profileBlurSaveRequested = false
+let projectLoadSequence = 0
+let readinessRefreshSequence = 0
+let scheduleLoadSequence = 0
+let assignedMemberRefreshTimer: ReturnType<typeof setTimeout> | undefined
 const profileContainer = ref<HTMLElement | null>(null)
 const activeNodeId = ref<number | null>(null)
-const activeSection = ref('milestones')
-const projectProfileFields = getProjectProfileFields()
+const switchingNode = ref(false)
+const activeSection = ref('gantt')
 const priorityOptions = computed(() => Priority.options().map((opt) => ({
   ...opt,
   label: t(priorityKey(opt.value)),
 })))
+const projectLevelOptions = computed(() => ProjectLevel.options().map((opt) => ({
+  ...opt,
+  label: t(projectLevelKey(opt.value)),
+})))
 const members = ref<ProjectMember[]>([])
 const followers = ref<User[]>([])
 const profileUserOptions = ref<PersonOption[]>([])
+const rememberedPersonOptions = ref<PersonOption[]>([])
+let pendingPreviousManagerId: number | undefined
 const orgTree = ref<OrgUnit[]>([])
 const nodeSchedule = ref<string[]>([])
 const nodeScheduleSaving = ref(false)
+const scheduleSavingNodeId = ref<number | null>(null)
+let scheduleSaveSequence = 0
 const scheduleTasks = ref<Task[]>([])
-const scheduleMilestones = ref<Milestone[]>([])
+const scheduleIterationPlans = ref<NodeIterationPlan[]>([])
 const scheduleLoading = ref(false)
 const scheduleLoaded = ref(false)
+const activeNodeTaskSummary = ref<{ done: number; total: number } | null>(null)
+const requirementScopeRef = ref<{
+  refresh: () => Promise<void> | void
+  flushAutoSave: () => Promise<boolean>
+} | null>(null)
+const planResourceRiskRef = ref<{ flushAutoSave: () => Promise<boolean> } | null>(null)
+const acceptanceRef = ref<{ flushAutoSave: () => Promise<boolean> } | null>(null)
+const releaseWorkbenchRef = ref<{ saveDraft: () => Promise<boolean> } | null>(null)
+const valueReviewWorkbenchRef = ref<{ saveDraft: () => Promise<boolean> } | null>(null)
+const knowledgeStandardRef = ref<{ flushAutoSave: () => Promise<boolean> } | null>(null)
+const workflowCustomFieldsRef = ref<{
+  flushAutoSave: () => Promise<boolean>
+  saveIfDirty: () => Promise<boolean>
+} | null>(null)
+const legacyWorkflowCustomFieldsRef = ref<{
+  flushAutoSave: () => Promise<boolean>
+  saveIfDirty: () => Promise<boolean>
+} | null>(null)
+const taskKanbanRef = ref<{
+  openCreateForRequirement: (requirementId: number) => void
+  refreshRequirements: () => Promise<void> | void
+} | null>(null)
+const requirementBaselineStatus = ref(0)
+const planBaselineStatus = ref(0)
+const acceptanceStatus = ref(0)
+const releaseCompletionReady = ref(false)
+const valueReviewCompletionReady = ref(false)
 type ReasonAction = 'terminate' | 'restore' | 'rollback'
 
 const reasonModal = reactive({
@@ -117,6 +174,7 @@ const rollbackTargetNode = ref<ProjectNode | null>(null)
 const profileForm = reactive({
   description: '',
   priority: 1,
+  projectLevel: 0,
   projectManagerId: undefined as number | undefined,
   schedule: [] as string[],
   orgUnitId: undefined as number | undefined,
@@ -128,13 +186,11 @@ const activeNode = computed<ProjectNode | null>(
   () => nodes.value.find((node) => node.id === activeNodeId.value) || null,
 )
 const doneNodeCount = computed(() => nodes.value.filter((node) => node.status === 2).length)
-const nodeProgress = computed(() => getProjectOverallProgress(
-  project.value?.progress,
-  doneNodeCount.value,
-  nodes.value.length,
-))
-const elapsedDays = computed(() => getElapsedDays(project.value?.startDate))
-const showKickoffProfile = computed(() => isKickoffNode(activeNode.value?.nodeKey))
+const projectProgress = computed(() => getNodeProgress(doneNodeCount.value, nodes.value.length))
+const currentNodeTaskProgress = computed(() => getCurrentNodeTaskProgress(activeNodeTaskSummary.value))
+const activeNodeWorkflowFields = computed(() => nodeWorkflowFields(activeNode.value))
+const activeNodeFieldsSlot = computed(() => nodeWorkflowFields(activeNode.value, 'fields'))
+const activeNodeLegacyCustomFields = computed(() => nodeWorkflowFields(activeNode.value, 'legacy-custom-fields'))
 const nodeOwnerOptions = computed(() => members.value.map((member) => ({
   value: member.userId,
   label: formatPersonLabel({ id: member.userId, nickname: member.nickname, username: member.username, email: member.email }),
@@ -151,33 +207,47 @@ const businessLinePath = computed<number[] | undefined>({
   set: (value) => {
     const path = Array.isArray(value) ? value : []
     profileForm.orgUnitId = path.length ? Number(path[path.length - 1]) : undefined
+    if (project.value) {
+      const label = getBusinessLineDisplay(businessLineOptions.value, path)
+      project.value.orgUnitId = profileForm.orgUnitId
+      project.value.orgUnitName = label.split(' / ').at(-1)
+      project.value.orgUnitPath = label || undefined
+    }
     markProfileDirty()
   },
 })
-const projectCreatorOption = computed(() => {
-  const creatorId = project.value?.createdBy
-  return creatorId == null ? undefined : profileUserOptions.value.find((option) => option.value === creatorId)
-})
+const businessLineDisplay = computed(() => getBusinessLineDisplay(
+  businessLineOptions.value,
+  businessLinePath.value,
+  project.value?.orgUnitPath || project.value?.orgUnitName,
+))
+function findRememberedPerson(userId?: number) {
+  if (userId == null) return undefined
+  return rememberedPersonOptions.value.find((option) => option.value === userId)
+    || nodeOwnerOptions.value.find((option) => option.value === userId)
+    || profileUserOptions.value.find((option) => option.value === userId)
+}
+
+function resolvePersonLabel(userId?: number, fallback?: string) {
+  return findRememberedPerson(userId)?.label || fallback?.trim() || ''
+}
+
 const projectManagerOption = computed(() => {
   const managerId = profileForm.projectManagerId
-  return managerId == null ? undefined : profileUserOptions.value.find((option) => option.value === managerId)
+  return managerId == null ? undefined : findRememberedPerson(managerId)
 })
-const projectCreatorDisplay = computed(() => getPersonDisplay(
-  projectCreatorOption.value,
-  project.value?.createdByName || t('detail.unrecorded'),
-))
 const projectManagerDisplay = computed(() => {
   const managerName = projectManagerOption.value?.label || project.value?.projectManagerName
   const display = getPersonDisplay(projectManagerOption.value, managerName)
   const assigned = getProjectManagerDisplay(managerName)
   return { ...display, label: assigned || t('detail.unassigned'), pending: !assigned }
 })
-const projectStatusTone = computed(() => {
-  return getProjectStatusTone(project.value?.status)
-})
-const canManageProject = computed(() => project.value?.permissions?.canManageProject ?? project.value?.status === 1)
-const canAssignNodeOwner = computed(() => project.value?.permissions?.canAssignNodeOwner ?? project.value?.status === 1)
-const canEditActiveNode = computed(() => activeNode.value?.permissions?.canEdit ?? canManageProject.value)
+const canManageProject = computed(() => Boolean(project.value?.permissions?.canManageProject))
+const canManageMembers = computed(() => Boolean(project.value?.permissions?.canManageMembers))
+const canSetProjectManager = computed(() => Boolean(project.value?.permissions?.canSetProjectManager))
+const canAssignNodeOwner = computed(() => Boolean(project.value?.permissions?.canAssignNodeOwner))
+const canWriteComment = computed(() => Boolean(project.value?.permissions?.canWriteComment))
+const canEditActiveNode = computed(() => Boolean(activeNode.value?.permissions?.canEdit))
 const canTerminateProject = computed(() => project.value?.permissions?.canTerminateProject ?? false)
 const canRestoreProject = computed(() => project.value?.permissions?.canRestoreProject ?? false)
 const activeNodeReadOnly = computed(() => Boolean(
@@ -185,69 +255,146 @@ const activeNodeReadOnly = computed(() => Boolean(
     || project.value?.status !== 1),
 ))
 const canCompleteActiveNode = computed(() => Boolean(
-  activeNode.value && (activeNode.value.permissions?.canComplete ?? activeNode.value.status === 1),
+  activeNode.value && Boolean(activeNode.value.permissions?.canComplete),
 ))
 const canRollbackActiveNode = computed(() => Boolean(
-  activeNode.value && (activeNode.value.permissions?.canRollback
-    ?? canRollbackNode(activeNode.value.sort, activeNode.value.status)),
+  activeNode.value && Boolean(activeNode.value.permissions?.canRollback),
 ))
 
 function getNodeStatusLabel(status: number): string {
   return t(getNodeStatusMeta(status).label)
 }
 
+function getProjectLevelCode(level?: number): string {
+  return ({ 0: 'C', 1: 'B', 2: 'A', 3: 'S' } as Record<number, string>)[level ?? 0] || 'C'
+}
+
+function getProjectLevelLabel(level?: number): string {
+  return t(projectLevelKey(level ?? 0)).replace(/\s*[（(][A-Z][）)]\s*$/, '')
+}
+
+function getProjectLevelBadge(level?: number): string {
+  return t('detail.projectLevelBadge', {
+    code: getProjectLevelCode(level),
+    label: getProjectLevelLabel(level),
+  })
+}
+
+function getPriorityBadge(priority: number): string {
+  return t('detail.priorityBadge', { label: t(priorityKey(priority)) })
+}
+
 function joinLocalizedFields(keys: string[]): string {
   return keys.map((key) => t(key)).join(locale.value.startsWith('zh') ? '、' : ', ')
 }
 
+function componentSlotStyle(componentKey: string): Record<string, number> {
+  const contentOrder = nodeWorkflowContentOrder(activeNode.value)
+  const index = contentOrder.indexOf(`component:${componentKey}`)
+  return { order: index < 0 ? contentOrder.length + 1 : index }
+}
+
+function customFieldsSlotStyle(contentItem: 'fields' | 'legacy-custom-fields' = 'fields'): Record<string, number> {
+  const contentOrder = nodeWorkflowContentOrder(activeNode.value)
+  const index = contentOrder.indexOf(contentItem)
+  return { order: index < 0 ? contentOrder.length + 1 : index }
+}
+
+async function savePendingWorkflowCustomFields(): Promise<boolean> {
+  for (const fieldsRef of [workflowCustomFieldsRef, legacyWorkflowCustomFieldsRef]) {
+    if (await fieldsRef.value?.saveIfDirty() === false) return false
+  }
+  return true
+}
+
+async function savePendingProfileChanges(): Promise<boolean> {
+  if (profileSavePromise) await profileSavePromise
+  if (profileDirty.value) {
+    await onSaveProfile()
+    if (profileSavePromise) await profileSavePromise
+  }
+  return !profileDirty.value && !profileSaving.value
+}
+
+async function savePendingProjectChanges(): Promise<boolean> {
+  if (!(await savePendingProfileChanges())) return false
+  return savePendingWorkflowCustomFields()
+}
+
+async function flushWorkflowCustomFields(): Promise<boolean> {
+  for (const fieldsRef of [workflowCustomFieldsRef, legacyWorkflowCustomFieldsRef]) {
+    if (await fieldsRef.value?.flushAutoSave() === false) return false
+  }
+  return true
+}
+
 async function loadData() {
+  const requestProjectId = projectId.value
+  const requestSequence = ++projectLoadSequence
+  readinessRefreshSequence += 1
   loading.value = true
+  loadError.value = false
   try {
     const [projectData, nodeData, memberData, followerData, orgData] = await Promise.all([
-      getProject(projectId.value),
-      getNodes(projectId.value),
-      getMembers(projectId.value),
-      getFollowers(projectId.value),
+      getProject(requestProjectId),
+      getNodes(requestProjectId),
+      getMembers(requestProjectId),
+      getFollowers(requestProjectId),
       getProjectOrgTree().catch(() => []),
     ])
+    if (requestSequence !== projectLoadSequence || requestProjectId !== projectId.value) return
     project.value = projectData
     nodes.value = nodeData
+    activeNodeTaskSummary.value = null
     members.value = memberData
     followers.value = followerData
     orgTree.value = orgData
     resetProfileForm()
     profileUserOptions.value = []
-    await onProfileUserSearch()
-    const current = nodes.value.find((node) => node.status === 1)
-    activeNodeId.value = (current || nodes.value[0])?.id ?? null
+    syncProfileUserOptions()
+    await persistDefaultNodeOwners()
+    if (requestSequence !== projectLoadSequence || requestProjectId !== projectId.value) return
+    activeNodeId.value = getInitialActiveNodeId(nodes.value)
     await applyFocusTask()
-    applyFocusNode()
+    await applyFocusNode()
     if (isScheduleSection(activeSection.value)) {
       scheduleLoaded.value = false
       void loadSchedule()
     }
   } catch (error) {
+    if (requestSequence !== projectLoadSequence || requestProjectId !== projectId.value) return
+    loadError.value = !project.value
     message.error((error as Error).message || t('detail.loadFailed'))
   } finally {
-    loading.value = false
+    if (requestSequence === projectLoadSequence) loading.value = false
   }
 }
 
 async function applyFocusTask() {
-  if (!focusTaskId.value) return
+  const requestedTaskId = focusTaskId.value
+  const requestedProjectId = projectId.value
+  if (!requestedTaskId) return
   try {
-    const task = await getTask(focusTaskId.value)
-    if (task.projectId !== projectId.value) return
-    if (task.nodeId) activeNodeId.value = task.nodeId
+    const task = await getTask(requestedTaskId)
+    if (
+      requestedTaskId !== focusTaskId.value
+      || requestedProjectId !== projectId.value
+      || task.projectId !== requestedProjectId
+    ) return
+    if (task.nodeId) {
+      const activated = await activateNode(task.nodeId)
+      if (!activated) return
+      if (requestedTaskId !== focusTaskId.value || requestedProjectId !== projectId.value) return
+    }
   } catch {
     // Keep the default node when the focused task is gone or unreadable.
   }
 }
 
-function applyFocusNode() {
+async function applyFocusNode() {
   if (focusTaskId.value || !focusNodeId.value) return
   if (nodes.value.some((node) => node.id === focusNodeId.value)) {
-    activeNodeId.value = focusNodeId.value
+    await activateNode(focusNodeId.value)
   }
 }
 
@@ -258,9 +405,25 @@ function onTaskFocusConsumed() {
   void router.replace({ query })
 }
 
-function onSelectNode(node: ProjectNode) {
-  if (profileDirty.value) void onSaveProfile()
-  activeNodeId.value = node.id
+async function activateNode(nodeId: number): Promise<boolean> {
+  if (activeNodeId.value === nodeId) return true
+  if (switchingNode.value) return false
+  switchingNode.value = true
+  try {
+    return await transitionActiveNode(
+      activeNodeId.value,
+      nodeId,
+      savePendingWorkflowCustomFields,
+      (nextNodeId) => { activeNodeId.value = nextNodeId },
+    )
+  } finally {
+    switchingNode.value = false
+  }
+}
+
+async function onSelectNode(node: ProjectNode) {
+  if (!(await savePendingProfileChanges())) return
+  await activateNode(node.id)
 }
 
 function isScheduleSection(section: string) {
@@ -268,19 +431,23 @@ function isScheduleSection(section: string) {
 }
 
 async function loadSchedule() {
+  const requestProjectId = projectId.value
+  const requestSequence = ++scheduleLoadSequence
   if (!scheduleLoaded.value) scheduleLoading.value = true
   try {
-    const [taskData, milestoneData] = await Promise.all([
-      getTasks(projectId.value),
-      getMilestones(projectId.value),
+    const [taskData, iterationPlanData] = await Promise.all([
+      getTasks(requestProjectId),
+      getIterationPlans(requestProjectId),
     ])
+    if (requestSequence !== scheduleLoadSequence || requestProjectId !== projectId.value) return
     scheduleTasks.value = taskData
-    scheduleMilestones.value = milestoneData
+    scheduleIterationPlans.value = iterationPlanData
     scheduleLoaded.value = true
   } catch (error) {
+    if (requestSequence !== scheduleLoadSequence || requestProjectId !== projectId.value) return
     message.error((error as Error).message || t('schedule.empty'))
   } finally {
-    scheduleLoading.value = false
+    if (requestSequence === scheduleLoadSequence) scheduleLoading.value = false
   }
 }
 
@@ -289,9 +456,18 @@ watch(activeSection, (section) => {
 })
 
 watch(projectId, () => {
+  projectLoadSequence += 1
+  readinessRefreshSequence += 1
+  scheduleSaveSequence += 1
+  scheduleLoadSequence += 1
+  project.value = null
+  nodes.value = []
+  activeNodeId.value = null
   scheduleLoaded.value = false
+  scheduleLoading.value = false
   scheduleTasks.value = []
-  scheduleMilestones.value = []
+  scheduleIterationPlans.value = []
+  void loadData()
 })
 
 watch(focusTaskId, (taskId) => {
@@ -299,26 +475,39 @@ watch(focusTaskId, (taskId) => {
 })
 
 watch(focusNodeId, () => {
-  applyFocusNode()
+  void applyFocusNode()
 })
 
-watch(focusMilestoneId, (milestoneId) => {
-  if (milestoneId) activeSection.value = 'milestones'
-}, { immediate: true })
+watch(switchingNode, (switching) => {
+  if (!switching && focusTaskId.value) void applyFocusTask()
+})
 
 function onScheduleSelectNode(nodeId: number) {
   const node = nodes.value.find((item) => item.id === nodeId)
-  if (node) onSelectNode(node)
+  if (node) void onSelectNode(node)
 }
 
-function onScheduleOpenTask(taskId: number, nodeId?: number) {
-  if (nodeId) activeNodeId.value = nodeId
+async function onScheduleOpenTask(taskId: number, nodeId?: number) {
+  if (nodeId && !(await activateNode(nodeId))) return
   void router.replace({ query: { ...route.query, task: String(taskId) } })
   document.querySelector('.node-task-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
-function onScheduleOpenMilestone() {
-  activeSection.value = 'milestones'
+function onAttentionAction(item: ProjectActionItem) {
+  void router.push(buildAttentionRoute(item))
+}
+
+async function refreshProjectReadiness() {
+  const requestProjectId = projectId.value
+  const requestSequence = ++readinessRefreshSequence
+  try {
+    const refreshedProject = await getProject(requestProjectId)
+    if (requestSequence !== readinessRefreshSequence || requestProjectId !== projectId.value) return
+    project.value = refreshedProject
+  } catch (error) {
+    if (requestSequence !== readinessRefreshSequence || requestProjectId !== projectId.value) return
+    message.warning(apiErrorMessage(error, t('detail.loadFailed')))
+  }
 }
 
 function resetProfileForm() {
@@ -326,18 +515,73 @@ function resetProfileForm() {
   Object.assign(profileForm, {
     description: project.value.description || '',
     priority: project.value.priority,
+    projectLevel: project.value.projectLevel ?? 0,
     projectManagerId: project.value.projectManagerId,
     schedule: [project.value.startDate, project.value.endDate].filter(Boolean) as string[],
     orgUnitId: project.value.orgUnitId,
     memberIds: members.value.map((member) => member.userId),
     followerIds: followers.value.map((user) => user.id),
   })
+  knownMemberIds.value = members.value.map((member) => member.userId)
   profileDirty.value = false
+  profileMembersDirty.value = false
+  profileFollowersDirty.value = false
 }
 
 watch(activeNode, (node) => {
   nodeSchedule.value = [node?.startDate, node?.endDate].filter(Boolean) as string[]
 }, { immediate: true })
+
+watch(activeNodeId, () => {
+  activeNodeTaskSummary.value = null
+  requirementBaselineStatus.value = 0
+  planBaselineStatus.value = 0
+  acceptanceStatus.value = 0
+  releaseCompletionReady.value = false
+  valueReviewCompletionReady.value = false
+})
+
+function onTaskProgress(payload: { projectId: number; nodeId: number; done: number; total: number }) {
+  if (payload.projectId !== projectId.value || payload.nodeId !== activeNodeId.value) return
+  activeNodeTaskSummary.value = { done: payload.done, total: payload.total }
+  void refreshProjectReadiness()
+  if (nodeHasComponent(activeNode.value, 'requirement-scope')) void requirementScopeRef.value?.refresh()
+}
+
+function onCreateTaskFromRequirement(requirement: NodeRequirement) {
+  if (requirement.id == null) return
+  taskKanbanRef.value?.openCreateForRequirement(requirement.id)
+}
+
+function onRequirementSaved() {
+  void taskKanbanRef.value?.refreshRequirements()
+}
+
+function onRequirementBaselineStatus(status: number) {
+  requirementBaselineStatus.value = status
+}
+
+function onPlanBaselineStatus(status: number) {
+  planBaselineStatus.value = status
+}
+
+function onAcceptanceStatus(status: number) {
+  acceptanceStatus.value = status
+}
+
+function onReleaseCompletionReady(ready: boolean) {
+  releaseCompletionReady.value = ready
+}
+
+function onValueReviewCompletionReady(ready: boolean) {
+  valueReviewCompletionReady.value = ready
+}
+
+function onAiAssistantChanged(event: Event) {
+  const detail = (event as CustomEvent<{ refreshScopes?: string[] }>).detail
+  if (!detail?.refreshScopes?.some((scope) => scope === 'project-detail' || scope === 'task-board')) return
+  void loadData()
+}
 
 function formatUserOption(user: User): PersonOption {
   return { value: user.id, label: formatPersonLabel(user), avatar: user.avatar }
@@ -349,39 +593,169 @@ function mergeProfileUsers(users: User[]) {
   profileUserOptions.value = Array.from(optionMap.values())
 }
 
-async function onProfileUserSearch(keyword = '') {
-  const users = await searchUsers(keyword)
-  mergeProfileUsers([...members.value.map((member) => ({
-    id: member.userId,
-    username: member.username || '',
-    nickname: member.nickname || '',
-    email: member.email,
-    avatar: member.avatar,
-  })), ...followers.value, ...users])
+function syncProfileUserOptions() {
+  mergeProfileUsers([
+    ...members.value.map((member) => ({
+      id: member.userId,
+      username: member.username || '',
+      nickname: member.nickname || '',
+      email: member.email,
+      avatar: member.avatar,
+    })),
+    ...followers.value,
+  ])
 }
 
 function markProfileDirty() {
   profileDirty.value = true
 }
 
-function getPersonInitials(name?: string): string {
-  const value = name?.trim()
-  return value ? value.slice(0, 2) : '?'
+function rememberPersonOption(option: PersonOption) {
+  rememberedPersonOptions.value = [
+    option,
+    ...rememberedPersonOptions.value.filter((item) => item.value !== option.value),
+  ]
 }
+
+function applyDefaultNodeOwnersLocally(
+  assignments: Array<{ index: number; ownerId: number }>,
+  managerId?: number,
+) {
+  if (!assignments.length || !project.value) return
+  const managerLabel = resolvePersonLabel(managerId, project.value.projectManagerName)
+  const creatorId = project.value.createdBy ?? project.value.ownerId
+  const creatorLabel = resolvePersonLabel(creatorId, project.value.createdByName || project.value.ownerName)
+  nodes.value = nodes.value.map((node, index) => {
+    const assignment = assignments.find((item) => item.index === index)
+    if (!assignment) return node
+    return {
+      ...node,
+      ownerId: assignment.ownerId,
+      ownerName: assignment.ownerId === managerId ? managerLabel : creatorLabel,
+    }
+  })
+}
+
+async function persistDefaultNodeOwners(previousManagerId?: number) {
+  if (!project.value || !(canAssignNodeOwner.value || canSetProjectManager.value)) return
+  const requestProjectId = project.value.id
+  const creatorId = project.value.createdBy ?? project.value.ownerId
+  const managerId = profileForm.projectManagerId ?? project.value.projectManagerId
+  const assignments = listDefaultNodeOwnerAssignments(
+    nodes.value,
+    creatorId,
+    managerId,
+    previousManagerId,
+  )
+  if (!assignments.length) return
+  applyDefaultNodeOwnersLocally(assignments, managerId)
+  const [first, ...rest] = assignments
+  const writeOwner = (assignment: typeof first) => updateNodeOwner(requestProjectId, assignment.node.id, {
+    ownerId: assignment.ownerId,
+    version: assignment.node.version ?? 0,
+  })
+  const updatedNodes: Awaited<ReturnType<typeof updateNodeOwner>>[] = []
+  try {
+    if (first) updatedNodes.push(await writeOwner(first))
+    const remaining = await Promise.allSettled(rest.map(writeOwner))
+    remaining.forEach((result) => {
+      if (result.status === 'fulfilled') updatedNodes.push(result.value)
+    })
+  } catch (error) {
+    if (project.value?.id !== requestProjectId) return
+    message.error(apiErrorMessage(error, t('detail.ownerSaveFailed')))
+    return
+  }
+  if (project.value?.id !== requestProjectId) return
+  updatedNodes.forEach((updated) => {
+    const index = nodes.value.findIndex((node) => node.id === updated.id)
+    if (index >= 0) nodes.value[index] = updated
+  })
+  void refreshProjectReadiness()
+}
+
+function markMembersDirty() {
+  profileMembersDirty.value = true
+  markProfileDirty()
+}
+
+function markFollowersDirty() {
+  profileFollowersDirty.value = true
+  markProfileDirty()
+}
+
+function onProjectManagerChange(value: number | number[] | undefined) {
+  pendingPreviousManagerId = project.value?.projectManagerId
+  const managerId = Array.isArray(value) ? value[0] : value
+  profileForm.projectManagerId = managerId
+  if (managerId != null && !profileForm.memberIds.includes(managerId)) {
+    profileForm.memberIds = [...profileForm.memberIds, managerId]
+    markMembersDirty()
+  }
+  markProfileDirty()
+  const creatorId = project.value?.createdBy ?? project.value?.ownerId
+  applyDefaultNodeOwnersLocally(
+    listDefaultNodeOwnerAssignments(
+      nodes.value,
+      creatorId,
+      managerId,
+      pendingPreviousManagerId,
+    ).map((item) => ({ index: item.index, ownerId: item.ownerId })),
+    managerId,
+  )
+  void onSaveProfile()
+}
+
+async function refreshMembers() {
+  members.value = await getMembers(projectId.value)
+  const serverIds = members.value.map((member) => member.userId)
+  profileForm.memberIds = mergeMemberIdsAfterRefresh(
+    profileForm.memberIds,
+    serverIds,
+    knownMemberIds.value,
+    profileMembersDirty.value,
+  )
+  knownMemberIds.value = serverIds
+  syncProfileUserOptions()
+  membersRevision.value += 1
+}
+
+function onProjectMembersChanged() {
+  void refreshMembers().catch((error) => {
+    message.error(apiErrorMessage(error, t('detail.loadFailed')))
+  })
+}
+
+function noteAssignedProjectMember() {
+  if (assignedMemberRefreshTimer) clearTimeout(assignedMemberRefreshTimer)
+  assignedMemberRefreshTimer = setTimeout(() => {
+    assignedMemberRefreshTimer = undefined
+    void refreshMembers()
+  }, 1000)
+}
+
+provide(NOTE_ASSIGNED_PROJECT_MEMBER, noteAssignedProjectMember)
+provide(REMEMBER_PERSON_OPTION, rememberPersonOption)
 
 async function onNodeOwnerChange(ownerId: number | undefined) {
   if (!activeNode.value || !canAssignNodeOwner.value) {
     message.info(t('detail.noAssignOwner'))
     return
   }
+  if (profileSavePromise) await profileSavePromise
   nodeOwnerSaving.value = true
   try {
-    const updatedNode = await updateNodeOwner(projectId.value, activeNode.value.id, ownerId)
+    const updatedNode = await updateNodeOwner(projectId.value, activeNode.value.id, {
+      ownerId,
+      version: activeNode.value.version ?? 0,
+    })
     const index = nodes.value.findIndex((node) => node.id === updatedNode.id)
     if (index >= 0) nodes.value[index] = updatedNode
+    void refreshProjectReadiness()
+    await refreshMembers()
     message.success(t('detail.ownerUpdated'))
-  } catch {
-    message.error(t('detail.ownerSaveFailed'))
+  } catch (error) {
+    message.error(apiErrorMessage(error, t('detail.ownerSaveFailed')))
   } finally {
     nodeOwnerSaving.value = false
   }
@@ -392,27 +766,64 @@ function onNodeOwnerSelection(value: number | number[] | undefined) {
   void onNodeOwnerChange(ownerId)
 }
 
-async function onBusinessLineChange(value: Array<number | string> | undefined) {
-  const path = Array.isArray(value) ? value : []
-  const orgUnitId = path.length ? Number(path[path.length - 1]) : undefined
-  const businessLine = findOrgUnitById(orgTree.value, orgUnitId)
-  const leaderId = businessLine?.leaderUserId
-  if (leaderId == null || !activeNode.value || !canAssignNodeOwner.value || activeNodeReadOnly.value) return
+function canEditScheduleNode(node: ProjectNode): boolean {
+  return Boolean(
+    project.value?.status === 1
+      && node.permissions?.canEdit
+      && !node.permissions?.readOnly
+      && !isNodeReadOnly(node.status),
+  )
+}
 
+function isConflictError(error: unknown): boolean {
+  return (error as { response?: { status?: number } }).response?.status === 409
+}
+
+async function persistNodeSchedule(nodeId: number, next: string[]) {
+  const requestProjectId = projectId.value
+  const index = nodes.value.findIndex((node) => node.id === nodeId)
+  const current = index >= 0 ? nodes.value[index] : undefined
+  if (!current) return
+  const previous = { startDate: current.startDate, endDate: current.endDate }
+  const nextDates = {
+    startDate: next[0] || undefined,
+    endDate: next[1] || undefined,
+  }
+  nodes.value[index] = { ...current, ...nextDates }
+  if (activeNodeId.value === nodeId) nodeSchedule.value = next.filter(Boolean)
+  const sequence = ++scheduleSaveSequence
+  scheduleSavingNodeId.value = nodeId
+  if (activeNodeId.value === nodeId) nodeScheduleSaving.value = true
   try {
-    if (!members.value.some((member) => member.userId === leaderId)) {
-      await addMember(projectId.value, { userId: leaderId })
-      members.value = await getMembers(projectId.value)
-      profileForm.memberIds = members.value.map((member) => member.userId)
+    const updated = await updateNodeSchedule(requestProjectId, nodeId, {
+      ...nextDates,
+      version: current.version ?? 0,
+    })
+    if (sequence !== scheduleSaveSequence || requestProjectId !== projectId.value) return
+    const updatedIndex = nodes.value.findIndex((node) => node.id === updated.id)
+    if (updatedIndex >= 0) nodes.value[updatedIndex] = updated
+    if (activeNodeId.value === nodeId) nodeSchedule.value = [updated.startDate, updated.endDate].filter(Boolean) as string[]
+    await refreshProjectReadiness()
+    if (sequence !== scheduleSaveSequence || requestProjectId !== projectId.value) return
+    message.success(t('detail.scheduleUpdated'))
+  } catch (error) {
+    if (sequence !== scheduleSaveSequence || requestProjectId !== projectId.value) return
+    if (!isConflictError(error)) {
+      const currentIndex = nodes.value.findIndex((node) => node.id === nodeId)
+      if (currentIndex >= 0) nodes.value[currentIndex] = { ...nodes.value[currentIndex], ...previous }
+      if (activeNodeId.value === nodeId) nodeSchedule.value = [previous.startDate, previous.endDate].filter(Boolean) as string[]
     }
-    await onNodeOwnerChange(leaderId)
-  } catch {
-    message.error(t('detail.autoAssignFailed'))
+    message.error(apiErrorMessage(error, t('detail.scheduleSaveFailed')))
+  } finally {
+    if (sequence === scheduleSaveSequence) {
+      scheduleSavingNodeId.value = null
+      if (activeNodeId.value === nodeId) nodeScheduleSaving.value = false
+    }
   }
 }
 
 async function onNodeScheduleChange(value: unknown, dateStrings?: string[] | string) {
-  if (!activeNode.value) return
+  if (!activeNode.value || scheduleSavingNodeId.value != null) return
   const next = (Array.isArray(dateStrings)
     ? dateStrings
     : Array.isArray(value) && value.every((item) => typeof item === 'string')
@@ -427,56 +838,21 @@ async function onNodeScheduleChange(value: unknown, dateStrings?: string[] | str
     message.info(t('detail.noEditSchedule'))
     return
   }
-  nodeScheduleSaving.value = true
-  try {
-    const updated = await updateNodeSchedule(projectId.value, activeNode.value.id, {
-      startDate: next[0],
-      endDate: next[1],
-    })
-    const index = nodes.value.findIndex((node) => node.id === updated.id)
-    if (index >= 0) nodes.value[index] = updated
-    nodeSchedule.value = next
-    message.success(t('detail.scheduleUpdated'))
-  } catch {
-    nodeSchedule.value = [activeNode.value.startDate, activeNode.value.endDate].filter(Boolean) as string[]
-    message.error(t('detail.scheduleSaveFailed'))
-  } finally {
-    nodeScheduleSaving.value = false
-  }
+  await persistNodeSchedule(activeNode.value.id, next)
 }
 
-function openDescriptionImagePicker() {
-  descriptionImageInput.value?.click()
-}
-
-async function onDescriptionImageSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file) return
-  if (!file.type.startsWith('image/')) {
-    message.warning(t('detail.imageRequired'))
+async function onScheduleNodeScheduleChange(payload: { nodeId: number; startDate: string; endDate: string }) {
+  const node = nodes.value.find((item) => item.id === payload.nodeId)
+  if (!node || !canEditScheduleNode(node) || scheduleSavingNodeId.value != null) {
+    message.info(t('detail.noEditSchedule'))
     return
   }
-  if (file.size > 5 * 1024 * 1024) {
-    message.warning(t('detail.imageTooLarge'))
-    return
-  }
-
-  descriptionImageUploading.value = true
-  try {
-    const uploaded = await uploadProjectImage(file)
-    profileForm.description = `${profileForm.description.trimEnd()}${profileForm.description.trim() ? '\n' : ''}![${uploaded.name}](${uploaded.url})`
-    markProfileDirty()
-    message.success(t('detail.imageInserted'))
-  } finally {
-    descriptionImageUploading.value = false
-  }
+  await persistNodeSchedule(payload.nodeId, [payload.startDate, payload.endDate])
 }
 
 function isProfileOverlayTarget(target: EventTarget | null): boolean {
   return target instanceof Element
-    && Boolean(target.closest('.ant-select-dropdown, .ant-picker-dropdown, .ant-dropdown, .ant-popover'))
+    && Boolean(target.closest('.ant-select-dropdown, .ant-picker-dropdown, .ant-dropdown, .ant-popover, .business-line-select-dropdown'))
 }
 
 function onDocumentPointerDown(event: PointerEvent) {
@@ -488,6 +864,17 @@ function onDocumentPointerDown(event: PointerEvent) {
   }
 }
 
+function onProfileFocusOut() {
+  window.setTimeout(() => {
+    if (!shouldAutoSaveOnBlur(profileDirty.value, isProfileOverlayTarget(document.activeElement))) return
+    if (profileSaving.value) {
+      profileBlurSaveRequested = true
+      return
+    }
+    void onSaveProfile()
+  }, 0)
+}
+
 async function onSaveProfile() {
   if (!project.value || !profileDirty.value || profileSaving.value) return
   if (!canManageProject.value || activeNodeReadOnly.value) {
@@ -497,25 +884,42 @@ async function onSaveProfile() {
   }
   profileDirty.value = false
   profileSaving.value = true
+  let saveSucceeded = false
   const savePromise = (async () => {
     try {
-      project.value = await updateProject(project.value!.id, {
+      const payload: ProjectUpdatePayload = {
+        version: project.value!.version,
         name: project.value!.name,
         description: profileForm.description,
         priority: profileForm.priority,
-        projectManagerId: profileForm.projectManagerId,
+        projectLevel: profileForm.projectLevel,
         startDate: profileForm.schedule?.[0] || undefined,
         endDate: profileForm.schedule?.[1] || undefined,
-        memberIds: profileForm.memberIds,
-        followerIds: profileForm.followerIds,
         orgUnitId: profileForm.orgUnitId,
-      })
+      }
+      if (canSetProjectManager.value && profileForm.projectManagerId != null) {
+        payload.projectManagerId = profileForm.projectManagerId
+      }
+      if (canManageMembers.value && profileMembersDirty.value) {
+        payload.memberIds = profileForm.memberIds
+        payload.expectedMemberIds = [...knownMemberIds.value]
+      }
+      if (canManageMembers.value && profileFollowersDirty.value) {
+        payload.followerIds = profileForm.followerIds
+      }
+      project.value = await updateProject(project.value!.id, payload)
+      nodes.value = await getNodes(project.value.id)
+      await persistDefaultNodeOwners(pendingPreviousManagerId)
+      pendingPreviousManagerId = undefined
       members.value = await getMembers(project.value.id)
       followers.value = await getFollowers(project.value.id)
-      resetProfileForm()
-    } catch {
+      if (!profileDirty.value) resetProfileForm()
+      syncProfileUserOptions()
+      membersRevision.value += 1
+      saveSucceeded = true
+    } catch (error) {
       profileDirty.value = true
-      message.error(t('detail.profileSaveFailed'))
+      message.error(apiErrorMessage(error, t('detail.profileSaveFailed')))
     } finally {
       profileSaving.value = false
     }
@@ -525,35 +929,89 @@ async function onSaveProfile() {
     await savePromise
   } finally {
     if (profileSavePromise === savePromise) profileSavePromise = null
+    const saveLatest = saveSucceeded && profileBlurSaveRequested && profileDirty.value
+    profileBlurSaveRequested = false
+    if (saveLatest) window.setTimeout(() => void onSaveProfile(), 0)
   }
 }
 
-function onComplete() {
-  if (!activeNode.value || !canCompleteActiveNode.value) {
+async function onComplete() {
+  if (!(await savePendingProfileChanges())) return
+  const nodeToComplete = activeNode.value
+  if (!nodeToComplete || !canCompleteActiveNode.value) {
     message.info(t('detail.cannotComplete'))
     return
   }
-  if (showKickoffProfile.value) {
-    const missingFields = getMissingKickoffProfileFields(profileForm)
+  if (nodeHasComponent(nodeToComplete, 'requirement-scope')) {
+    const ready = await requirementScopeRef.value?.flushAutoSave()
+    if (!ready || requirementBaselineStatus.value !== 1) {
+      message.warning(t('detail.requirementContentIncomplete'))
+      return
+    }
+  }
+  if (nodeHasComponent(nodeToComplete, 'plan-resource-risk')) {
+    const ready = await planResourceRiskRef.value?.flushAutoSave()
+    if (!ready || planBaselineStatus.value !== 1) {
+      message.warning(t('detail.planContentIncomplete'))
+      return
+    }
+  }
+  if (nodeHasComponent(nodeToComplete, 'business-acceptance')) {
+    const ready = await acceptanceRef.value?.flushAutoSave()
+    if (!ready || acceptanceStatus.value !== 1) {
+      message.warning(t('detail.acceptanceContentIncomplete'))
+      return
+    }
+  }
+  if (nodeHasComponent(nodeToComplete, 'release-handover') && !releaseCompletionReady.value) {
+    message.warning(t('detail.release.completionRequired'))
+    return
+  }
+  if (nodeHasComponent(nodeToComplete, 'value-review') && !valueReviewCompletionReady.value) {
+    message.warning(t('detail.valueReview.completionRequired'))
+    return
+  }
+  if (activeNodeWorkflowFields.value.some((field) => field.binding)) {
+    const requiredProfileFields: Record<string, string> = {
+      description: 'detail.profileDescription', priority: 'detail.profilePriority', projectLevel: 'detail.profileProjectLevel',
+      schedule: 'detail.profileSchedule', businessLine: 'detail.businessLine', projectManager: 'detail.manager',
+      projectMembers: 'detail.members', followers: 'detail.followers',
+    }
+    const missingFields = missingConfiguredProjectFields(activeNodeWorkflowFields.value.filter((field) => field.binding), profileForm)
+      .map((field) => requiredProfileFields[field] || field)
     if (missingFields.length) {
       message.warning(t('detail.completeMissing', { fields: joinLocalizedFields(missingFields) }))
       return
     }
   }
+  if (nodeHasComponent(nodeToComplete, 'release-handover')) {
+    const saved = await releaseWorkbenchRef.value?.saveDraft()
+    if (!saved) return
+  }
+  if (nodeHasComponent(nodeToComplete, 'value-review')) {
+    const saved = await valueReviewWorkbenchRef.value?.saveDraft()
+    if (!saved) return
+  }
+  if (nodeHasComponent(nodeToComplete, 'knowledge-standard')) {
+    const saved = await knowledgeStandardRef.value?.flushAutoSave()
+    if (!saved) return
+  }
+  const customFieldsReady = await flushWorkflowCustomFields()
+  if (customFieldsReady === false) return
   Modal.confirm({
     title: t('detail.completeTitle'),
-    content: t('detail.completeContent', { name: activeNode.value.name }),
+    content: t('detail.completeContent', { name: nodeToComplete.name }),
     okText: t('detail.completeOk'),
     cancelText: t('common.cancel'),
     onOk: async () => {
       if (profileSavePromise) await profileSavePromise
       submitting.value = true
       try {
-        const nextNodes = await completeNode(projectId.value, activeNode.value!.id)
+        const nextNodes = await completeNode(projectId.value, nodeToComplete.id)
         nodes.value = nextNodes
         project.value = await getProject(projectId.value)
         const current = nextNodes.find((node) => node.status === 1)
-        activeNodeId.value = current?.id ?? activeNodeId.value
+        activeNodeId.value = current?.id ?? nodeToComplete.id
         message.success(t('detail.completeSuccess'))
       } finally {
         submitting.value = false
@@ -608,6 +1066,8 @@ async function onReasonModalOk() {
   else lifecycleSaving.value = true
 
   try {
+    const fieldsSaved = await savePendingWorkflowCustomFields()
+    if (fieldsSaved === false) return
     if (action === 'terminate') {
       await terminateProject(projectId.value, reason)
       await refreshAfterLifecycle(3)
@@ -665,13 +1125,38 @@ onMounted(() => {
   document.addEventListener('pointerdown', onDocumentPointerDown)
 })
 
+onBeforeRouteLeave(async () => {
+  const saved = await savePendingProjectChanges()
+  return saved !== false
+})
+
+onBeforeRouteUpdate(async (to, from) => {
+  if (to.params.id !== from.params.id) {
+    const saved = await savePendingProjectChanges()
+    return saved !== false
+  }
+  return true
+})
+
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', onDocumentPointerDown)
+  if (assignedMemberRefreshTimer) clearTimeout(assignedMemberRefreshTimer)
 })
 </script>
 
 <template>
+  <div class="project-detail-root">
   <div v-if="loading && !project" class="detail-loading"><a-spin size="large" /></div>
+  <div v-else-if="loadError" class="detail-load-error card-surface" role="alert">
+    <div class="detail-load-error__icon">!</div>
+    <div class="detail-load-error__copy">
+      <h1>{{ $t('detail.loadFailed') }}</h1>
+      <p>{{ $t('detail.loadFailedHint') }}</p>
+    </div>
+    <a-button type="primary" class="pms-primary-button" @click="loadData">
+      {{ $t('detail.loadRetry') }}
+    </a-button>
+  </div>
   <div v-else-if="project" class="project-detail-page pms-page-stack">
     <div class="detail-breadcrumb">
       <span class="detail-breadcrumb__back" @click="router.push('/projects')">
@@ -682,98 +1167,76 @@ onBeforeUnmount(() => {
     </div>
 
     <section class="project-header pms-detail-panel pms-detail-hero card-surface">
-      <div class="project-header__main">
-        <div class="project-title-row">
-          <span class="project-status-icon" :class="`project-status-icon--${projectStatusTone}`">
-            <CheckOutlined v-if="project.status === 2" />
-            <span v-else />
-          </span>
+      <div class="project-header__top">
+        <div class="project-header__identity">
           <h1>{{ project.name }}</h1>
-          <a-tag :color="statusTagColor[project.status]">{{ $t(projectStatusKey(project.status)) }}</a-tag>
-          <span v-if="elapsedDays !== null" class="project-elapsed">{{ $t('detail.elapsed', { days: elapsedDays }) }}</span>
-          <a-button
-            v-if="canTerminateProject"
-            type="default"
-            danger
-            size="small"
-            class="project-lifecycle-action project-terminate-button"
-            :loading="lifecycleSaving"
-            @click="onTerminate"
-          >
-            {{ $t('detail.terminate') }}
-          </a-button>
-          <a-button
-            v-if="canRestoreProject"
-            type="primary"
-            size="small"
-            class="pms-primary-button project-lifecycle-action"
-            :loading="lifecycleSaving"
-            @click="onRestore"
-          >
-            {{ $t('detail.restore') }}
-          </a-button>
+          <a-tag :color="projectStatusTagColor(project.status)" class="project-header__status">
+            {{ $t(projectStatusKey(project.status)) }}
+          </a-tag>
+          <span class="pms-project-badge pms-project-badge--level">{{ getProjectLevelBadge(project.projectLevel) }}</span>
+          <span
+            class="pms-project-badge pms-project-badge--priority"
+            :class="{ 'pms-project-badge--priority-urgent': project.priority === 3 }"
+          >{{ getPriorityBadge(project.priority) }}</span>
         </div>
-        <div class="project-meta-stack">
-          <div class="project-meta-line">
-            <span>{{ project.code }}</span>
-            <span class="meta-separator">·</span>
-            <span>{{ $t('detail.rangeTo', { start: formatDate(project.startDate), end: formatDate(project.endDate) }) }}</span>
-          </div>
-          <div class="project-created-line">
-            <span class="project-meta-person">
-              <span class="project-meta-person__label">{{ $t('detail.createdBy') }}</span>
-              <a-avatar :src="projectCreatorDisplay.avatar || project.createdByAvatar" :size="20" class="project-meta-person__avatar">
-                {{ getPersonInitials(projectCreatorDisplay.label) }}
-              </a-avatar>
-              <strong>{{ projectCreatorDisplay.label }}</strong>
-            </span>
-            <span class="meta-separator">·</span>
-            <span>{{ $t('detail.createdAt', { time: formatDateTime(project.createdAt) }) }}</span>
-          </div>
-        </div>
-        <div class="project-people-line">
-          <div class="project-person project-person--manager">
-            <a-avatar
-              :src="projectManagerDisplay.avatar || project.projectManagerAvatar"
-              :size="32"
-              class="project-person__avatar"
-              :class="{ 'project-person__avatar--pending': projectManagerDisplay.pending }"
+        <div class="project-header__actions">
+          <a-dropdown v-if="canTerminateProject || canRestoreProject" placement="bottomRight">
+            <a-button
+              class="project-header__more pms-project-button pms-project-button--text pms-project-button--icon pms-project-button--small"
+              :aria-label="$t('detail.more')"
+              :title="$t('detail.more')"
             >
-              {{ getPersonInitials(projectManagerDisplay.label) }}
-            </a-avatar>
-            <div class="project-person__copy">
-              <span>{{ $t('detail.manager') }}</span>
-              <strong>{{ projectManagerDisplay.label }}</strong>
-            </div>
-          </div>
-          <div v-if="project.orgUnitPath || project.orgUnitName" class="project-person project-person--business-line">
-            <div class="project-person__copy">
-              <span>{{ $t('detail.businessLine') }}</span>
-              <strong :title="project.orgUnitPath || project.orgUnitName">{{ project.orgUnitPath || project.orgUnitName }}</strong>
-              <small v-if="project.orgUnitLeaderName">{{ $t('detail.leader', { name: project.orgUnitLeaderName }) }}</small>
-            </div>
-          </div>
+              <MoreOutlined />
+            </a-button>
+            <template #overlay>
+              <a-menu>
+                <a-menu-item v-if="canTerminateProject" key="terminate" :disabled="lifecycleSaving" @click="onTerminate">
+                  {{ $t('detail.terminate') }}
+                </a-menu-item>
+                <a-menu-item v-if="canRestoreProject" key="restore" :disabled="lifecycleSaving" @click="onRestore">
+                  {{ $t('detail.restore') }}
+                </a-menu-item>
+              </a-menu>
+            </template>
+          </a-dropdown>
         </div>
       </div>
 
-      <div class="project-header__summary">
-        <div class="summary-item">
-          <span class="summary-item__label">{{ $t('detail.nodeProgress') }}</span>
-          <strong>{{ doneNodeCount }}/{{ nodes.length || 0 }}</strong>
+      <div class="project-header__meta">
+        <div class="project-header__meta-item project-header__meta-item--divider">
+          <span>{{ $t('detail.manager') }}：</span>
+          <strong>{{ projectManagerDisplay.label }}</strong>
         </div>
-        <div class="summary-item">
-          <span class="summary-item__label">{{ $t('detail.taskDone') }}</span>
-          <strong>{{ project.doneTaskCount }}/{{ project.taskCount }}</strong>
+        <div class="project-header__meta-item project-header__meta-item--wide project-header__meta-item--divider">
+          <span>{{ $t('detail.businessLine') }}：</span>
+          <strong :title="businessLineDisplay">{{ businessLineDisplay || $t('detail.unassigned') }}</strong>
         </div>
-        <div class="summary-item">
-          <span class="summary-item__label">{{ $t('detail.members') }}</span>
-          <strong>{{ $t('detail.memberCount', { count: project.memberCount }) }}</strong>
+        <div class="project-header__meta-item">
+          <span>{{ $t('detail.projectPeriod') }}：</span>
+          <strong>{{ formatDate(project.startDate) }} → {{ formatDate(project.endDate) }}</strong>
         </div>
-        <div class="summary-progress">
-          <span class="summary-item__label">{{ $t('detail.overall') }}</span>
-          <a-progress :percent="nodeProgress" :show-info="false" size="small" />
-          <strong>{{ nodeProgress }}%</strong>
+      </div>
+
+      <div class="project-header__insights">
+        <div class="project-header__insight">
+          <span>{{ $t('detail.projectProgress') }}</span>
+          <strong>{{ projectProgress }}%</strong>
+          <small class="project-header__insight-details">
+            <span class="project-header__insight-submetric">
+              {{ $t('detail.currentNodeTaskProgress') }}
+              <template v-if="currentNodeTaskProgress !== null && currentNodeTaskProgress !== undefined">
+                <strong class="project-header__insight-submetric-value">{{ currentNodeTaskProgress }}%</strong>
+                <span class="project-header__insight-task-count">{{ $t('detail.nodeTaskCountSummary', { done: activeNodeTaskSummary?.done ?? 0, total: activeNodeTaskSummary?.total ?? 0 }) }}</span>
+              </template>
+              <span v-else class="project-header__insight-task-count">{{ currentNodeTaskProgress === null ? $t('detail.noNodeTasks') : '—' }}</span>
+            </span>
+          </small>
         </div>
+        <ProjectReadinessCard
+          v-if="project.readiness"
+          :readiness="project.readiness"
+          @action="onAttentionAction"
+        />
       </div>
     </section>
 
@@ -794,14 +1257,18 @@ onBeforeUnmount(() => {
             <div class="node-detail-title__heading">
               <span class="node-detail-title__dot" :class="`node-detail-title__dot--${activeNode.status}`" />
               <h2>{{ activeNode.name }}</h2>
-              <a-tag :color="statusTagColor[activeNode.status]">{{ getNodeStatusLabel(activeNode.status) }}</a-tag>
+              <a-tag :color="nodeStatusTagColor(activeNode.status)">{{ getNodeStatusLabel(activeNode.status) }}</a-tag>
             </div>
             <p v-if="activeNode.description" class="node-detail-title__description">{{ activeNode.description }}</p>
+            <p v-if="activeNodeReadOnly" class="node-detail-title__readonly-hint" role="note">
+              {{ $t('detail.nodeReadonlyHint') }}
+            </p>
           </div>
         </div>
         <div class="node-detail-actions">
           <a-button
             v-if="canRollbackActiveNode"
+            class="pms-project-button pms-project-button--secondary"
             :loading="rollingBack"
             @click="onRollback"
           >
@@ -810,7 +1277,7 @@ onBeforeUnmount(() => {
           <a-button
             v-if="canCompleteActiveNode"
             type="primary"
-            class="pms-primary-button"
+            class="pms-primary-button pms-project-button pms-project-button--primary"
             :loading="submitting"
             @click="onComplete"
           >
@@ -820,10 +1287,11 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="node-assignment-row pms-assignment-grid">
-        <div class="node-owner-row">
+        <div class="node-owner-row" role="group" :aria-label="$t('detail.nodeAssignment')">
           <span class="node-owner-row__label">{{ $t('detail.nodeOwner') }}</span>
           <div class="node-owner-row__control">
             <PersonSelect
+              :key="`node-owner-${activeNode.id}`"
               :model-value="activeNode.ownerId"
               class="node-owner-row__select"
               :options="nodeOwnerOptions"
@@ -835,10 +1303,11 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="node-owner-row node-schedule-row">
+        <div class="node-owner-row node-schedule-row" role="group" :aria-label="$t('detail.nodeSchedule')">
           <span class="node-owner-row__label">{{ $t('detail.nodeSchedule') }}</span>
           <div class="node-owner-row__control">
             <a-range-picker
+              :key="`node-schedule-${activeNode.id}`"
               v-model:value="nodeSchedule"
               value-format="YYYY-MM-DD"
               class="node-schedule-picker"
@@ -851,138 +1320,145 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <a-divider />
+      <div class="workflow-details-stack">
+       <div v-if="activeNodeFieldsSlot.length" ref="profileContainer" class="node-tab-profile" :style="customFieldsSlotStyle('fields')" @focusout.capture="onProfileFocusOut">
+         <WorkflowCustomFields
+           ref="workflowCustomFieldsRef"
+           :key="`custom-fields-${activeNode.id}`"
+           :project-id="projectId"
+           :node-id="activeNode.id"
+           :fields="activeNodeFieldsSlot"
+           :person-options="nodeOwnerOptions"
+           :can-edit="canEditActiveNode"
+           :read-only="activeNodeReadOnly"
+         >
+           <template #bound-field="{ field }">
+             <a-textarea v-if="field.binding === 'project.description'" v-model:value="profileForm.description" :rows="4" :disabled="!canManageProject || activeNodeReadOnly" class="project-profile-control project-description-control" @input="markProfileDirty" />
+             <a-radio-group v-else-if="field.binding === 'project.priority'" v-model:value="profileForm.priority" class="project-profile-control" :options="priorityOptions" :disabled="!canManageProject || activeNodeReadOnly" @change="markProfileDirty" />
+             <a-select v-else-if="field.binding === 'project.projectLevel'" v-model:value="profileForm.projectLevel" class="project-profile-control" :options="projectLevelOptions" :disabled="!canManageProject || activeNodeReadOnly" @change="markProfileDirty" />
+             <BusinessLineSelect v-else-if="field.binding === 'project.businessLine'" v-model="businessLinePath" class="project-profile-control" :options="businessLineOptions" :placeholder="$t('detail.selectBusinessLine')" :disabled="!canManageProject || activeNodeReadOnly" />
+             <a-range-picker v-else-if="field.binding === 'project.schedule'" v-model:value="profileForm.schedule" value-format="YYYY-MM-DD" class="project-profile-control" :placeholder="[$t('project.startDate'), $t('project.endDate')]" :disabled="!canManageProject || activeNodeReadOnly" @change="markProfileDirty" />
+             <PersonSelect v-else-if="field.binding === 'project.projectManager'" v-model="profileForm.projectManagerId" class="project-profile-control project-people-control" :options="nodeOwnerOptions" :disabled="!canSetProjectManager || activeNodeReadOnly" @change="onProjectManagerChange" />
+             <PersonSelect v-else-if="field.binding === 'project.projectMembers'" v-model="profileForm.memberIds" class="project-profile-control project-people-control project-members-control" multiple allow-clear :max-tag-count="2" :options="profileUserOptions" :placeholder="$t('detail.selectMembers')" :disabled="!canManageMembers || activeNodeReadOnly" @change="markMembersDirty" />
+             <PersonSelect v-else-if="field.binding === 'project.followers'" v-model="profileForm.followerIds" class="project-profile-control project-people-control project-members-control" multiple allow-clear :max-tag-count="2" :options="profileUserOptions" :placeholder="$t('detail.selectFollowers')" :disabled="!canManageMembers || activeNodeReadOnly" @change="markFollowersDirty" />
+           </template>
+         </WorkflowCustomFields>
+       </div>
+       <div v-if="activeNodeLegacyCustomFields.length" class="node-tab-profile workflow-legacy-custom-fields" :style="customFieldsSlotStyle('legacy-custom-fields')">
+         <WorkflowCustomFields
+           ref="legacyWorkflowCustomFieldsRef"
+           :key="`legacy-custom-fields-${activeNode.id}`"
+           :project-id="projectId"
+           :node-id="activeNode.id"
+           :fields="activeNodeLegacyCustomFields"
+           :person-options="nodeOwnerOptions"
+           :can-edit="canEditActiveNode"
+           :read-only="activeNodeReadOnly"
+         />
+       </div>
 
-      <div v-if="showKickoffProfile" ref="profileContainer" class="node-tab-profile">
-        <div class="project-profile-section">
-          <div class="profile-section-title-row">
-            <div class="profile-section-title">{{ $t('detail.profileBasics') }}</div>
-            <span v-if="profileSaving" class="profile-save-state">{{ $t('detail.profileSaving') }}</span>
-          </div>
-          <div class="project-profile-grid">
-            <template
-              v-for="field in projectProfileFields"
-              :key="field.key"
-            >
-              <div
-                class="project-profile-field"
-                :class="{
-                  'project-profile-field--wide': field.wide,
-                  'project-profile-field--multiline': field.multiline,
-                }"
-              >
-                <span class="project-profile-field__label project-profile-field__label--required">{{ $t(field.label) }}</span>
-                <div v-if="field.key === 'description'" class="project-description-editor">
-                  <a-textarea
-                    v-model:value="profileForm.description"
-                    :rows="4"
-                    :disabled="!canManageProject || activeNodeReadOnly"
-                    class="project-profile-control project-description-control"
-                    @input="markProfileDirty"
-                  />
-                  <div class="project-description-toolbar">
-                    <input
-                      ref="descriptionImageInput"
-                      class="project-description-file-input"
-                      type="file"
-                      accept="image/png,image/jpeg,image/gif,image/webp"
-                      @change="onDescriptionImageSelected"
-                    />
-                    <a-button
-                      type="default"
-                      size="small"
-                      class="project-description-toolbar__action"
-                      :loading="descriptionImageUploading"
-                      :disabled="!canManageProject || activeNodeReadOnly"
-                      @click="openDescriptionImagePicker"
-                    >
-                      <PictureOutlined /> {{ $t('detail.insertImage') }}
-                    </a-button>
-                    <span class="project-description-toolbar__hint">{{ $t('detail.insertImageHint') }}</span>
-                  </div>
-                </div>
-                <a-select
-                  v-else-if="field.key === 'priority'"
-                  v-model:value="profileForm.priority"
-                  class="project-profile-control"
-                  :options="priorityOptions"
-                  :disabled="!canManageProject || activeNodeReadOnly"
-                  @change="markProfileDirty"
-                />
-                <a-cascader
-                  v-else-if="field.key === 'businessLine'"
-                  v-model:value="businessLinePath"
-                  class="project-profile-control"
-                  :options="businessLineOptions"
-                  :change-on-select="true"
-                  allow-clear
-                  :placeholder="$t('detail.selectBusinessLine')"
-                  :disabled="!canManageProject || activeNodeReadOnly"
-                  @change="onBusinessLineChange"
-                />
-                <a-range-picker
-                  v-else-if="field.key === 'schedule'"
-                  v-model:value="profileForm.schedule"
-                  value-format="YYYY-MM-DD"
-                  class="project-profile-control"
-                  :placeholder="[$t('project.startDate'), $t('project.endDate')]"
-                  :disabled="!canManageProject || activeNodeReadOnly"
-                  @change="markProfileDirty"
-                />
-              </div>
-            </template>
-          </div>
-        </div>
+      <RequirementScopeWorkbench
+        v-if="nodeHasComponent(activeNode, 'requirement-scope')"
+        ref="requirementScopeRef"
+        :key="activeNode.id"
+        :style="componentSlotStyle('requirement-scope')"
+        :project-id="projectId"
+        :node-id="activeNode.id"
+        :node-read-only="activeNodeReadOnly"
+        :can-edit="canEditActiveNode"
+        :can-create-task="Boolean(activeNode.permissions?.canManageTasks)"
+        @baseline-status="onRequirementBaselineStatus"
+        @saved="onRequirementSaved"
+        @create-task="onCreateTaskFromRequirement"
+      />
 
-        <a-divider />
+      <SolutionDesignWorkbench
+        v-if="nodeHasComponent(activeNode, 'solution-design')"
+        :key="activeNode.id"
+        :style="componentSlotStyle('solution-design')"
+        :project-id="projectId"
+        :node-id="activeNode.id"
+        :node-read-only="activeNodeReadOnly"
+        :can-edit="canEditActiveNode"
+        :reviewer-options="nodeOwnerOptions"
+      />
 
-        <div class="project-profile-section">
-          <div class="profile-section-title">{{ $t('detail.profilePeople') }}</div>
-          <div class="project-people-grid">
-            <div class="project-people-item">
-              <span class="project-profile-field__label project-profile-field__label--required">{{ $t('detail.manager') }}</span>
-              <PersonSelect
-                v-model="profileForm.projectManagerId"
-                class="project-profile-control project-people-control"
-                :options="nodeOwnerOptions"
-                :disabled="!canManageProject || activeNodeReadOnly"
-                @change="markProfileDirty"
-              />
-            </div>
-            <div class="project-people-item">
-              <span class="project-profile-field__label project-profile-field__label--required">{{ $t('detail.members') }}</span>
-              <PersonSelect
-                v-model="profileForm.memberIds"
-                class="project-profile-control project-people-control project-members-control"
-                multiple
-                :max-tag-count="2"
-                :options="profileUserOptions"
-                :placeholder="$t('detail.selectMembers')"
-                remote-search
-                :disabled="!canManageProject || activeNodeReadOnly"
-                @search="onProfileUserSearch"
-                @change="markProfileDirty"
-              />
-            </div>
-            <div class="project-people-item">
-              <span class="project-profile-field__label">{{ $t('detail.followers') }}</span>
-              <PersonSelect
-                v-model="profileForm.followerIds"
-                class="project-profile-control project-people-control project-members-control"
-                multiple
-                :max-tag-count="2"
-                :options="profileUserOptions"
-                :placeholder="$t('detail.selectFollowers')"
-                remote-search
-                :disabled="!canManageProject || activeNodeReadOnly"
-                @search="onProfileUserSearch"
-                @change="markProfileDirty"
-              />
-            </div>
-          </div>
-        </div>
+      <PlanResourceRiskWorkbench
+        v-if="nodeHasComponent(activeNode, 'plan-resource-risk')"
+        ref="planResourceRiskRef"
+        :key="activeNode.id"
+        :style="componentSlotStyle('plan-resource-risk')"
+        :project-id="projectId"
+        :node-id="activeNode.id"
+        :node-roles="activeNode.roles"
+        :owner-options="nodeOwnerOptions"
+        :node-read-only="activeNodeReadOnly"
+        :can-edit="canEditActiveNode"
+        @baseline-status="onPlanBaselineStatus"
+      />
 
-        <a-divider />
+      <AcceptanceWorkbench
+        v-if="nodeHasComponent(activeNode, 'business-acceptance')"
+        ref="acceptanceRef"
+        :key="activeNode.id"
+        :style="componentSlotStyle('business-acceptance')"
+        :project-id="projectId"
+        :node-id="activeNode.id"
+        :node-read-only="activeNodeReadOnly"
+        :can-edit="canEditActiveNode"
+        @baseline-status="onAcceptanceStatus"
+      />
+
+      <DevelopmentControlWorkbench
+        v-if="nodeHasComponent(activeNode, 'development-control')"
+        :key="activeNode.id"
+        :style="componentSlotStyle('development-control')"
+        :project-id="projectId"
+        :node-id="activeNode.id"
+        :project-name="project.name"
+        :project-manager-name="projectManagerDisplay.label"
+        :node-read-only="activeNodeReadOnly"
+        :can-edit="canEditActiveNode"
+        :owner-options="nodeOwnerOptions"
+      />
+
+      <ReleaseDecisionHandoverWorkbench
+        v-if="nodeHasComponent(activeNode, 'release-handover')"
+        ref="releaseWorkbenchRef"
+        :key="activeNode.id"
+        :style="componentSlotStyle('release-handover')"
+        :project-id="projectId"
+        :node-id="activeNode.id"
+        :node-status="activeNode.status"
+        :node-read-only="activeNodeReadOnly"
+        :can-edit="canEditActiveNode"
+        @completion-ready="onReleaseCompletionReady"
+      />
+
+      <ValueReviewWorkbench
+        v-if="nodeHasComponent(activeNode, 'value-review')"
+        ref="valueReviewWorkbenchRef"
+        :key="activeNode.id"
+        :style="componentSlotStyle('value-review')"
+        :project-id="projectId"
+        :node-id="activeNode.id"
+        :node-read-only="activeNodeReadOnly"
+        :can-edit="canEditActiveNode"
+        @completion-ready="onValueReviewCompletionReady"
+      />
+
+      <KnowledgeStandardWorkbench
+        v-if="nodeHasComponent(activeNode, 'knowledge-standard')"
+        ref="knowledgeStandardRef"
+        :key="activeNode.id"
+        :style="componentSlotStyle('knowledge-standard')"
+        :project-id="projectId"
+        :node-id="activeNode.id"
+        :node-read-only="activeNodeReadOnly"
+        :can-edit="canEditActiveNode"
+        :owner-options="nodeOwnerOptions"
+      />
+
       </div>
 
       <a-divider />
@@ -994,12 +1470,14 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <TaskKanban
+          ref="taskKanbanRef"
           :project-id="projectId"
           :node-id="activeNode.id"
           :project="project"
           :node="activeNode"
           :focus-task-id="focusTaskId"
           @focused="onTaskFocusConsumed"
+          @task-progress="onTaskProgress"
         />
       </section>
     </section>
@@ -1007,13 +1485,15 @@ onBeforeUnmount(() => {
     <section class="management-card pms-detail-panel pms-section-panel card-surface">
       <div class="section-title-row section-title-row--compact pms-section-heading">
         <div>
-          <h2>{{ $t('detail.collaboration') }}</h2>
+          <h2 id="project-collaboration-title">{{ $t('detail.collaboration') }}</h2>
         </div>
       </div>
-      <a-tabs v-model:activeKey="activeSection" :destroy-inactive-tab-pane="true">
-        <a-tab-pane key="milestones" :tab="$t('detail.milestones')">
-          <Milestones :project-id="projectId" :can-manage="canManageProject" />
-        </a-tab-pane>
+      <a-tabs
+        v-model:activeKey="activeSection"
+        class="project-collaboration-tabs"
+        :destroy-inactive-tab-pane="true"
+        aria-labelledby="project-collaboration-title"
+      >
         <a-tab-pane key="gantt" :tab="$t('detail.viewGantt')">
           <div v-if="scheduleLoading" class="schedule-loading"><a-spin /></div>
           <ProjectScheduleChart
@@ -1021,11 +1501,13 @@ onBeforeUnmount(() => {
             :project="project"
             :nodes="nodes"
             :tasks="scheduleTasks"
-            :milestones="scheduleMilestones"
+            :iteration-plans="scheduleIterationPlans"
             :selected-node-id="activeNodeId"
+            :can-edit-node="canEditScheduleNode"
+            :saving-node-id="scheduleSavingNodeId"
             @select-node="onScheduleSelectNode"
             @open-task="onScheduleOpenTask"
-            @open-milestone="onScheduleOpenMilestone"
+            @update-node-schedule="onScheduleNodeScheduleChange"
           />
         </a-tab-pane>
         <a-tab-pane key="calendar" :tab="$t('detail.viewCalendar')">
@@ -1035,24 +1517,24 @@ onBeforeUnmount(() => {
             :project="project"
             :nodes="nodes"
             :tasks="scheduleTasks"
-            :milestones="scheduleMilestones"
+            :iteration-plans="scheduleIterationPlans"
             :selected-node-id="activeNodeId"
             @select-node="onScheduleSelectNode"
             @open-task="onScheduleOpenTask"
-            @open-milestone="onScheduleOpenMilestone"
           />
         </a-tab-pane>
         <a-tab-pane key="members" :tab="$t('detail.memberTab')">
-          <Members :project-id="projectId" :can-manage="canManageProject" />
+          <Members :project-id="projectId" :can-manage="canManageMembers" :revision="membersRevision" @members-changed="onProjectMembersChanged" />
         </a-tab-pane>
         <a-tab-pane key="comments" :tab="$t('detail.comments')">
-          <Comments :project-id="projectId" />
+          <Comments :project-id="projectId" :can-write="canWriteComment" />
         </a-tab-pane>
       </a-tabs>
     </section>
 
     <a-modal
       v-model:open="reasonModal.open"
+      class="pms-project-modal"
       :title="reasonModal.title"
       :ok-text="reasonModal.okText"
       :ok-type="reasonModal.okType"
@@ -1075,54 +1557,78 @@ onBeforeUnmount(() => {
         />
       </div>
     </a-modal>
+
+  </div>
   </div>
 </template>
 
 <style scoped>
+.project-detail-root { min-width: 0; }
 .project-detail-page { max-width: 1440px; margin: 0 auto; }
 .detail-loading { display: flex; align-items: center; justify-content: center; min-height: 420px; }
+.detail-load-error { display: flex; align-items: center; gap: 16px; max-width: 760px; margin: 96px auto; padding: 24px; }
+.detail-load-error__icon { display: grid; flex: 0 0 auto; width: 36px; height: 36px; place-items: center; color: #fff; font-size: 20px; font-weight: 700; background: var(--pms-danger); border-radius: 50%; }
+.detail-load-error__copy { flex: 1; min-width: 0; }
+.detail-load-error__copy h1 { margin: 0; color: var(--pms-text); font-size: 18px; font-weight: 650; }
+.detail-load-error__copy p { margin: 5px 0 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-body); }
 .card-surface { background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius); box-shadow: var(--pms-shadow-sm); }
 .detail-breadcrumb { display: flex; align-items: center; gap: 9px; margin-bottom: 14px; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
 .detail-breadcrumb__back { color: var(--pms-text-muted); cursor: pointer; }
 .detail-breadcrumb__back:hover { color: var(--pms-primary); }
 .detail-breadcrumb__separator { color: var(--pms-text-faint); }
-.project-header { display: flex; justify-content: space-between; gap: 32px; padding: 20px 28px; }
-.project-header__main { min-width: 0; flex: 1; }
-.project-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
-.project-title-row h1, .section-title-row h2, .node-detail-title h2 { margin: 0; color: var(--pms-text); }
-.project-title-row h1 { font-size: var(--pms-font-size-title); font-weight: 650; line-height: var(--pms-line-height-tight); }
-.project-lifecycle-action { margin-left: 2px; }
-.project-terminate-button { font-weight: 600; }
-.project-status-icon, .node-detail-title__dot { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 20px; height: 20px; color: #fff; font-size: var(--pms-font-size-compact); border-radius: 6px; }
-.project-status-icon--active, .node-detail-title__dot--1 { background: var(--pms-warning); }
-.project-status-icon--completed, .node-detail-title__dot--2 { background: var(--pms-success); }
-.project-status-icon--terminated, .project-status-icon--deleted, .node-detail-title__dot--3 { background: var(--pms-danger); }
-.project-status-icon--pending, .node-detail-title__dot--0 { background: var(--pms-status-neutral); }
-.project-status-icon > span { width: 7px; height: 7px; background: #fff; border-radius: 50%; }
-.project-elapsed { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
-.project-meta-stack { display: grid; gap: 2px; margin-top: 6px; }
-.project-meta-line { display: flex; flex-wrap: wrap; gap: 7px; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-normal); }
-.project-created-line { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-normal); }
-.project-meta-person { display: inline-flex; align-items: center; gap: 5px; }
-.project-meta-person__label { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
-.project-meta-person__avatar { color: var(--pms-primary); background: var(--pms-primary-soft); }
-.project-meta-person strong { color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); font-weight: 600; }
-.project-people-line { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
-.project-person { display: flex; align-items: center; gap: 9px; min-width: 190px; padding: 8px 12px; border: 1px solid var(--pms-border); border-radius: 9px; box-shadow: 0 2px 8px rgb(15 23 42 / 4%); }
-.project-person--manager { background: #fff7e8; border-color: rgb(250 140 22 / 35%); }
-.project-person--business-line { max-width: min(430px, 100%); background: var(--pms-primary-soft); border-color: rgb(22 119 255 / 20%); }
-.project-person__avatar { color: #fff; background: var(--pms-primary); }
-.project-person__avatar--pending { color: var(--pms-text-muted); background: var(--pms-surface-strong); }
-.project-person__copy { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.project-person__copy span { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
-.project-person__copy strong { overflow: hidden; color: var(--pms-text); font-size: var(--pms-font-size-body); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.project-person__copy small { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
-.meta-separator { color: var(--pms-text-faint); }
-.project-header__summary { display: grid; grid-template-columns: repeat(3, minmax(88px, 1fr)); align-items: center; gap: 20px; min-width: 420px; padding-left: 28px; border-left: 1px solid var(--pms-border); }
-.summary-item, .summary-progress { display: flex; flex-direction: column; gap: 5px; }
-.summary-item__label { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
-.summary-item strong, .summary-progress strong { color: var(--pms-text); font-size: 16px; font-weight: 600; }
-.summary-progress { grid-column: span 3; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
+.project-header {
+  --pms-primary: #1769e0;
+  --pms-primary-dark: #1258bf;
+  --pms-primary-soft: #eaf2ff;
+  --pms-bg: #f5f7fb;
+  --pms-surface-muted: #f8faff;
+  --pms-text: #17243b;
+  --pms-text-muted: #5d6d85;
+  --pms-text-faint: #8997aa;
+  --pms-border: #e5eaf2;
+  --pms-border-strong: #d7dfeb;
+  --pms-success: #21a366;
+  --pms-success-soft: #eaf8f0;
+  --pms-warning: #b9680c;
+  --pms-warning-soft: #fff5e8;
+  --pms-status-active: #ef8e1b;
+  --pms-danger: #d95b58;
+  --pms-danger-soft: #fff0ef;
+  --pms-shadow-sm: 0 1px 2px rgb(31 54 92 / 4%), 0 8px 20px rgb(31 54 92 / 4%);
+  --pms-shadow-interactive: 0 5px 12px rgb(23 105 224 / 20%);
+  padding: 24px 26px 19px;
+  border-radius: 14px;
+  box-shadow: 0 12px 28px rgb(31 54 92 / 7%);
+}
+.project-header__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.project-header__meta, .project-header__insights { display: flex; align-items: baseline; justify-content: flex-start; }
+.project-header__identity, .project-header__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.project-header__identity { min-width: 0; }
+.project-header__identity h1, .section-title-row h2, .node-detail-title h2 { margin: 0; color: var(--pms-text); }
+.project-header__identity h1 { overflow: hidden; font-size: 24px; font-weight: 720; letter-spacing: -.02em; line-height: var(--pms-line-height-tight); text-overflow: ellipsis; white-space: nowrap; }
+.project-header__status { margin: 0; }
+.project-header__actions { flex: 0 0 auto; }
+.project-header__more { flex: 0 0 32px; color: var(--pms-text-muted); }
+.project-header__meta { flex-wrap: wrap; gap: 9px 25px; min-width: 0; margin-top: 13px; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); }
+.project-header__meta-item { display: flex; align-items: baseline; min-width: 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); white-space: nowrap; }
+.project-header__meta-item > span { flex: 0 0 auto; }
+.project-header__meta-item strong { min-width: 0; overflow: hidden; color: #3d4b63; font-weight: 650; text-overflow: ellipsis; }
+.project-header__meta-item--wide { flex: 0 1 auto; max-width: min(100%, 620px); }
+.project-header__meta-item--divider { padding-right: 20px; border-right: 1px solid #e8edf4; }
+.project-header__insights { gap: 24px; margin-top: 19px; padding-top: 17px; border-top: 1px solid var(--pms-border); }
+.project-header__insight { display: flex; align-items: baseline; min-width: 0; gap: 8px; }
+.project-header__insight > span { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
+.project-header__insight > strong { color: #31415b; font-size: 14px; font-weight: 720; }
+.project-header__insight small { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
+.project-header__insight-details { display: inline-flex; flex-wrap: wrap; align-items: baseline; min-width: 0; gap: 4px 8px; }
+.project-header__insight-submetric { color: var(--pms-text-muted); font-weight: 400; }
+.project-header__insight-submetric-value { margin-left: 4px; color: #31415b; font-weight: 720; }
+.project-header__insight-task-count { margin-left: 4px; font-weight: 400; }
+.node-detail-title__dot { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 20px; height: 20px; color: #fff; font-size: var(--pms-font-size-compact); border-radius: 6px; }
+.node-detail-title__dot--1 { background: var(--pms-status-active); }
+.node-detail-title__dot--2 { background: var(--pms-success); }
+.node-detail-title__dot--3 { background: var(--pms-danger); }
+.node-detail-title__dot--0 { background: var(--pms-status-neutral); }
 .flow-card, .node-detail-card, .management-card { margin-top: 14px; padding: 20px 24px; }
 .section-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .section-title-row h2 { font-size: var(--pms-font-size-section); font-weight: 600; line-height: var(--pms-line-height-tight); }
@@ -1139,13 +1645,16 @@ onBeforeUnmount(() => {
 .node-detail-title__copy { min-width: 0; flex: 1; }
 .node-detail-title__heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .node-detail-title__description { max-width: 100%; margin: 4px 0 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-normal); }
+.node-detail-title__readonly-hint { margin: 7px 0 0; color: var(--pms-warning); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-normal); }
 .node-assignment-row { display: flex; align-items: flex-end; gap: 24px; margin-top: 16px; }
 .node-owner-row { display: flex; align-items: center; flex: 1 1 0; gap: 10px; width: auto; min-width: 0; }
+.node-owner-row { min-height: 58px; padding: 10px 12px; background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: 8px; }
 .node-owner-row__label { flex: 0 0 76px; color: var(--pms-text-muted); font-size: var(--pms-font-size-body); }
 .node-owner-row__control { display: flex; flex: 1 1 auto; align-items: center; gap: 8px; width: auto; min-width: 0; }
 .node-owner-row__select { width: 100%; }
 .node-schedule-row { margin-top: 0; }
 .node-schedule-picker { width: min(100%, 380px); }
+.workflow-details-stack { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
 .profile-section-title { margin-bottom: 14px; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
 .profile-section-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .profile-section-title-row .profile-section-title { margin-bottom: 0; }
@@ -1159,15 +1668,9 @@ onBeforeUnmount(() => {
 .project-profile-field__label--required { display: inline-flex; align-items: center; }
 .project-profile-field__label--required::before { content: '*'; display: inline-block; margin-right: 3px; color: var(--pms-danger); line-height: 1; }
 .project-profile-control { width: 100%; }
-.project-profile-control :deep(.ant-select-selector), .project-profile-control :deep(.ant-picker), .project-profile-control :deep(.ant-input) { min-height: 36px; }
+.project-profile-control :deep(.ant-select-selector), .project-profile-control :deep(.ant-picker), .project-profile-control :deep(.ant-input), .project-profile-control :deep(.business-line-select__trigger) { min-height: 36px; }
 .project-description-control { min-height: 96px; max-height: 320px; resize: vertical; }
 .project-description-editor { min-width: 0; }
-.project-description-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; padding-top: 8px; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-normal); border-top: 1px solid var(--pms-border); }
-.project-description-toolbar__action { display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding-inline: 10px; color: var(--pms-primary) !important; background: var(--pms-surface) !important; border-color: var(--pms-border-strong) !important; border-radius: var(--pms-radius-sm); box-shadow: none; font-weight: 600; }
-.project-description-toolbar__action:hover:not(:disabled) { color: var(--pms-primary-dark) !important; background: var(--pms-primary-soft) !important; border-color: var(--pms-primary) !important; }
-.project-description-toolbar__action:disabled { color: var(--pms-text-faint) !important; background: var(--pms-surface-muted) !important; border-color: var(--pms-border) !important; }
-.project-description-toolbar__hint { display: inline-flex; align-items: center; min-height: 30px; color: var(--pms-text-faint); }
-.project-description-file-input { display: none; }
 .project-members-control :deep(.ant-select-selector) { max-height: 36px; min-height: 36px; overflow: hidden; align-items: center; }
 .project-members-control :deep(.ant-select-selection-overflow) { flex-wrap: nowrap; overflow: hidden; }
 .project-people-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 28px; }
@@ -1175,30 +1678,44 @@ onBeforeUnmount(() => {
 .project-people-item .project-profile-field__label { flex: 0 0 auto; }
 .project-people-control { min-width: 0; flex: 1; }
 .section-title-row--compact { margin-bottom: 6px; }
+.project-collaboration-tabs :deep(.ant-tabs-nav) { margin-bottom: 18px; border-bottom: 1px solid var(--pms-border); }
+.project-collaboration-tabs :deep(.ant-tabs-tab) { margin: 0 24px 0 0; padding: 10px 0 11px; color: var(--pms-text-muted); font-size: var(--pms-font-size-body); transition: color var(--pms-motion-fast) ease; }
+.project-collaboration-tabs :deep(.ant-tabs-tab:hover),
+.project-collaboration-tabs :deep(.ant-tabs-tab:focus-visible) { color: var(--pms-primary); }
+.project-collaboration-tabs :deep(.ant-tabs-tab-active .ant-tabs-tab-btn) { color: var(--pms-primary); font-weight: 700; }
+.project-collaboration-tabs :deep(.ant-tabs-ink-bar) { height: 3px; border-radius: 3px 3px 0 0; }
+.project-collaboration-tabs :deep(.ant-tabs-content-holder) { min-width: 0; }
 .schedule-loading { display: grid; place-items: center; min-height: 220px; }
 .reason-modal__description { margin: 0 0 16px; color: var(--pms-text-muted); font-size: var(--pms-font-size-body); line-height: var(--pms-line-height-normal); }
 .reason-modal__field { display: grid; gap: 7px; }
 .reason-modal__label { color: var(--pms-text); font-size: var(--pms-font-size-body); }
 .reason-modal__label span { margin-right: 3px; color: var(--pms-danger); }
+@media (min-width: 1100px) {
+  .project-header { margin-inline: -7px; }
+}
 @media (max-width: 900px) {
-  .project-header { flex-direction: column; }
-  .project-header__summary { min-width: 0; padding-top: 20px; padding-left: 0; border-top: 1px solid var(--pms-border); border-left: 0; }
+  .project-header__top, .project-header__meta, .project-header__insights { align-items: flex-start; flex-wrap: wrap; }
+  .project-header__meta-item--wide { flex: 1 1 100%; }
+  .project-header__meta-item--divider { padding-right: 0; border-right: 0; }
 }
 @media (max-width: 640px) {
   .project-header, .flow-card, .node-detail-card, .management-card { padding: 18px 16px; }
   .node-tab-profile { padding: 14px; }
-  .project-header__summary { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .project-header__top, .project-header__meta, .project-header__insights { gap: 12px; }
+  .project-header__actions { width: auto; margin-left: auto; }
+  .project-header__actions .ant-btn { flex: 0 0 32px; }
+  .project-header__meta { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .project-header__meta-item, .project-header__meta-item--wide { min-width: 0; }
+  .project-header__meta-item--wide strong { display: -webkit-box; overflow: hidden; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .project-header__insights { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .node-detail-header, .section-title-row { align-items: flex-start; flex-direction: column; }
   .node-detail-actions { align-self: stretch; justify-content: flex-end; }
   .node-assignment-row { align-items: stretch; flex-direction: column; gap: 10px; }
   .node-owner-row { align-items: flex-start; flex-direction: column; gap: 8px; width: 100%; min-width: 0; }
   .node-owner-row__control, .node-owner-row__select { width: 100%; }
-  .node-owner-row__control { flex-basis: auto; }
-  .node-schedule-picker { width: 100%; }
-  .project-description-toolbar { align-items: flex-start; }
-  .project-description-toolbar__hint { flex: 1 1 220px; }
-  .project-profile-grid, .project-people-grid { grid-template-columns: 1fr; }
+      .node-owner-row__control { flex-basis: auto; }
+      .node-schedule-picker { width: 100%; }
+      .project-profile-grid, .project-people-grid { grid-template-columns: 1fr; }
   .project-profile-field--wide { grid-column: auto; }
-  .summary-progress { grid-column: span 3; }
 }
 </style>

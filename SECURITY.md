@@ -1,5 +1,5 @@
-# Security Policy
+# 安全策略
 
-Please report frontend security issues through GitHub's private vulnerability reporting on this repository. Do not open a public issue for credential leaks, XSS, or auth bypass.
+请通过本仓库的 GitHub 私下漏洞报告前端安全问题。凭据泄露、XSS 或鉴权绕过不要开公开 Issue。
 
-The `main` branch and the latest `v1.x` release receive security fixes.
+`main` 分支和最新的 `v1.x` 发行版会接收安全修复。

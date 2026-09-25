@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <title>业务验收与缺陷闭环 · PMS Demo</title>
+  <style>
+    :root {
+      --primary: #1769e0;
+      --primary-dark: #1258bf;
+      --primary-soft: #eaf2ff;
+      --text: #17243b;
+      --text-2: #40516b;
+      --muted: #71819a;
+      --faint: #9aa8ba;
+      --border: #dce5f0;
+      --border-strong: #cbd8e8;
+      --surface: #fff;
+      --surface-muted: #f6f8fb;
+      --surface-blue: #f4f8ff;
+      --success: #15966a;
+      --success-soft: #eaf8f1;
+      --warning: #d97706;
+      --warning-soft: #fff5e5;
+      --danger: #d04b58;
+      --danger-soft: #fff0f1;
+      --purple: #6551c8;
+      --shadow-sm: 0 4px 16px rgba(30, 58, 95, .06);
+      --shadow-md: 0 14px 34px rgba(30, 58, 95, .12);
+      --radius: 14px;
+      --sidebar: 224px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--text); background: #f5f7fb; font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid rgba(23, 105, 224, .2); outline-offset: 2px; }
+    .topbar { position: fixed; inset: 0 0 auto; z-index: 20; height: 62px; display: flex; align-items: center; padding: 0 18px; background: rgba(255,255,255,.97); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); }
+    .brand { width: var(--sidebar); display: flex; align-items: center; gap: 10px; }
+    .brand-mark { width: 30px; height: 30px; display: grid; place-items: center; color: #fff; background: var(--primary); border-radius: 8px; font-weight: 800; box-shadow: 0 4px 10px rgba(23,105,224,.22); }
+    .brand-copy { display: grid; line-height: 1.05; }
+    .brand-copy strong { font-size: 15px; letter-spacing: .02em; }
+    .brand-copy small { margin-top: 4px; color: var(--faint); font-size: 10px; letter-spacing: .04em; }
+    .global-search { width: min(400px, 42vw); height: 34px; display: flex; align-items: center; gap: 8px; margin-left: auto; margin-right: 22px; padding: 0 12px; color: var(--faint); border: 1px solid var(--border-strong); border-radius: 8px; background: #fff; }
+    .global-search input { width: 100%; border: 0; outline: 0; color: var(--text); background: transparent; font-size: 12px; }
+    .top-actions { display: flex; align-items: center; gap: 14px; color: var(--muted); }
+    .locale { display: inline-flex; align-items: center; height: 34px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; }
+    .locale span { padding: 5px 9px; border-radius: 6px; font-size: 12px; }
+    .locale span:first-child { color: #fff; background: var(--primary); }
+    .avatar { width: 30px; height: 30px; display: grid; place-items: center; color: #fff; background: var(--primary); border-radius: 50%; font-size: 12px; }
+    .account { display: flex; align-items: center; gap: 7px; color: var(--text-2); font-size: 13px; }
+    .sidebar { position: fixed; top: 62px; bottom: 0; left: 0; z-index: 10; width: var(--sidebar); padding: 18px 10px; overflow-y: auto; background: #fff; border-right: 1px solid var(--border); }
+    .nav-item, .nav-group-title { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0 12px; color: var(--text-2); border-radius: 8px; font-size: 13px; font-weight: 600; }
+    .nav-item { margin: 3px 0; }
+    .nav-item.active { color: var(--primary); background: var(--primary-soft); }
+    .nav-group { margin-top: 17px; }
+    .nav-group:first-child { margin-top: 0; }
+    .nav-group-title { justify-content: space-between; color: var(--text); }
+    .nav-group-title > span { display: flex; align-items: center; gap: 10px; }
+    .nav-sub { margin-left: 13px; padding-left: 10px; border-left: 1px solid var(--border); }
+    .nav-sub .nav-item { font-weight: 500; }
+    .nav-icon { width: 16px; color: var(--muted); text-align: center; }
+    .nav-item.active .nav-icon { color: var(--primary); }
+    .main { margin-left: var(--sidebar); padding: 84px 28px 56px; }
+    .content { max-width: 1240px; margin: 0 auto; }
+    .breadcrumb { display: flex; align-items: center; gap: 8px; margin: 0 0 20px 5px; color: var(--muted); font-size: 12px; }
+    .breadcrumb strong { color: var(--text-2); font-weight: 600; }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+    .project-header { padding: 22px 26px 18px; }
+    .project-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+    .project-title { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .project-title h1 { margin: 0; font-size: 25px; line-height: 1.2; letter-spacing: -.02em; }
+    .tag { display: inline-flex; align-items: center; height: 25px; padding: 0 9px; border-radius: 6px; font-size: 12px; font-weight: 700; }
+    .tag-active { color: #c56a0b; background: var(--warning-soft); border: 1px solid #ffd49a; }
+    .tag-level { color: var(--purple); background: #f0ecff; }
+    .header-actions { display: flex; align-items: center; gap: 9px; }
+    .button { min-height: 36px; padding: 0 14px; color: var(--text-2); background: #fff; border: 1px solid var(--border-strong); border-radius: 8px; font-weight: 650; }
+    .button:hover { color: var(--primary); border-color: #a7c5f2; background: var(--primary-soft); }
+    .button:disabled { cursor: not-allowed; color: #a9b6c8; background: #f4f6f9; border-color: var(--border); box-shadow: none; }
+    .button-primary { color: #fff; background: var(--primary); border-color: var(--primary); box-shadow: 0 5px 13px rgba(23,105,224,.18); }
+    .button-primary:hover { color: #fff; background: var(--primary-dark); border-color: var(--primary-dark); }
+    .button-small { min-height: 32px; padding: 0 10px; font-size: 12px; }
+    .project-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0; margin-top: 16px; color: var(--muted); font-size: 12px; }
+    .project-meta-item { display: flex; align-items: center; gap: 7px; padding: 0 22px; border-left: 1px solid var(--border); }
+    .project-meta-item:first-child { padding-left: 0; border-left: 0; }
+    .project-meta-item strong { color: var(--text-2); font-weight: 650; }
+    .header-insights { display: flex; align-items: center; gap: 24px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+    .insight { display: inline-flex; align-items: baseline; gap: 8px; }
+    .insight strong { color: var(--text-2); font-size: 15px; font-weight: 750; }
+    .insight-current strong { color: var(--primary); }
+    .flow-panel { margin-top: 18px; padding: 18px 20px 21px; overflow: hidden; }
+    .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .section-heading h2 { margin: 0; font-size: 15px; letter-spacing: -.01em; }
+    .section-heading small { color: var(--muted); }
+    .flow-scroll { margin-top: 16px; overflow-x: auto; padding: 2px 3px 8px; }
+    .flow-track { display: flex; align-items: stretch; min-width: 1120px; }
+    .flow-node-wrap { display: flex; align-items: center; flex: 1 0 0; }
+    .flow-node { position: relative; width: 100%; min-width: 0; min-height: 86px; padding: 12px 12px 10px 34px; text-align: left; background: #fff; border: 1px solid var(--border-strong); border-radius: 9px; box-shadow: 0 3px 9px rgba(30,58,95,.05); }
+    .flow-node.selected { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(23,105,224,.12); }
+    .flow-node.done { background: #fbfefc; }
+    .flow-dot { position: absolute; top: 19px; left: 13px; width: 14px; height: 14px; display: grid; place-items: center; border: 2px solid var(--border-strong); border-radius: 50%; }
+    .flow-dot::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--border-strong); }
+    .flow-node.selected .flow-dot { border-color: var(--warning); }
+    .flow-node.selected .flow-dot::after { background: var(--warning); }
+    .flow-node.done .flow-dot { border-color: #8ecfb4; }
+    .flow-node.done .flow-dot::after { width: 6px; height: 3px; border-bottom: 2px solid var(--success); border-left: 2px solid var(--success); border-radius: 0; background: transparent; transform: rotate(-45deg) translate(1px,-1px); }
+    .flow-node strong { display: block; overflow: hidden; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .flow-node small { display: block; margin-top: 5px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .flow-arrow { flex: 0 0 28px; color: #9eacc0; text-align: center; font-size: 18px; }
+    .node-panel { margin-top: 18px; padding: 20px 22px 24px; }
+    .node-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+    .node-title { display: flex; align-items: center; gap: 10px; }
+    .node-status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 4px var(--warning-soft); }
+    .node-title h2 { margin: 0; font-size: 18px; }
+    .node-description { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .assignment-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+    .assignment { display: flex; align-items: center; gap: 14px; min-height: 54px; padding: 9px 13px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: 9px; }
+    .assignment-label { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-weight: 650; }
+    .person-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 10px 0 5px; color: var(--text-2); background: #eef2f7; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; }
+    .person-avatar { width: 21px; height: 21px; display: grid; place-items: center; color: #fff; background: #aab9cc; border-radius: 50%; font-size: 9px; }
+    .date-field { display: flex; align-items: center; gap: 10px; min-height: 30px; padding: 0 10px; color: var(--text-2); background: #fff; border: 1px solid var(--border-strong); border-radius: 7px; font-size: 12px; }
+    .date-field span { color: var(--faint); }
+    .workbench { margin-top: 18px; padding: 20px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: 10px; }
+    .workbench-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+    .workbench-head h3 { margin: 0; font-size: 15px; }
+    .workbench-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .workbench-state { display: inline-flex; align-items: center; gap: 7px; color: var(--warning); font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .workbench-state i, .status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .source-strip { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; padding: 11px 14px; color: var(--text-2); background: var(--surface-blue); border: 1px solid #cfe0f8; border-radius: 9px; }
+    .source-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .source-icon { width: 28px; height: 28px; display: grid; place-items: center; color: var(--primary); background: #dceaff; border-radius: 7px; }
+    .source-copy strong { display: block; font-size: 12px; }
+    .source-copy small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+    .content-section { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border); }
+    .section-copy h3 { margin: 0; font-size: 15px; }
+    .section-copy p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .section-heading .section-copy { margin-right: auto; }
+    .section-actions { display: flex; align-items: center; gap: 8px; }
+    .summary-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+    .summary-card { padding: 12px 14px; background: #fff; border: 1px solid var(--border); border-radius: 9px; }
+    .summary-card small { display: block; color: var(--muted); font-size: 11px; }
+    .summary-card strong { display: block; margin-top: 3px; color: var(--text-2); font-size: 15px; }
+    .summary-card em { color: var(--primary); font-size: 11px; font-style: normal; font-weight: 600; }
+    .table-wrap { margin-top: 14px; overflow-x: auto; background: #fff; border: 1px solid var(--border); border-radius: 9px; }
+    table { width: 100%; min-width: 920px; border-collapse: collapse; }
+    th { padding: 10px 12px; color: var(--muted); background: #f8fafc; font-size: 11px; font-weight: 700; text-align: left; white-space: nowrap; }
+    td { padding: 11px 12px; color: var(--text-2); border-top: 1px solid var(--border); font-size: 12px; vertical-align: middle; }
+    tr:hover td { background: #fbfdff; }
+    .row-title { color: var(--text); font-weight: 700; }
+    .row-note { display: block; max-width: 320px; margin-top: 3px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .req-id { display: inline-flex; margin-right: 7px; color: var(--primary); font-weight: 750; }
+    .select, .input, .textarea { width: 100%; padding: 8px 10px; color: var(--text); background: #fff; border: 1px solid var(--border-strong); border-radius: 7px; outline: 0; font-size: 12px; }
+    .textarea { min-height: 72px; resize: vertical; }
+    .status { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 5px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .status-pass, .status-closed { color: var(--success); background: var(--success-soft); }
+    .status-pending, .status-open { color: var(--warning); background: var(--warning-soft); }
+    .status-blocked, .status-high { color: var(--danger); background: var(--danger-soft); }
+    .status-medium { color: #b46308; background: var(--warning-soft); }
+    .owner-cell { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+    .mini-avatar { width: 22px; height: 22px; display: grid; place-items: center; color: #fff; background: #aab9cc; border-radius: 50%; font-size: 9px; }
+    .decision-card { margin-top: 14px; padding: 16px; background: var(--surface-blue); border: 1px solid #cfe0f8; border-radius: 10px; }
+    .decision-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .decision-head h4 { margin: 0; font-size: 13px; }
+    .decision-head p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+    .decision-state { display: inline-flex; align-items: center; gap: 6px; color: var(--warning); font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .decision-fields { display: grid; grid-template-columns: 230px 1fr; gap: 12px; margin-top: 14px; }
+    .field { display: grid; gap: 6px; }
+    .field label { color: var(--text-2); font-size: 11px; font-weight: 700; }
+    .decision-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+    .decision-hint { color: var(--muted); font-size: 11px; }
+    .task-note { margin-top: 12px; color: var(--muted); font-size: 11px; }
+    .task-note strong { color: var(--text-2); }
+    .toast { position: fixed; right: 24px; bottom: 24px; z-index: 30; max-width: 360px; padding: 11px 14px; color: #fff; background: rgba(23,36,59,.94); border-radius: 8px; box-shadow: var(--shadow-md); opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity .2s ease, transform .2s ease; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    dialog { width: min(480px, calc(100vw - 30px)); padding: 0; color: var(--text); border: 0; border-radius: 12px; box-shadow: var(--shadow-md); }
+    dialog::backdrop { background: rgba(21, 36, 59, .28); }
+    .dialog-body { padding: 20px; }
+    .dialog-body h3 { margin: 0; font-size: 16px; }
+    .dialog-body p { margin: 4px 0 16px; color: var(--muted); font-size: 12px; }
+    .form-grid { display: grid; gap: 12px; }
+    .form-field { display: grid; gap: 6px; }
+    .form-field label { color: var(--text-2); font-size: 11px; font-weight: 700; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+    @media (max-width: 900px) {
+      :root { --sidebar: 72px; }
+      .brand { width: 42px; }
+      .brand-copy, .nav-group-title span:last-child, .nav-item span:not(.nav-icon) { display: none; }
+      .nav-item, .nav-group-title { justify-content: center; padding: 0; }
+      .nav-sub { margin-left: 0; padding-left: 0; border-left: 0; }
+      .main { padding: 78px 16px 40px; }
+      .project-header, .node-panel { padding-left: 18px; padding-right: 18px; }
+      .project-meta-item { padding: 0 12px; }
+      .summary-strip { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .topbar { padding: 0 12px; }
+      .global-search { width: 46vw; margin-right: 10px; }
+      .account strong { display: none; }
+      .main { padding: 76px 10px 30px; }
+      .project-title h1 { font-size: 21px; }
+      .project-header-top, .node-top { display: grid; }
+      .header-actions { justify-content: flex-end; }
+      .project-meta { display: grid; gap: 8px; }
+      .project-meta-item { padding: 0; border: 0; }
+      .header-insights { display: grid; gap: 9px; }
+      .assignment-row, .decision-fields { grid-template-columns: 1fr; }
+      .workbench, .node-panel { padding: 14px; }
+      .workbench-head, .source-strip, .decision-footer { align-items: flex-start; }
+      .source-strip, .decision-footer { display: grid; }
+      .section-heading { align-items: flex-start; flex-wrap: wrap; }
+      .section-actions { flex-wrap: wrap; }
+      .table-wrap table { min-width: 920px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">P</div><div class="brand-copy"><strong>PMS</strong><small>Project Management</small></div></div>
+    <label class="global-search"><span>⌕</span><input placeholder="搜索项目、任务、里程碑、评论" aria-label="搜索"></label>
+    <div class="top-actions"><div class="locale"><span>中</span><span>EN</span></div><span aria-label="通知">♧</span><div class="account"><span class="avatar">管</span><strong>管理员（admin）</strong></div></div>
+  </header>
+  <aside class="sidebar" aria-label="主导航">
+    <div class="nav-item"><span class="nav-icon">◉</span><span>工作台</span></div>
+    <div class="nav-group"><div class="nav-group-title"><span><span class="nav-icon">⌁</span><span>研发管理</span></span><span>⌄</span></div><div class="nav-sub"><div class="nav-item active"><span class="nav-icon">▣</span><span>项目管理</span></div></div></div>
+    <div class="nav-group"><div class="nav-group-title"><span><span class="nav-icon">⚙</span><span>配置管理</span></span><span>⌄</span></div><div class="nav-sub"><div class="nav-item"><span class="nav-icon">♙</span><span>人员与权限</span></div><div class="nav-item"><span class="nav-icon">♧</span><span>组织架构</span></div><div class="nav-item"><span class="nav-icon">♢</span><span>角色管理</span></div><div class="nav-item"><span class="nav-icon">↥</span><span>批量导入</span></div><div class="nav-item"><span class="nav-icon">▤</span><span>审计日志</span></div></div></div>
+    <div class="nav-item" style="margin-top: 18px"><span class="nav-icon">◌</span><span>反馈中心</span></div>
+    <div class="nav-group"><div class="nav-group-title"><span><span class="nav-icon">□</span><span>文档中心</span></span><span>⌄</span></div><div class="nav-sub"><div class="nav-item"><span class="nav-icon">▤</span><span>使用手册</span></div><div class="nav-item"><span class="nav-icon">▧</span><span>业务规则</span></div><div class="nav-item"><span class="nav-icon">⚙</span><span>前端设计规范</span></div></div></div>
+  </aside>
+  <main class="main"><div class="content">
+    <div class="breadcrumb"><span>‹ 项目管理</span><span>/</span><strong>项目详情</strong></div>
+    <section class="panel project-header">
+      <div class="project-header-top"><div><div class="project-title"><h1>电商中台重构</h1><span class="tag tag-active">进行中</span><span class="tag tag-level">A · 关键项目</span></div><div class="project-meta"><div class="project-meta-item"><span>项目经理：</span><strong>李强（Terry.Li）</strong></div><div class="project-meta-item"><span>业务线：</span><strong>公司总部 / 软件研发中心 / 前台商城 Team</strong></div><div class="project-meta-item"><span>项目周期：</span><strong>2026-09-04 → 2026-10-31</strong></div></div></div><div class="header-actions"><button class="button button-small">⋮</button><button class="button button-primary button-small">✎ 编辑项目</button></div></div>
+      <div class="header-insights"><div class="insight insight-current"><span>当前查看</span><strong>业务验收与缺陷闭环</strong></div><div class="insight"><span>项目进度</span><strong>44%</strong><span>4 / 9 个节点</span></div><div class="insight"><span>验收进度</span><strong id="progressValue">2 / 3</strong><span>个验收项通过</span></div></div>
+    </section>
+    <section class="panel flow-panel"><div class="section-heading"><h2>项目流程</h2><small>9 个节点</small></div><div class="flow-scroll"><div class="flow-track">
+      <div class="flow-node-wrap"><button class="flow-node done"><span class="flow-dot"></span><strong>项目立项与启动</strong><small>负责人 赵晨 · 已完成</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node done"><span class="flow-dot"></span><strong>需求澄清与范围基线</strong><small>负责人 陈宇 · 已完成</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node done"><span class="flow-dot"></span><strong>方案设计、评审与决策</strong><small>负责人 陈宇 · 已完成</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node done"><span class="flow-dot"></span><strong>计划、资源与风险基线</strong><small>负责人 李强 · 已完成</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node"><span class="flow-dot"></span><strong>开发测试与项目控制</strong><small>暂不展开 · 未开始</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node selected"><span class="flow-dot"></span><strong>业务验收与缺陷闭环</strong><small>当前查看 · 方案预览</small></button><span class="flow-arrow">→</span></div>
+      <div class="flow-node-wrap"><button class="flow-node"><span class="flow-dot"></span><strong>发布决策与运营交接</strong><small>负责人 待分配 · 未开始</small></button></div>
+    </div></div></section>
+    <section class="panel node-panel">
+      <div class="node-top"><div><div class="node-title"><span class="node-status-dot"></span><h2>业务验收与缺陷闭环</h2><span class="tag tag-active">方案预览</span></div><p class="node-description">按照真实业务场景确认需求是否可交付，集中处理缺陷和遗留事项。</p></div><div class="header-actions"><button class="button button-primary">完成节点</button></div></div>
+      <div class="assignment-row"><div class="assignment"><span class="assignment-label">节点负责人</span><span class="person-chip"><span class="person-avatar">李</span>李强（Terry.Li）</span></div><div class="assignment"><span class="assignment-label">节点排期</span><span class="date-field">2026-10-12 <span>→</span> 2026-10-20</span></div></div>
+      <div class="workbench">
+        <div class="workbench-head"><div><h3>业务验收工作台</h3><p>只维护验收结果和缺陷闭环，不复制开发任务和测试执行过程。</p></div><span class="workbench-state"><i></i><span id="workbenchState">验收进行中</span></span></div>
+        <div class="source-strip"><div class="source-main"><div class="source-icon">✓</div><div class="source-copy"><strong>验收依据：已确认需求范围基线</strong><small>REQ-001、REQ-002、REQ-003 · 验收标准只读带入</small></div></div><span class="tag tag-level">只读依据</span></div>
+        <section class="content-section">
+          <div class="section-heading"><div class="section-copy"><h3>验收项</h3><p>逐条确认需求是否满足验收标准；验收项通过后才进入结论。</p></div><span id="acceptanceCount" class="section-heading"><small>2 / 3 已通过</small></span></div>
+          <div class="summary-strip"><div class="summary-card"><small>验收项</small><strong id="summaryTotal">3 条</strong><em>来自已确认需求</em></div><div class="summary-card"><small>已通过</small><strong id="summaryPassed">2 条</strong><em>可进入结论</em></div><div class="summary-card"><small>关联缺陷</small><strong id="summaryDefects">1 条</strong><em>1 条非阻塞遗留</em></div></div>
+          <div class="table-wrap"><table><thead><tr><th style="width:220px">需求</th><th style="width:250px">验收标准</th><th style="width:140px">验收结果</th><th>验收说明</th><th style="width:100px">关联缺陷</th></tr></thead><tbody>
+            <tr data-acceptance data-status="PASS"><td><span class="req-id">REQ-001</span><span class="row-title">统一订单状态流转</span><span class="row-note">订单从创建到完成使用统一状态模型</span></td><td>状态变更有记录，异常状态可追溯</td><td><select class="select acceptance-select"><option value="PASS" selected>已通过</option><option value="PENDING">待验收</option><option value="FAIL">不通过</option><option value="BLOCKED">阻塞</option></select></td><td><input class="input" value="订单创建、审核、完成流程已验证"></td><td><span class="status status-pass">无缺陷</span></td></tr>
+            <tr data-acceptance data-status="PASS"><td><span class="req-id">REQ-002</span><span class="row-title">商品资料统一维护</span><span class="row-note">商品基础信息由统一入口维护</span></td><td>商品信息变更后，各业务模块可正确读取</td><td><select class="select acceptance-select"><option value="PASS" selected>已通过</option><option value="PENDING">待验收</option><option value="FAIL">不通过</option><option value="BLOCKED">阻塞</option></select></td><td><input class="input" value="商品详情与列表数据已核对"></td><td><span class="status status-medium">BUG-002</span></td></tr>
+            <tr data-acceptance data-status="PENDING"><td><span class="req-id">REQ-003</span><span class="row-title">运营异常提醒</span><span class="row-note">对超时订单和库存异常提供提醒</span></td><td>提醒可配置、可查看、可关闭</td><td><select class="select acceptance-select"><option value="PASS">已通过</option><option value="PENDING" selected>待验收</option><option value="FAIL">不通过</option><option value="BLOCKED">阻塞</option></select></td><td><input class="input" placeholder="填写本条验收说明（可选）"></td><td><span class="status status-pending">待确认</span></td></tr>
+          </tbody></table></div>
+        </section>
+        <section class="content-section">
+          <div class="section-heading"><div class="section-copy"><h3>验收关联缺陷</h3><p>这里只展示缺陷管理中的关联摘要，不在验收页重复维护缺陷状态。</p></div><div class="section-actions"><button class="button button-small" id="linkDefect">关联缺陷</button><button class="button button-small" id="createDefect">从验收项创建缺陷</button></div></div>
+          <div class="table-wrap"><table><thead><tr><th style="width:260px">缺陷</th><th style="width:110px">严重程度</th><th style="width:150px">负责人</th><th style="width:140px">状态</th><th>验收影响</th><th style="width:110px">操作</th></tr></thead><tbody id="defectBody">
+            <tr data-defect data-level="HIGH" data-status="CLOSED"><td><span class="row-title">BUG-001 · 库存异常提醒延迟</span><span class="row-note">REQ-003 · 超时提醒在边界时间未触发</span></td><td><span class="status status-high">高</span></td><td><span class="owner-cell"><span class="mini-avatar">王</span>王敏</span></td><td><span class="status status-closed defect-status">已关闭</span></td><td><span class="row-note">已修复并完成复测，不阻塞验收</span></td><td><button class="button button-small view-defect">查看详情</button></td></tr>
+            <tr data-defect data-level="MEDIUM" data-status="OPEN"><td><span class="row-title">BUG-002 · 商品列表缓存未刷新</span><span class="row-note">REQ-002 · 更新资料后列表短暂显示旧数据</span></td><td><span class="status status-medium">中</span></td><td><span class="owner-cell"><span class="mini-avatar">周</span>周宁</span></td><td><span class="status status-open defect-status">处理中</span></td><td><span class="row-note">非阻塞遗留，计划下个迭代修复</span></td><td><button class="button button-small view-defect">查看详情</button></td></tr>
+          </tbody></table></div>
+          <p class="task-note"><strong>数据归属：</strong>缺陷详情、处理记录和关闭动作都归缺陷管理；本节点只读取状态并判断是否影响验收。</p>
+        </section>
+        <section class="decision-card">
+          <div class="decision-head"><div><h4>验收结论</h4><p>完成所有验收项并处理阻塞性缺陷后，才可以确认本节点。</p></div><span class="decision-state"><i class="status-dot"></i><span id="decisionState">待确认</span></span></div>
+          <div class="decision-fields"><div class="field"><label for="result">结论结果</label><select class="select" id="result"><option value="PASS">通过</option><option value="CONDITIONAL" selected>条件通过</option><option value="FAIL">不通过</option></select></div><div class="field"><label for="residual">遗留事项（条件通过时填写）</label><input class="input" id="residual" placeholder="如：补充监控配置后再发布"></div></div>
+          <div class="decision-footer"><span class="decision-hint" id="decisionHint">还有 1 项待验收；条件通过时需记录遗留事项</span><button class="button button-primary" id="confirmDecision" disabled>✓ 确认验收结论</button></div>
+        </section>
+      </div>
+    </section>
+  </div></main>
+  <div class="toast" id="toast" role="status"></div>
+  <dialog id="defectDialog"><form method="dialog" class="dialog-body" id="defectForm"><h3>从验收项创建缺陷</h3><p>这里是进入独立缺陷管理的快捷入口，创建后由缺陷管理模块负责后续处理。</p><div class="form-grid"><div class="form-field"><label for="defectTitle">缺陷描述</label><input class="input" id="defectTitle" required placeholder="如：订单完成后库存未扣减"></div><div class="form-field"><label for="defectLevel">严重程度</label><select class="select" id="defectLevel"><option value="HIGH">高</option><option value="MEDIUM" selected>中</option><option value="LOW">低</option></select></div><div class="form-field"><label for="defectOwner">负责人</label><input class="input" id="defectOwner" required value="王敏"></div></div><div class="dialog-actions"><button class="button" value="cancel">取消</button><button class="button button-primary" id="saveDefect" value="default">创建并进入缺陷管理</button></div></form></dialog>
+  <script>
+    const toast = document.querySelector('#toast');
+    const dialog = document.querySelector('#defectDialog');
+    const defectBody = document.querySelector('#defectBody');
+    const showToast = (text) => { toast.textContent = text; toast.classList.add('show'); window.clearTimeout(showToast.timer); showToast.timer = window.setTimeout(() => toast.classList.remove('show'), 2200); };
+    const statusLabel = { PASS: '已通过', PENDING: '待验收', FAIL: '不通过', BLOCKED: '阻塞' };
+    function updateAcceptance() {
+      const rows = [...document.querySelectorAll('[data-acceptance]')];
+      rows.forEach((row) => { row.dataset.status = row.querySelector('.acceptance-select').value; });
+      const passed = rows.filter((row) => row.dataset.status === 'PASS').length;
+      const openHigh = [...document.querySelectorAll('[data-defect][data-level="HIGH"][data-status="OPEN"]')].length;
+      const openDefects = [...document.querySelectorAll('[data-defect][data-status="OPEN"]')].length;
+      const pending = rows.length - passed;
+      const result = document.querySelector('#result').value;
+      const residual = document.querySelector('#residual').value.trim();
+      document.querySelector('#progressValue').textContent = `${passed} / ${rows.length}`;
+      document.querySelector('#acceptanceCount').innerHTML = `<small>${passed} / ${rows.length} 已通过</small>`;
+      document.querySelector('#summaryPassed').textContent = `${passed} 条`;
+      document.querySelector('#summaryDefects').textContent = `${openDefects} 条`;
+      const canConfirm = !pending && !openHigh && (result !== 'CONDITIONAL' || residual);
+      document.querySelector('#decisionHint').textContent = pending ? `还有 ${pending} 项待验收；条件通过时需记录遗留事项` : openHigh ? `还有 ${openHigh} 个高严重度缺陷未关闭` : result === 'CONDITIONAL' && !residual ? '条件通过时请记录遗留事项' : openDefects ? `还有 ${openDefects} 条关联缺陷，状态由缺陷管理模块维护` : '验收项已处理，可以确认结论';
+      document.querySelector('#confirmDecision').disabled = !canConfirm;
+      document.querySelector('#decisionState').textContent = canConfirm ? '可确认' : '待确认';
+    }
+    document.querySelectorAll('.acceptance-select').forEach((select) => select.addEventListener('change', () => { updateAcceptance(); showToast('验收结果已更新（仅 demo）'); }));
+    document.querySelectorAll('.view-defect').forEach((button) => button.addEventListener('click', () => showToast('将在缺陷管理中打开详情（仅 demo）')));
+    document.querySelector('#linkDefect').addEventListener('click', () => showToast('将在缺陷管理中选择已有缺陷（仅 demo）'));
+    document.querySelector('#createDefect').addEventListener('click', () => dialog.showModal());
+    document.querySelector('#defectForm').addEventListener('submit', (event) => { event.preventDefault(); const title = document.querySelector('#defectTitle').value.trim(); const level = document.querySelector('#defectLevel').value; const owner = document.querySelector('#defectOwner').value.trim(); if (!title || !owner) return; const id = `BUG-${String(defectBody.children.length + 1).padStart(3, '0')}`; const row = document.createElement('tr'); row.dataset.defect = ''; row.dataset.level = level; row.dataset.status = 'OPEN'; row.innerHTML = `<td><span class="row-title">${id} · ${title}</span><span class="row-note">新增关联缺陷 · 由缺陷管理模块维护</span></td><td><span class="status status-${level === 'HIGH' ? 'high' : level === 'MEDIUM' ? 'medium' : 'pending'}">${level === 'HIGH' ? '高' : level === 'MEDIUM' ? '中' : '低'}</span></td><td><span class="owner-cell"><span class="mini-avatar">${owner.slice(0, 1)}</span>${owner}</span></td><td><span class="status status-open defect-status">处理中</span></td><td><span class="row-note">创建后返回缺陷管理继续处理</span></td><td><button class="button button-small view-defect">查看详情</button></td>`; defectBody.appendChild(row); row.querySelector('.view-defect').addEventListener('click', () => showToast('将在缺陷管理中打开详情（仅 demo）')); dialog.close(); document.querySelector('#defectForm').reset(); updateAcceptance(); showToast('已创建关联缺陷（仅 demo）'); });
+    document.querySelector('#result').addEventListener('change', updateAcceptance);
+    document.querySelector('#residual').addEventListener('input', updateAcceptance);
+    document.querySelector('#confirmDecision').addEventListener('click', () => { document.querySelector('#decisionState').textContent = '已确认'; document.querySelector('#workbenchState').textContent = '验收已确认'; showToast('验收结论已确认（仅 demo）'); });
+    document.querySelectorAll('.flow-node').forEach((node) => node.addEventListener('click', () => showToast(`当前为演示页面：${node.querySelector('strong').textContent}`)));
+    updateAcceptance();
+  </script>
+</body>
+</html>

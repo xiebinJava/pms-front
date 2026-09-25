@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message, Modal } from 'ant-design-vue'
-import { listPersonnel, listPersonnelPage, inviteUser, disableUser, assignUserRole, unassignUserRole, changePrimaryPosition, addPartTimePosition, removePartTimePosition } from '/@/api/admin-user'
+import { listPersonnel, listPersonnelPage, inviteUser, reinviteUser, disableUser, assignUserRole, unassignUserRole, changePrimaryPosition, addPartTimePosition, removePartTimePosition } from '/@/api/admin-user'
 import { listRoles } from '/@/api/admin-role'
 import { getOrgTree } from '/@/api/admin-org'
 import type { OrgUnit, Personnel, Role } from '/@/types/domain'
@@ -16,6 +16,9 @@ const pagination = reactive({ current: 1, pageSize: 12, total: 0 })
 const inviteOpen = ref(false)
 const inviteLoading = ref(false)
 const inviteResult = ref('')
+const reinviteOpen = ref(false)
+const reinviteLoading = ref(false)
+const reinviteResult = ref('')
 type OrgOption = OrgUnit & { level: number }
 const orgOptions = ref<OrgOption[]>([])
 const roles = ref<Role[]>([])
@@ -29,6 +32,36 @@ const affiliationUser = ref<Personnel>()
 const primaryOrgId = ref<number>()
 const partTimeOrgId = ref<number>()
 const form = reactive({ nameZh: '', username: '', email: '', phone: '', orgUnitId: undefined as number | undefined, roleCode: 'MEMBER' })
+const inviteRoles = computed(() => roles.value.filter(role => role.enabled))
+
+function defaultInviteRoleCode() {
+  return inviteRoles.value.find(role => role.code === 'MEMBER')?.code
+    || inviteRoles.value[0]?.code
+    || 'MEMBER'
+}
+
+function openInvite() {
+  inviteResult.value = ''
+  inviteOpen.value = true
+  listRoles().then(items => {
+    roles.value = items
+    if (!inviteRoles.value.some(role => role.code === form.roleCode)) {
+      form.roleCode = defaultInviteRoleCode()
+    }
+  }).catch(() => undefined)
+}
+
+function statusLabel(status?: string) {
+  const key = `admin.users.status.${status || ''}`
+  return status && t(key) !== key ? t(key) : (status || '—')
+}
+
+function statusBadge(status?: string) {
+  if (status === 'ACTIVE') return 'success'
+  if (status === 'PENDING_ACTIVATION') return 'processing'
+  if (status === 'LOCKED') return 'warning'
+  return 'default'
+}
 
 function flattenOrg(units: OrgUnit[], level = 0): OrgOption[] {
   return units.flatMap(unit => [{ ...unit, level }, ...flattenOrg(unit.children || [], level + 1)])
@@ -76,6 +109,37 @@ async function submitInvite() {
     message.error((error as Error).message || t('admin.users.inviteFailed'))
   } finally { inviteLoading.value = false }
 }
+function activationHref(url?: string) {
+  if (!url) return ''
+  return url.startsWith('http') ? url : `${window.location.origin}${url}`
+}
+
+async function reinvite(row: Personnel) {
+  reinviteLoading.value = true
+  reinviteResult.value = ''
+  reinviteOpen.value = true
+  try {
+    const result = await reinviteUser(row.id)
+    reinviteResult.value = activationHref(result.activationUrl)
+    message.success(t('admin.users.reinviteCreated'))
+  } catch (error) {
+    reinviteOpen.value = false
+    message.error((error as Error).message || t('admin.users.reinviteFailed'))
+  } finally {
+    reinviteLoading.value = false
+  }
+}
+
+async function copyReinviteLink() {
+  if (!reinviteResult.value) return
+  try {
+    await navigator.clipboard.writeText(reinviteResult.value)
+    message.success(t('admin.users.copied'))
+  } catch {
+    message.error(t('admin.users.reinviteFailed'))
+  }
+}
+
 function disable(row: Personnel) {
   Modal.confirm({ title: t('admin.users.disableTitle', { name: row.displayName }), content: t('admin.users.disableContent'), okType: 'danger', async onOk() {
     await disableUser(row.id, t('admin.users.disableReason'))
@@ -137,22 +201,34 @@ onMounted(async () => {
 
 <template>
   <section class="admin-page pms-admin-page">
-    <PmsPageHeader :title="$t('route.adminUsers')" :description="$t('admin.users.description')"><template #actions><a-button class="pms-primary-button" @click="inviteOpen = true">{{ $t('admin.users.invite') }}</a-button></template></PmsPageHeader>
-    <div class="toolbar pms-filter-bar pms-admin-toolbar"><a-input-search v-model:value="search" :placeholder="$t('admin.users.searchPlaceholder')" style="max-width: 360px" @search="onSearch" /><a-button class="pms-secondary-button" @click="onSearch">{{ $t('common.refresh') }}</a-button></div>
+    <PmsPageHeader :title="$t('route.adminUsers')" :description="$t('admin.users.description')"><template #actions><a-button class="pms-primary-button" @click="openInvite">{{ $t('admin.users.invite') }}</a-button></template></PmsPageHeader>
+    <div class="toolbar pms-filter-bar pms-admin-toolbar" role="group" :aria-label="$t('admin.users.filters')"><a-input-search v-model:value="search" :placeholder="$t('admin.users.searchPlaceholder')" :aria-label="$t('admin.users.searchPlaceholder')" style="max-width: 360px" @search="onSearch" /><a-button class="pms-secondary-button" @click="onSearch">{{ $t('common.refresh') }}</a-button></div>
     <div class="pms-table-scroll pms-users-table-scroll"><a-table class="pms-admin-table" :data-source="users" :loading="loading" row-key="id" :pagination="pagination" @change="onTableChange">
       <a-table-column :title="$t('admin.users.colPerson')" key="displayName"><template #default="{ record }"><strong>{{ record.displayName || record.nameZh || record.email || record.username || '—' }}</strong><div class="muted">{{ record.email || '—' }}</div></template></a-table-column>
       <a-table-column :title="$t('admin.users.colPrimary')" data-index="primaryOrgName" key="primaryOrgName" />
       <a-table-column :title="$t('admin.users.colPartTime')" key="partTime"><template #default="{ record }">{{ record.partTimeOrgNames?.join('、') || '—' }}</template></a-table-column>
       <a-table-column :title="$t('admin.users.colRoles')" key="roles"><template #default="{ record }"><a-tag v-for="role in record.roles" :key="role">{{ role }}</a-tag></template></a-table-column>
-      <a-table-column :title="$t('admin.users.colStatus')" key="status"><template #default="{ record }"><a-badge :status="record.status === 'ACTIVE' ? 'success' : 'default'" :text="record.status === 'ACTIVE' ? $t('admin.users.active') : record.status" /></template></a-table-column>
-      <a-table-column :title="$t('common.actions')" key="action"><template #default="{ record }"><a-button type="link" @click="openAffiliation(record)">{{ $t('admin.users.affiliation') }}</a-button><a-button type="link" @click="openRoles(record)">{{ $t('admin.users.colRoles') }}</a-button><a-button v-if="record.status === 'ACTIVE'" type="link" danger @click="disable(record)">{{ $t('admin.users.disable') }}</a-button></template></a-table-column>
+      <a-table-column :title="$t('admin.users.colStatus')" key="status"><template #default="{ record }"><a-badge :status="statusBadge(record.status)" :text="statusLabel(record.status)" /></template></a-table-column>
+      <a-table-column :title="$t('common.actions')" key="action"><template #default="{ record }"><div class="pms-admin-row-actions" role="group" :aria-label="$t('common.actions')"><a-button type="link" @click="openAffiliation(record)">{{ $t('admin.users.affiliation') }}</a-button><a-button type="link" @click="openRoles(record)">{{ $t('admin.users.colRoles') }}</a-button><a-button v-if="record.status === 'PENDING_ACTIVATION'" type="link" @click="reinvite(record)">{{ $t('admin.users.reinvite') }}</a-button><a-button v-if="record.status === 'ACTIVE'" type="link" danger @click="disable(record)">{{ $t('admin.users.disable') }}</a-button></div></template></a-table-column>
     </a-table></div>
     <a-modal v-model:open="inviteOpen" :title="$t('admin.users.inviteTitle')" :confirm-loading="inviteLoading" :ok-text="$t('admin.users.createInvite')" @ok="submitInvite">
-      <a-form layout="vertical"><a-form-item :label="$t('admin.users.email')" required><a-input v-model:value="form.email" :placeholder="$t('admin.users.emailPlaceholder')" /></a-form-item><a-form-item :label="$t('admin.users.nameZh')"><a-input v-model:value="form.nameZh" :placeholder="$t('admin.users.nameZhPlaceholder')" /></a-form-item><a-form-item :label="$t('admin.users.nameEn')"><a-input v-model:value="form.username" :placeholder="$t('admin.users.nameEnPlaceholder')" /></a-form-item><a-form-item :label="$t('admin.users.phone')"><a-input v-model:value="form.phone" /></a-form-item><a-form-item :label="$t('admin.users.colPrimary')" required><a-select v-model:value="form.orgUnitId" show-search option-filter-prop="label" :placeholder="$t('admin.users.selectPrimary')" style="width: 100%"><a-select-option v-for="org in orgOptions" :key="org.id" :value="org.id" :label="org.name">{{ '　'.repeat(org.level) }}{{ org.name }}</a-select-option></a-select></a-form-item><a-form-item :label="$t('admin.users.colRoles')"><a-select v-model:value="form.roleCode" style="width: 100%"><a-select-option value="MEMBER">{{ $t('admin.users.roleMember') }}</a-select-option><a-select-option value="ORG_ADMIN">{{ $t('admin.users.roleOrgAdmin') }}</a-select-option></a-select></a-form-item></a-form>
+      <a-form layout="vertical"><a-form-item :label="$t('admin.users.email')" required><a-input v-model:value="form.email" :placeholder="$t('admin.users.emailPlaceholder')" /></a-form-item><a-form-item :label="$t('admin.users.nameZh')"><a-input v-model:value="form.nameZh" :placeholder="$t('admin.users.nameZhPlaceholder')" /></a-form-item><a-form-item :label="$t('admin.users.nameEn')"><a-input v-model:value="form.username" :placeholder="$t('admin.users.nameEnPlaceholder')" /></a-form-item><a-form-item :label="$t('admin.users.phone')"><a-input v-model:value="form.phone" /></a-form-item><a-form-item :label="$t('admin.users.colPrimary')" required><a-select v-model:value="form.orgUnitId" show-search option-filter-prop="label" option-label-prop="label" :placeholder="$t('admin.users.selectPrimary')" style="width: 100%"><a-select-option v-for="org in orgOptions" :key="org.id" :value="org.id" :label="org.name">{{ '　'.repeat(org.level) }}{{ org.name }}</a-select-option></a-select></a-form-item><a-form-item :label="$t('admin.users.colRoles')"><a-select v-model:value="form.roleCode" show-search option-filter-prop="label" option-label-prop="label" :placeholder="$t('admin.users.selectRole')" style="width: 100%"><a-select-option v-for="role in inviteRoles" :key="role.id" :value="role.code" :label="role.name">{{ role.name }}</a-select-option></a-select></a-form-item></a-form>
       <a-alert v-if="inviteResult" type="success" show-icon :message="$t('admin.users.activationLink')" :description="inviteResult" />
     </a-modal>
+    <a-modal v-model:open="reinviteOpen" :title="$t('admin.users.reinviteTitle')" :confirm-loading="reinviteLoading" :footer="null">
+      <a-alert
+        type="success"
+        show-icon
+        :message="$t('admin.users.activationLink')"
+        :description="reinviteResult || $t('admin.users.reinviteEmpty')"
+      />
+      <div v-if="reinviteResult" class="role-tags" style="margin-top: 16px">
+        <a-button type="primary" @click="copyReinviteLink">{{ $t('admin.users.copyLink') }}</a-button>
+        <a-button :href="reinviteResult" target="_blank">{{ $t('admin.users.openLink') }}</a-button>
+      </div>
+    </a-modal>
     <a-modal v-model:open="roleOpen" :title="$t('admin.users.editRoles')" :ok-text="$t('admin.users.addRole')" :confirm-loading="roleLoading" @ok="saveRole"><p v-if="roleUser" class="muted">{{ $t('admin.users.currentRoles', { name: roleUser.displayName }) }}</p><div v-if="roleUser" class="role-tags"><a-tag v-for="role in roleUser.roles" :key="role" closable @close.prevent="removeRole(role)">{{ role }}</a-tag><span v-if="!roleUser.roles.length" class="muted">—</span></div><a-select v-model:value="selectedRoleId" :placeholder="$t('admin.users.selectRole')" style="width: 100%; margin-top: 14px"><a-select-option v-for="role in roles" :key="role.id" :value="role.id" :disabled="roleUser?.roles.includes(role.name)">{{ role.name }}</a-select-option></a-select></a-modal>
-    <a-modal v-model:open="affiliationOpen" :title="$t('admin.users.editAffiliation')" :footer="null"><template v-if="affiliationUser"><p class="muted">{{ $t('admin.users.affiliationHint', { name: affiliationUser.displayName }) }}</p><a-form layout="vertical"><a-form-item :label="$t('admin.users.colPrimary')"><a-select v-model:value="primaryOrgId" show-search option-filter-prop="label" style="width: 100%"><a-select-option v-for="org in orgOptions" :key="org.id" :value="org.id" :label="org.name">{{ '　'.repeat(org.level) }}{{ org.name }}</a-select-option></a-select></a-form-item><a-button type="primary" :loading="affiliationLoading" @click="savePrimary">{{ $t('admin.users.savePrimary') }}</a-button><a-form-item :label="$t('admin.users.addPartTime')" style="margin-top: 20px"><a-select v-model:value="partTimeOrgId" show-search option-filter-prop="label" :placeholder="$t('admin.users.selectOrg')" style="width: 100%"><a-select-option v-for="org in orgOptions" :key="org.id" :value="org.id" :label="org.name">{{ '　'.repeat(org.level) }}{{ org.name }}</a-select-option></a-select></a-form-item><a-button :loading="affiliationLoading" @click="savePartTime">{{ $t('admin.users.addPartTime') }}</a-button><div class="role-tags" style="margin-top: 16px"><a-tag v-for="(org, index) in affiliationUser.partTimeOrgNames" :key="affiliationUser.partTimePositionIds[index]" closable @close.prevent="removePartTime(affiliationUser.partTimePositionIds[index])">{{ org }}</a-tag></div></a-form></template></a-modal>
+    <a-modal v-model:open="affiliationOpen" :title="$t('admin.users.editAffiliation')" :footer="null"><template v-if="affiliationUser"><p class="muted">{{ $t('admin.users.affiliationHint', { name: affiliationUser.displayName }) }}</p><a-form layout="vertical"><a-form-item :label="$t('admin.users.colPrimary')"><a-select v-model:value="primaryOrgId" show-search option-filter-prop="label" option-label-prop="label" style="width: 100%"><a-select-option v-for="org in orgOptions" :key="org.id" :value="org.id" :label="org.name">{{ '　'.repeat(org.level) }}{{ org.name }}</a-select-option></a-select></a-form-item><a-button type="primary" :loading="affiliationLoading" @click="savePrimary">{{ $t('admin.users.savePrimary') }}</a-button><a-form-item :label="$t('admin.users.addPartTime')" style="margin-top: 20px"><a-select v-model:value="partTimeOrgId" show-search option-filter-prop="label" option-label-prop="label" :placeholder="$t('admin.users.selectOrg')" style="width: 100%"><a-select-option v-for="org in orgOptions" :key="org.id" :value="org.id" :label="org.name">{{ '　'.repeat(org.level) }}{{ org.name }}</a-select-option></a-select></a-form-item><a-button type="primary" :loading="affiliationLoading" @click="savePartTime">{{ $t('admin.users.addPartTime') }}</a-button><div class="role-tags" style="margin-top: 16px"><a-tag v-for="(org, index) in affiliationUser.partTimeOrgNames" :key="affiliationUser.partTimePositionIds[index]" closable @close.prevent="removePartTime(affiliationUser.partTimePositionIds[index])">{{ org }}</a-tag></div></a-form></template></a-modal>
   </section>
 </template>
 

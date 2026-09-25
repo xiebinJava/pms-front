@@ -2,21 +2,20 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { LeftOutlined, RightOutlined } from '@ant-design/icons-vue'
-import type { Milestone, Project, ProjectNode, Task } from '/@/types/domain'
+import type { NodeIterationPlan, Project, ProjectNode, Task } from '/@/types/domain'
 import { buildCalendarEvents, buildCalendarWeeks, monthLabel, type CalendarEvent } from '../schedule'
 
 const props = defineProps<{
   project: Project
   nodes: ProjectNode[]
   tasks: Task[]
-  milestones: Milestone[]
+  iterationPlans: NodeIterationPlan[]
   selectedNodeId?: number | null
 }>()
 
 const emit = defineEmits<{
   selectNode: [nodeId: number]
   openTask: [taskId: number, nodeId?: number]
-  openMilestone: []
 }>()
 
 const { t, locale } = useI18n()
@@ -27,7 +26,7 @@ const events = computed(() => buildCalendarEvents({
   project: props.project,
   nodes: props.nodes,
   tasks: props.tasks,
-  milestones: props.milestones,
+  iterationPlans: props.iterationPlans,
 }))
 
 const weeks = computed(() => buildCalendarWeeks(cursor.value.year, cursor.value.month, events.value))
@@ -45,7 +44,14 @@ function goToday() {
 
 function onDayEvent(event: CalendarEvent) {
   if (event.kind === 'task') emit('openTask', event.refId, event.nodeId)
-  if (event.kind === 'milestone') emit('openMilestone')
+}
+
+function eventMeta(event: CalendarEvent): string {
+  if (event.tone === 'overdue') {
+    const overdueDays = event.overdueDays ?? 0
+    return t('schedule.overdueMeta', { date: event.date, days: overdueDays }, overdueDays)
+  }
+  return event.date
 }
 
 function onRange(bar: { kind: 'project' | 'node'; refId: number; nodeId?: number }) {
@@ -57,15 +63,15 @@ function onRange(bar: { kind: 'project' | 'node'; refId: number; nodeId?: number
   <div class="cal">
     <div class="cal__toolbar">
       <div class="cal__nav">
-        <button type="button" class="cal__icon" :aria-label="$t('schedule.prevMonth')" @click="shift(-1)">
+        <button type="button" class="cal__icon pms-project-button pms-project-button--secondary pms-project-button--small pms-project-button--icon" :aria-label="$t('schedule.prevMonth')" @click="shift(-1)">
           <LeftOutlined />
         </button>
         <strong>{{ title }}</strong>
-        <button type="button" class="cal__icon" :aria-label="$t('schedule.nextMonth')" @click="shift(1)">
+        <button type="button" class="cal__icon pms-project-button pms-project-button--secondary pms-project-button--small pms-project-button--icon" :aria-label="$t('schedule.nextMonth')" @click="shift(1)">
           <RightOutlined />
         </button>
       </div>
-      <button type="button" class="cal__today" @click="goToday">{{ $t('schedule.today') }}</button>
+      <button type="button" class="cal__today pms-project-button pms-project-button--secondary pms-project-button--small" @click="goToday">{{ $t('schedule.today') }}</button>
     </div>
 
     <div class="cal__weekdays">
@@ -105,7 +111,8 @@ function onRange(bar: { kind: 'project' | 'node'; refId: number; nodeId?: number
                 :key="event.id"
                 type="button"
                 class="cal-chip"
-                :class="`cal-chip--${event.kind}`"
+                :class="[`cal-chip--${event.kind}`, `cal-chip--${event.tone}`]"
+                :title="eventMeta(event)"
                 @click="onDayEvent(event)"
               >
                 {{ event.title }}
@@ -130,16 +137,17 @@ function onRange(bar: { kind: 'project' | 'node'; refId: number; nodeId?: number
   align-items: center;
   justify-content: center;
   min-height: 32px;
-  color: var(--pms-primary);
-  background: var(--pms-surface);
-  border: 1px solid var(--pms-border);
-  border-radius: 6px;
+  color: #5d6d85;
+  background: #fff;
+  border: 1px solid #d7dfeb;
+  border-radius: 8px;
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
   cursor: pointer;
 }
 .cal__icon { width: 32px; }
 .cal__today { padding: 0 12px; font-size: var(--pms-font-size-compact); font-weight: 680; }
 .cal__icon:hover,
-.cal__today:hover { background: var(--pms-primary-soft); border-color: color-mix(in srgb, var(--pms-primary) 22%, var(--pms-border)); }
+.cal__today:hover { color: #1769e0; background: #eaf2ff; border-color: #b9d2f7; }
 .cal__weekdays {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -180,7 +188,7 @@ function onRange(bar: { kind: 'project' | 'node'; refId: number; nodeId?: number
   cursor: pointer;
 }
 .cal-range--project { background: linear-gradient(90deg, var(--pms-primary-dark), var(--pms-primary)); }
-.cal-range--active { background: var(--pms-primary); }
+.cal-range--active { background: var(--pms-status-active); }
 .cal-range--completed { background: var(--pms-success); }
 .cal-range--locked { background: var(--pms-status-neutral); }
 .cal-range--terminated { background: var(--pms-danger); }
@@ -211,8 +219,10 @@ function onRange(bar: { kind: 'project' | 'node'; refId: number; nodeId?: number
   white-space: nowrap;
   cursor: pointer;
 }
-.cal-chip--milestone { color: var(--pms-warning); background: var(--pms-warning-soft); }
+.cal-chip--iteration-plan { color: var(--pms-warning); background: var(--pms-warning-soft); }
 .cal-chip--task { color: var(--pms-primary); background: var(--pms-primary-soft); }
+.cal-chip--due-today { color: var(--pms-warning); background: var(--pms-warning-soft); }
+.cal-chip--overdue { color: var(--pms-danger); background: var(--pms-danger-soft); }
 .cal-more { color: var(--pms-text-faint); font-size: 10px; }
 @media (max-width: 720px) {
   .cal-day { min-height: 72px; padding: 6px; }

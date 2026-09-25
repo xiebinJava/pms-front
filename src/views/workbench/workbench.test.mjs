@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 import test from 'node:test'
+import { createI18n } from 'vue-i18n'
+import enUS from '../../locales/en-US.ts'
 import {
   buildWorkbenchSummary,
   selectMyProjects,
@@ -7,6 +10,8 @@ import {
   selectRecentActivities,
   sortWorkbenchTasks,
 } from './workbench.ts'
+
+const workbenchViewSource = fs.readFileSync(new URL('./index.vue', import.meta.url), 'utf8')
 
 const projects = [
   { id: 1, name: '研发门户', code: 'PRJ-000001', ownerId: 7, projectManagerId: 8, taskCount: 3 },
@@ -35,8 +40,44 @@ test('calculates pending, in-progress, due-soon, and participating-project total
     pendingTaskCount: 1,
     inProgressTaskCount: 1,
     dueSoonTaskCount: 2,
+    overdueTaskCount: 0,
     participatingProjectCount: 1,
   })
+})
+
+test('counts only unfinished tasks past the current date as overdue', () => {
+  const summary = buildWorkbenchSummary(projects, [
+    ...tasks,
+    { id: 4, projectId: 1, title: '已完成的历史任务', assigneeId: 7, status: 2, priority: 1, dueDate: '2026-08-27' },
+  ], 7, new Date('2026-08-30T00:00:00Z'))
+
+  assert.equal(summary.overdueTaskCount, 2)
+})
+
+test('does not count an unfinished task due today in Shanghai as overdue', () => {
+  const summary = buildWorkbenchSummary(projects, [
+    { id: 4, projectId: 1, title: '昨天到期', assigneeId: 7, status: 0, priority: 1, dueDate: '2026-09-15' },
+    { id: 5, projectId: 1, title: '今天到期', assigneeId: 7, status: 1, priority: 1, dueDate: '2026-09-16' },
+  ], 7, new Date('2026-09-16T15:59:59.999Z'))
+
+  assert.equal(summary.overdueTaskCount, 1)
+})
+
+test('pluralizes the English overdue-days label', () => {
+  const i18n = createI18n({
+    legacy: false,
+    locale: 'en-US',
+    messages: { 'en-US': enUS },
+  })
+
+  assert.equal(i18n.global.t('workbench.overdueDays', 1), 'Overdue 1 day')
+  assert.equal(i18n.global.t('workbench.overdueDays', 2), 'Overdue 2 days')
+})
+
+test('renders an overdue overview card and label from backend schedule fields', () => {
+  assert.match(workbenchViewSource, /key: 'overdue'[\s\S]*overdueTaskCount/)
+  assert.match(workbenchViewSource, /v-if="task\.scheduleState === 'OVERDUE'"[\s\S]*task\.overdueDays/)
+  assert.match(workbenchViewSource, /@click="openTask\(task\)"/)
 })
 
 test('sorts tasks by status, due date, priority, and title without mutating input', () => {

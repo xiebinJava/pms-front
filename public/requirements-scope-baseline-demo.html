@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>需求澄清与范围基线 · PMS Demo</title>
+  <style>
+    :root {
+      --primary: #1769e0;
+      --primary-dark: #1258bf;
+      --primary-soft: #eaf2ff;
+      --text: #17243b;
+      --text-2: #40516b;
+      --muted: #71819a;
+      --faint: #99a8bc;
+      --border: #dce5f0;
+      --border-strong: #cbd8e8;
+      --surface: #fff;
+      --surface-muted: #f6f8fb;
+      --surface-blue: #f4f8ff;
+      --success: #15966a;
+      --success-soft: #eaf8f1;
+      --warning: #d97706;
+      --warning-soft: #fff5e5;
+      --danger: #d04b58;
+      --shadow-sm: 0 4px 16px rgba(30, 58, 95, .06);
+      --shadow-md: 0 14px 34px rgba(30, 58, 95, .10);
+      --radius: 14px;
+      --sidebar: 224px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background: #f5f7fb;
+      font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+      outline: 3px solid rgba(23, 105, 224, .20);
+      outline-offset: 2px;
+    }
+    svg { display: block; }
+
+    .topbar {
+      position: fixed;
+      inset: 0 0 auto;
+      z-index: 20;
+      height: 62px;
+      display: flex;
+      align-items: center;
+      padding: 0 18px;
+      background: rgba(255, 255, 255, .96);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(14px);
+    }
+    .brand { width: var(--sidebar); display: flex; align-items: center; gap: 10px; }
+    .brand-mark {
+      width: 30px; height: 30px; display: grid; place-items: center;
+      color: #fff; background: var(--primary); border-radius: 8px;
+      font-weight: 800; box-shadow: 0 4px 10px rgba(23, 105, 224, .22);
+    }
+    .brand-copy { display: grid; line-height: 1.05; }
+    .brand-copy strong { font-size: 15px; letter-spacing: .02em; }
+    .brand-copy small { margin-top: 4px; color: var(--faint); font-size: 10px; letter-spacing: .04em; }
+    .global-search {
+      width: min(400px, 42vw); height: 34px; display: flex; align-items: center; gap: 8px;
+      margin-left: auto; margin-right: 22px; padding: 0 12px;
+      color: var(--faint); border: 1px solid var(--border-strong); border-radius: 8px;
+      background: #fff;
+    }
+    .global-search input { width: 100%; border: 0; outline: 0; color: var(--text); background: transparent; font-size: 12px; }
+    .global-search input::placeholder { color: var(--faint); }
+    .top-actions { display: flex; align-items: center; gap: 14px; color: var(--muted); }
+    .locale { display: inline-flex; align-items: center; height: 34px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; }
+    .locale span { padding: 5px 9px; border-radius: 6px; font-size: 12px; }
+    .locale span:first-child { color: #fff; background: var(--primary); }
+    .avatar { width: 30px; height: 30px; display: grid; place-items: center; color: #fff; background: var(--primary); border-radius: 50%; font-size: 12px; }
+    .account { display: flex; align-items: center; gap: 7px; color: var(--text-2); font-size: 13px; }
+
+    .sidebar {
+      position: fixed; top: 62px; bottom: 0; left: 0; z-index: 10; width: var(--sidebar);
+      padding: 18px 10px; overflow-y: auto; background: #fff; border-right: 1px solid var(--border);
+    }
+    .nav-item, .nav-group-title {
+      display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0 12px;
+      color: var(--text-2); border-radius: 8px; font-size: 13px; font-weight: 600;
+    }
+    .nav-item { margin: 3px 0; }
+    .nav-item.active { color: var(--primary); background: var(--primary-soft); }
+    .nav-group { margin-top: 17px; }
+    .nav-group:first-child { margin-top: 0; }
+    .nav-group-title { justify-content: space-between; color: var(--text); }
+    .nav-group-title > span { display: flex; align-items: center; gap: 10px; }
+    .nav-sub { margin-left: 13px; padding-left: 10px; border-left: 1px solid var(--border); }
+    .nav-sub .nav-item { font-weight: 500; }
+    .nav-icon { width: 16px; color: var(--muted); }
+    .nav-item.active .nav-icon { color: var(--primary); }
+
+    .main { margin-left: var(--sidebar); padding: 84px 28px 56px; }
+    .content { max-width: 1240px; margin: 0 auto; }
+    .breadcrumb { display: flex; align-items: center; gap: 8px; margin: 0 0 20px 5px; color: var(--muted); font-size: 12px; }
+    .breadcrumb strong { color: var(--text-2); font-weight: 600; }
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+
+    .project-header { padding: 22px 26px 18px; }
+    .project-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+    .project-title { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .project-title h1 { margin: 0; font-size: 25px; line-height: 1.2; letter-spacing: -.02em; }
+    .tag { display: inline-flex; align-items: center; height: 25px; padding: 0 9px; border-radius: 6px; font-size: 12px; font-weight: 700; }
+    .tag-active { color: #c56a0b; background: var(--warning-soft); border: 1px solid #ffd49a; }
+    .tag-level { color: #6551c8; background: #f0ecff; }
+    .tag-priority { color: #b46308; background: #fff1df; }
+    .header-actions { display: flex; align-items: center; gap: 9px; }
+    .button { min-height: 36px; padding: 0 14px; color: var(--text-2); background: #fff; border: 1px solid var(--border-strong); border-radius: 8px; font-weight: 650; }
+    .button:hover { color: var(--primary); border-color: #a7c5f2; background: var(--primary-soft); }
+    .button-primary { color: #fff; background: var(--primary); border-color: var(--primary); box-shadow: 0 5px 13px rgba(23, 105, 224, .18); }
+    .button-primary:hover { color: #fff; background: var(--primary-dark); border-color: var(--primary-dark); }
+    .button-small { min-height: 32px; padding: 0 10px; font-size: 12px; }
+    .button-icon { width: 34px; padding: 0; display: grid; place-items: center; }
+    .project-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0; margin-top: 16px; color: var(--muted); font-size: 12px; }
+    .project-meta-item { display: flex; align-items: center; gap: 7px; padding: 0 22px; border-left: 1px solid var(--border); }
+    .project-meta-item:first-child { padding-left: 0; border-left: 0; }
+    .project-meta-item strong { color: var(--text-2); font-weight: 650; }
+    .header-insights { display: flex; align-items: center; gap: 24px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+    .insight { display: inline-flex; align-items: baseline; gap: 8px; }
+    .insight strong { color: var(--text-2); font-size: 15px; font-weight: 750; }
+    .insight-current strong { color: var(--primary); }
+
+    .flow-panel { margin-top: 18px; padding: 18px 20px 21px; overflow: hidden; }
+    .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .section-heading h2 { margin: 0; font-size: 15px; letter-spacing: -.01em; }
+    .section-heading small { color: var(--muted); }
+    .flow-scroll { margin-top: 16px; overflow-x: auto; padding: 2px 3px 8px; }
+    .flow-track { display: flex; align-items: stretch; min-width: 1060px; }
+    .flow-node-wrap { display: flex; align-items: center; flex: 1 0 0; }
+    .flow-node { position: relative; width: 100%; min-width: 0; min-height: 86px; padding: 12px 12px 10px 34px; text-align: left; background: #fff; border: 1px solid var(--border-strong); border-radius: 9px; box-shadow: 0 3px 9px rgba(30, 58, 95, .05); }
+    .flow-node:hover { border-color: #9fc2f5; }
+    .flow-node.selected { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(23, 105, 224, .12); }
+    .flow-node.done { background: #fbfefc; }
+    .flow-dot { position: absolute; top: 19px; left: 13px; width: 14px; height: 14px; display: grid; place-items: center; border: 2px solid var(--border-strong); border-radius: 50%; }
+    .flow-dot::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--border-strong); }
+    .flow-node.selected .flow-dot { border-color: var(--warning); }
+    .flow-node.selected .flow-dot::after { background: var(--warning); }
+    .flow-node.done .flow-dot { border-color: #8ecfb4; }
+    .flow-node.done .flow-dot::after { width: 6px; height: 3px; border-bottom: 2px solid var(--success); border-left: 2px solid var(--success); border-radius: 0; background: transparent; transform: rotate(-45deg) translate(1px, -1px); }
+    .flow-node strong { display: block; overflow: hidden; color: var(--text); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+    .flow-node small { display: block; margin-top: 5px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .flow-arrow { flex: 0 0 28px; color: #9eacc0; text-align: center; font-size: 18px; }
+
+    .node-panel { margin-top: 18px; padding: 20px 22px 24px; }
+    .node-title { display: flex; align-items: center; gap: 10px; }
+    .node-status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--warning); box-shadow: 0 0 0 4px var(--warning-soft); }
+    .node-title h2 { margin: 0; font-size: 18px; }
+    .node-description { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .node-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+    .assignment-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+    .assignment { display: flex; align-items: center; gap: 14px; min-height: 54px; padding: 9px 13px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: 9px; }
+    .assignment-label { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-weight: 650; }
+    .person-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 10px 0 5px; color: var(--text-2); background: #eef2f7; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; }
+    .person-avatar { width: 21px; height: 21px; display: grid; place-items: center; color: #fff; background: #aab9cc; border-radius: 50%; font-size: 9px; }
+    .date-field { display: flex; align-items: center; gap: 10px; min-height: 30px; padding: 0 10px; color: var(--text-2); background: #fff; border: 1px solid var(--border-strong); border-radius: 7px; font-size: 12px; }
+    .date-field span { color: var(--faint); }
+
+    .workbench { margin-top: 18px; padding: 20px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: 10px; }
+    .workbench-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+    .workbench-head h3 { margin: 0; font-size: 15px; }
+    .workbench-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .workbench-state { display: inline-flex; align-items: center; gap: 7px; color: var(--warning); font-size: 12px; font-weight: 700; }
+    .workbench-state i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+    .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; margin-top: 18px; }
+    .field { display: grid; gap: 7px; }
+    .field-wide { grid-column: 1 / -1; }
+    .field label { color: var(--text-2); font-size: 12px; font-weight: 700; }
+    .field label em { color: var(--danger); font-style: normal; }
+    .field textarea, .field input, .field select {
+      width: 100%; min-height: 38px; padding: 8px 11px; color: var(--text); background: #fff;
+      border: 1px solid var(--border-strong); border-radius: 7px; outline: 0;
+    }
+    .field textarea { min-height: 84px; resize: vertical; }
+    .field textarea:focus, .field input:focus, .field select:focus { border-color: #8eb7ef; box-shadow: 0 0 0 3px rgba(23, 105, 224, .10); }
+    .scope-section, .requirements-section, .check-section, .task-section { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border); }
+    .section-copy h3 { margin: 0; font-size: 15px; }
+    .section-copy p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .section-heading .section-copy { margin-right: auto; }
+    .scope-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+    .scope-card { padding: 14px; background: #fff; border: 1px solid var(--border); border-radius: 9px; }
+    .scope-card.in { border-top: 3px solid var(--primary); }
+    .scope-card.out { border-top: 3px solid #9cabbf; }
+    .scope-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .scope-card-head strong { font-size: 13px; }
+    .scope-card-head span { color: var(--muted); font-size: 11px; }
+    .scope-list { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+    .scope-list li { display: flex; align-items: flex-start; gap: 8px; color: var(--text-2); font-size: 12px; }
+    .scope-list li::before { content: ''; flex: 0 0 6px; width: 6px; height: 6px; margin-top: 7px; border-radius: 50%; background: var(--primary); }
+    .scope-card.out .scope-list li::before { background: #9cabbf; }
+    .scope-list button { margin-left: auto; padding: 0 4px; color: var(--faint); background: transparent; border: 0; opacity: 0; }
+    .scope-list li:hover button, .scope-list button:focus-visible { opacity: 1; }
+    .inline-add { display: none; align-items: center; gap: 8px; margin-top: 11px; }
+    .inline-add.visible { display: flex; }
+    .inline-add input { flex: 1; min-width: 0; height: 32px; padding: 0 9px; border: 1px solid var(--border-strong); border-radius: 6px; }
+
+    .table-wrap { margin-top: 14px; overflow-x: auto; background: #fff; border: 1px solid var(--border); border-radius: 9px; }
+    table { width: 100%; min-width: 850px; border-collapse: collapse; }
+    th { padding: 11px 12px; color: var(--muted); background: #f8fafc; font-size: 11px; font-weight: 700; text-align: left; white-space: nowrap; }
+    td { padding: 12px; color: var(--text-2); border-top: 1px solid var(--border); font-size: 12px; vertical-align: top; }
+    tr:hover td { background: #fbfdff; }
+    .req-code { color: var(--primary); font-weight: 750; white-space: nowrap; }
+    .req-name { color: var(--text); font-weight: 700; }
+    .req-detail { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .priority { display: inline-flex; padding: 3px 7px; border-radius: 5px; font-size: 11px; font-weight: 700; }
+    .priority.high { color: #bb4d2c; background: #fff0eb; }
+    .priority.medium { color: #aa670d; background: var(--warning-soft); }
+    .priority.low { color: #5b718b; background: #eef3f8; }
+    .status-select { min-width: 86px; height: 30px; padding: 0 8px; color: var(--text-2); background: #fff; border: 1px solid var(--border); border-radius: 6px; font-size: 11px; }
+    .status-select.confirmed { color: var(--success); background: var(--success-soft); border-color: #b8e2cf; }
+    .table-action { padding: 0; color: var(--primary); background: transparent; border: 0; font-size: 12px; font-weight: 650; }
+
+    .check-section { display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: end; }
+    .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; margin-top: 14px; }
+    .check-item { display: flex; align-items: flex-start; gap: 9px; color: var(--text-2); font-size: 12px; }
+    .check-item input { width: 16px; height: 16px; margin: 1px 0 0; accent-color: var(--primary); }
+    .baseline-card { min-width: 230px; padding: 14px; background: var(--surface-blue); border: 1px solid #cfe0f8; border-radius: 9px; }
+    .baseline-card strong { display: block; font-size: 13px; }
+    .baseline-card small { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
+    .progress-line { height: 6px; margin: 12px 0; overflow: hidden; background: #dfe9f7; border-radius: 999px; }
+    .progress-line span { display: block; width: 0%; height: 100%; background: var(--primary); border-radius: inherit; transition: width .2s ease; }
+    .baseline-actions { display: flex; gap: 8px; }
+    .locked .field textarea, .locked .field input, .locked .field select, .locked .scope-card, .locked .table-wrap { background: #f8fafc; }
+    .locked .field textarea, .locked .field input, .locked .field select { color: var(--muted); }
+    .locked .scope-card, .locked .table-wrap { opacity: .8; }
+
+    .task-section { padding-bottom: 2px; }
+    .task-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+    .task-column { min-height: 126px; padding: 12px; background: #fff; border: 1px solid var(--border); border-radius: 8px; }
+    .task-column-head { display: flex; justify-content: space-between; color: var(--text-2); font-size: 12px; font-weight: 700; }
+    .task-column-head span { color: var(--muted); font-weight: 500; }
+    .task-placeholder { margin-top: 14px; padding: 10px; color: var(--muted); background: var(--surface-muted); border-radius: 7px; font-size: 11px; }
+
+    .toast { position: fixed; right: 24px; bottom: 24px; z-index: 30; max-width: 340px; padding: 11px 14px; color: #fff; background: rgba(23, 36, 59, .94); border-radius: 8px; box-shadow: var(--shadow-md); opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity .2s ease, transform .2s ease; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 900px) {
+      :root { --sidebar: 72px; }
+      .brand { width: 42px; }
+      .brand-copy, .nav-group-title span:last-child, .nav-group-title > svg, .nav-item span:not(.nav-icon) { display: none; }
+      .nav-item, .nav-group-title { justify-content: center; padding: 0; }
+      .nav-sub { margin-left: 0; padding-left: 0; border-left: 0; }
+      .main { padding: 78px 16px 40px; }
+      .project-header, .node-panel { padding-left: 18px; padding-right: 18px; }
+      .project-meta-item { padding: 0 12px; }
+      .check-section { grid-template-columns: 1fr; }
+      .baseline-card { min-width: 0; }
+    }
+    @media (max-width: 640px) {
+      .topbar { padding: 0 12px; }
+      .global-search { width: 46vw; margin-right: 10px; }
+      .account strong { display: none; }
+      .main { padding: 76px 10px 30px; }
+      .project-title h1 { font-size: 21px; }
+      .project-header-top, .node-top { display: grid; }
+      .header-actions { justify-content: flex-end; }
+      .project-meta { display: grid; gap: 8px; }
+      .project-meta-item { padding: 0; border: 0; }
+      .header-insights { flex-wrap: wrap; gap: 10px 18px; }
+      .assignment-row, .field-grid, .scope-grid, .task-columns { grid-template-columns: 1fr; }
+      .workbench, .node-panel { padding: 14px; }
+      .workbench-head { align-items: flex-start; }
+      .checks { grid-template-columns: 1fr; }
+      .baseline-actions { flex-wrap: wrap; }
+      .button { min-height: 34px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">P</div>
+      <div class="brand-copy"><strong>PMS</strong><small>Project Management</small></div>
+    </div>
+    <label class="global-search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+      <input placeholder="搜索项目、任务、里程碑、评论" aria-label="搜索">
+    </label>
+    <div class="top-actions">
+      <div class="locale"><span>中</span><span>EN</span></div>
+      <span aria-label="通知">♧</span>
+      <div class="account"><span class="avatar">管</span><strong>管理员（admin）</strong></div>
+    </div>
+  </header>
+
+  <aside class="sidebar" aria-label="主导航">
+    <div class="nav-item"><span class="nav-icon">◉</span><span>工作台</span></div>
+    <div class="nav-group">
+      <div class="nav-group-title"><span><span class="nav-icon">⌁</span><span>研发管理</span></span><span>⌄</span></div>
+      <div class="nav-sub"><div class="nav-item active"><span class="nav-icon">▣</span><span>项目管理</span></div></div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-title"><span><span class="nav-icon">⚙</span><span>配置管理</span></span><span>⌄</span></div>
+      <div class="nav-sub">
+        <div class="nav-item"><span class="nav-icon">♙</span><span>人员与权限</span></div>
+        <div class="nav-item"><span class="nav-icon">♧</span><span>组织架构</span></div>
+        <div class="nav-item"><span class="nav-icon">♢</span><span>角色管理</span></div>
+        <div class="nav-item"><span class="nav-icon">↥</span><span>批量导入</span></div>
+        <div class="nav-item"><span class="nav-icon">▤</span><span>审计日志</span></div>
+      </div>
+    </div>
+    <div class="nav-item" style="margin-top: 18px"><span class="nav-icon">◌</span><span>反馈中心</span></div>
+    <div class="nav-group">
+      <div class="nav-group-title"><span><span class="nav-icon">□</span><span>文档中心</span></span><span>⌄</span></div>
+      <div class="nav-sub">
+        <div class="nav-item"><span class="nav-icon">▤</span><span>使用手册</span></div>
+        <div class="nav-item"><span class="nav-icon">▧</span><span>业务规则</span></div>
+        <div class="nav-item"><span class="nav-icon">⚙</span><span>前端设计规范</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="content">
+      <div class="breadcrumb"><span>‹ 项目管理</span><span>/</span><strong>项目详情</strong></div>
+
+      <section class="panel project-header">
+        <div class="project-header-top">
+          <div>
+            <div class="project-title">
+              <h1>电商中台重构</h1>
+              <span class="tag tag-active">进行中</span>
+              <span class="tag tag-level">A · 关键项目</span>
+              <span class="tag tag-priority">中优先级</span>
+            </div>
+            <div class="project-meta">
+              <div class="project-meta-item"><span>项目经理：</span><strong>李强（Terry.Li）</strong></div>
+              <div class="project-meta-item"><span>业务线：</span><strong>公司总部 / 软件研发中心 / 前台软件研发部 / 前台商城Team</strong></div>
+              <div class="project-meta-item"><span>项目周期：</span><strong>2026-09-04 → 2026-10-31</strong></div>
+            </div>
+          </div>
+          <div class="header-actions">
+            <button class="button button-small button-icon" aria-label="更多">⋮</button>
+            <button class="button button-primary"><span style="display:inline-flex;vertical-align:-2px;margin-right:5px">✎</span>编辑项目</button>
+          </div>
+        </div>
+        <div class="header-insights">
+          <div class="insight insight-current"><span>当前节点</span><strong>需求澄清与范围基线</strong></div>
+          <div class="insight"><span>项目进度</span><strong>11%</strong><span>1 / 9 个节点</span></div>
+          <div class="insight"><span>节点进度</span><strong id="nodeProgress">40%</strong><span id="nodeProgressCount">2 / 5 个任务</span></div>
+        </div>
+      </section>
+
+      <section class="panel flow-panel">
+        <div class="section-heading"><h2>项目流程</h2><small>9 个节点</small></div>
+        <div class="flow-scroll">
+          <div class="flow-track">
+            <div class="flow-node-wrap"><button class="flow-node done" data-flow="项目立项与启动"><span class="flow-dot"></span><strong>项目立项与启动</strong><small>负责人 赵晨 · 已完成</small></button><span class="flow-arrow">→</span></div>
+            <div class="flow-node-wrap"><button class="flow-node selected" data-flow="需求澄清与范围基线"><span class="flow-dot"></span><strong>需求澄清与范围基线</strong><small>负责人 陈宇 · 进行中</small></button><span class="flow-arrow">→</span></div>
+            <div class="flow-node-wrap"><button class="flow-node" data-flow="方案设计、评审与决策"><span class="flow-dot"></span><strong>方案设计、评审与决策</strong><small>负责人 待分配 · 未开始</small></button><span class="flow-arrow">→</span></div>
+            <div class="flow-node-wrap"><button class="flow-node" data-flow="计划、资源与风险基线"><span class="flow-dot"></span><strong>计划、资源与风险基线</strong><small>负责人 待分配 · 未开始</small></button><span class="flow-arrow">→</span></div>
+            <div class="flow-node-wrap"><button class="flow-node" data-flow="开发测试与项目控制"><span class="flow-dot"></span><strong>开发测试与项目控制</strong><small>负责人 待分配 · 未开始</small></button><span class="flow-arrow">→</span></div>
+            <div class="flow-node-wrap"><button class="flow-node" data-flow="业务验收与缺陷闭环"><span class="flow-dot"></span><strong>业务验收与缺陷闭环</strong><small>负责人 待分配 · 未开始</small></button><span class="flow-arrow">→</span></div>
+            <div class="flow-node-wrap"><button class="flow-node" data-flow="发布决策与运营交接"><span class="flow-dot"></span><strong>发布决策与运营交接</strong><small>负责人 待分配 · 未开始</small></button><span class="flow-arrow">→</span></div>
+            <div class="flow-node-wrap"><button class="flow-node" data-flow="价值验证与项目复盘"><span class="flow-dot"></span><strong>价值验证与项目复盘</strong><small>负责人 待分配 · 未开始</small></button><span class="flow-arrow">→</span></div>
+            <div class="flow-node-wrap"><button class="flow-node" data-flow="知识沉淀与标准改进"><span class="flow-dot"></span><strong>知识沉淀与标准改进</strong><small>负责人 待分配 · 未开始</small></button></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel node-panel" id="nodePanel">
+        <div class="node-top">
+          <div>
+            <div class="node-title"><span class="node-status-dot"></span><h2>需求澄清与范围基线</h2><span class="tag tag-active">进行中</span></div>
+            <p class="node-description">澄清业务需求，形成范围边界、优先级与验收基线。</p>
+          </div>
+          <button class="button button-primary" id="completeNode">完成节点</button>
+        </div>
+
+        <div class="assignment-row">
+          <div class="assignment"><span class="assignment-label">节点负责人</span><span class="person-chip"><span class="person-avatar">陈</span>陈宇（Kevin.Chen）</span></div>
+          <div class="assignment"><span class="assignment-label">节点排期</span><div class="date-field"><strong>2026-09-05</strong><span>→</span><strong>2026-09-13</strong><span style="margin-left:auto">▣</span></div></div>
+        </div>
+
+        <div class="workbench" id="workbench">
+          <div class="workbench-head">
+            <div><h3>需求澄清工作台</h3><p>围绕范围、优先级和验收标准，逐步形成可评审、可执行的基线。</p></div>
+            <div class="workbench-state"><i></i><span id="baselineState">草稿整理中</span></div>
+          </div>
+
+          <div class="field-grid">
+            <div class="field"><label>本节点目标 <em>*</em></label><textarea data-editable>完成业务需求梳理，明确范围边界、优先级和可执行的验收标准。</textarea></div>
+            <div class="field"><label>节点交付结果 <em>*</em></label><textarea data-editable>形成需求清单、纳入与不纳入范围，以及可供方案设计使用的验收基线。</textarea></div>
+          </div>
+
+          <div class="scope-section">
+            <div class="section-heading"><div class="section-copy"><h3>范围基线</h3><p>明确本项目要做与不做的内容，避免后续边界漂移。</p></div><button class="button button-small" data-add-scope="in">＋ 纳入范围</button><button class="button button-small" data-add-scope="out">＋ 不纳入范围</button></div>
+            <div class="scope-grid">
+              <div class="scope-card in"><div class="scope-card-head"><strong>纳入范围</strong><span id="inCount">3 项</span></div><ul class="scope-list" id="inScope"><li>订单创建、审核与状态流转<button data-remove>×</button></li><li>商品信息维护与库存同步<button data-remove>×</button></li><li>运营数据看板与异常提醒<button data-remove>×</button></li></ul><div class="inline-add" id="inAdd"><input placeholder="输入范围项"><button class="button button-primary button-small" data-save-scope="in">保存</button></div></div>
+              <div class="scope-card out"><div class="scope-card-head"><strong>不纳入范围</strong><span id="outCount">2 项</span></div><ul class="scope-list" id="outScope"><li>供应商结算系统重构<button data-remove>×</button></li><li>线下门店收银流程改造<button data-remove>×</button></li></ul><div class="inline-add" id="outAdd"><input placeholder="输入范围项"><button class="button button-primary button-small" data-save-scope="out">保存</button></div></div>
+            </div>
+          </div>
+
+          <div class="requirements-section">
+            <div class="section-heading"><div class="section-copy"><h3>需求清单 <span style="color:var(--muted);font-weight:500;font-size:12px">4 条</span></h3><p>需求定义“要做什么”，任务看板负责跟踪“谁去执行”。</p></div><button class="button button-primary button-small" id="addRequirement">＋ 新增需求</button></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th style="width:90px">编号</th><th style="width:25%">需求名称</th><th>类型</th><th>优先级</th><th style="width:25%">验收标准</th><th>状态</th><th>操作</th></tr></thead>
+                <tbody id="requirements">
+                  <tr><td class="req-code">REQ-001</td><td><span class="req-name">统一订单状态流转</span><span class="req-detail">订单从创建到完成使用统一状态模型</span></td><td>业务需求</td><td><span class="priority high">高</span></td><td>状态变更有记录，异常状态可追溯</td><td><select class="status-select" data-status><option>待澄清</option><option selected>待评审</option><option>已确认</option><option>已排除</option></select></td><td><button class="table-action">查看详情</button></td></tr>
+                  <tr><td class="req-code">REQ-002</td><td><span class="req-name">商品资料统一维护</span><span class="req-detail">商品基础信息由统一入口维护</span></td><td>功能需求</td><td><span class="priority high">高</span></td><td>商品信息变更后，各业务模块可正确读取</td><td><select class="status-select" data-status><option>待澄清</option><option selected>待评审</option><option>已确认</option><option>已排除</option></select></td><td><button class="table-action">查看详情</button></td></tr>
+                  <tr><td class="req-code">REQ-003</td><td><span class="req-name">运营异常提醒</span><span class="req-detail">对超时订单和库存异常提供提醒</span></td><td>功能需求</td><td><span class="priority medium">中</span></td><td>提醒可配置、可查看、可关闭</td><td><select class="status-select" data-status><option>待澄清</option><option>待评审</option><option selected>已确认</option><option>已排除</option></select></td><td><button class="table-action">查看详情</button></td></tr>
+                  <tr><td class="req-code">REQ-004</td><td><span class="req-name">历史数据迁移</span><span class="req-detail">仅迁移近两年的有效订单数据</span></td><td>约束条件</td><td><span class="priority low">低</span></td><td>迁移结果可抽样核对，失败数据有清单</td><td><select class="status-select" data-status><option>待澄清</option><option selected>待评审</option><option>已确认</option><option>已排除</option></select></td><td><button class="table-action">查看详情</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="check-section">
+            <div>
+              <div class="section-copy"><h3>基线检查</h3><p>所有检查项完成后，才可以确认范围基线。</p></div>
+              <div class="checks">
+                <label class="check-item"><input type="checkbox" data-check>需求已完成调研并完成去重</label>
+                <label class="check-item"><input type="checkbox" data-check>已明确纳入与不纳入范围</label>
+                <label class="check-item"><input type="checkbox" data-check>每条需求都有优先级</label>
+                <label class="check-item"><input type="checkbox" data-check>已确认需求都有验收标准</label>
+              </div>
+            </div>
+            <div class="baseline-card"><strong id="baselineTitle">范围基线未确认</strong><small id="baselineHint">完成 0 / 4 项检查后可确认</small><div class="progress-line"><span id="checkProgress"></span></div><div class="baseline-actions"><button class="button button-primary button-small" id="confirmBaseline">确认范围基线</button><button class="button button-small" id="reopenBaseline" hidden>重新打开</button></div></div>
+          </div>
+        </div>
+
+        <div class="task-section"><div class="section-heading"><div class="section-copy"><h3>当前节点任务</h3><p>用于跟踪调研、需求梳理和评审等执行工作。</p></div><button class="button button-primary button-small">＋ 添加任务</button></div><div class="task-columns"><div class="task-column"><div class="task-column-head">待办 <span>2</span></div><div class="task-placeholder">补充业务访谈记录</div></div><div class="task-column"><div class="task-column-head">进行中 <span>2</span></div><div class="task-placeholder">整理需求清单与优先级</div></div><div class="task-column"><div class="task-column-head">已完成 <span>1</span></div><div class="task-placeholder">完成现状流程调研</div></div></div></div>
+      </section>
+    </div>
+  </main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const toast = document.getElementById('toast')
+    let toastTimer
+    function showToast(message) {
+      toast.textContent = message
+      toast.classList.add('show')
+      clearTimeout(toastTimer)
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2200)
+    }
+
+    document.querySelectorAll('[data-flow]').forEach((button) => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('[data-flow]').forEach((item) => item.classList.remove('selected'))
+        button.classList.add('selected')
+        showToast(`Demo：已切换到「${button.dataset.flow}」节点`)
+      })
+    })
+
+    function updateScopeCount(type) {
+      const list = document.getElementById(type + 'Scope')
+      document.getElementById(type + 'Count').textContent = `${list.children.length} 项`
+    }
+    document.querySelectorAll('[data-add-scope]').forEach((button) => {
+      button.addEventListener('click', () => {
+        document.getElementById(button.dataset.addScope + 'Add').classList.add('visible')
+        document.getElementById(button.dataset.addScope + 'Add').querySelector('input').focus()
+      })
+    })
+    document.querySelectorAll('[data-save-scope]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const type = button.dataset.saveScope
+        const input = document.getElementById(type + 'Add').querySelector('input')
+        if (!input.value.trim()) return showToast('请先填写范围项')
+        const item = document.createElement('li')
+        item.innerHTML = `${input.value.trim()}<button data-remove>×</button>`
+        document.getElementById(type + 'Scope').appendChild(item)
+        input.value = ''
+        document.getElementById(type + 'Add').classList.remove('visible')
+        updateScopeCount(type)
+        showToast('范围项已加入 Demo')
+      })
+    })
+    document.addEventListener('click', (event) => {
+      const remove = event.target.closest('[data-remove]')
+      if (!remove) return
+      const list = remove.closest('ul')
+      const type = list.id === 'inScope' ? 'in' : 'out'
+      remove.parentElement.remove()
+      updateScopeCount(type)
+    })
+
+    document.querySelectorAll('[data-status]').forEach((select) => {
+      select.addEventListener('change', () => {
+        select.classList.toggle('confirmed', select.value === '已确认')
+        showToast(`需求状态已切换为「${select.value}」`)
+      })
+    })
+
+    document.getElementById('addRequirement').addEventListener('click', () => {
+      const row = document.createElement('tr')
+      row.innerHTML = '<td class="req-code">REQ-005</td><td><span class="req-name">待补充需求</span><span class="req-detail">Demo 新增条目</span></td><td>业务需求</td><td><span class="priority medium">中</span></td><td>待补充验收标准</td><td><select class="status-select" data-status><option selected>待澄清</option><option>待评审</option><option>已确认</option><option>已排除</option></select></td><td><button class="table-action">查看详情</button></td>'
+      document.getElementById('requirements').appendChild(row)
+      row.querySelector('[data-status]').addEventListener('change', (event) => {
+        event.target.classList.toggle('confirmed', event.target.value === '已确认')
+        showToast(`需求状态已切换为「${event.target.value}」`)
+      })
+      showToast('已新增一条需求 Demo')
+    })
+
+    const checks = [...document.querySelectorAll('[data-check]')]
+    const progress = document.getElementById('checkProgress')
+    const baselineHint = document.getElementById('baselineHint')
+    const workbench = document.getElementById('workbench')
+    function updateChecks() {
+      const done = checks.filter((item) => item.checked).length
+      progress.style.width = `${done / checks.length * 100}%`
+      baselineHint.textContent = done === checks.length ? '检查项已全部完成，可以确认' : `完成 ${done} / ${checks.length} 项检查后可确认`
+      document.getElementById('confirmBaseline').disabled = done !== checks.length
+    }
+    checks.forEach((item) => item.addEventListener('change', updateChecks))
+    updateChecks()
+
+    document.getElementById('confirmBaseline').addEventListener('click', () => {
+      if (checks.some((item) => !item.checked)) return showToast('请先完成全部基线检查')
+      workbench.classList.add('locked')
+      workbench.querySelectorAll('[data-editable], [data-status], [data-remove], [data-add-scope], #addRequirement').forEach((item) => item.disabled = true)
+      document.getElementById('baselineTitle').textContent = '范围基线已确认'
+      document.getElementById('baselineHint').textContent = '版本 1.0 · 已锁定，修改需走范围变更'
+      document.getElementById('baselineState').textContent = '已确认'
+      document.getElementById('confirmBaseline').hidden = true
+      document.getElementById('reopenBaseline').hidden = false
+      showToast('Demo：范围基线已确认并锁定')
+    })
+    document.getElementById('reopenBaseline').addEventListener('click', () => {
+      workbench.classList.remove('locked')
+      workbench.querySelectorAll('[data-editable], [data-status], [data-remove], [data-add-scope], #addRequirement').forEach((item) => item.disabled = false)
+      document.getElementById('baselineTitle').textContent = '范围基线未确认'
+      document.getElementById('baselineHint').textContent = '检查项仍保留，可继续修改'
+      document.getElementById('baselineState').textContent = '草稿整理中'
+      document.getElementById('confirmBaseline').hidden = false
+      document.getElementById('reopenBaseline').hidden = true
+      showToast('Demo：范围基线已重新打开')
+    })
+    document.getElementById('completeNode').addEventListener('click', () => {
+      if (!workbench.classList.contains('locked')) return showToast('请先确认范围基线，再完成节点')
+      showToast('Demo：节点完成动作已通过基线校验')
+    })
+  </script>
+</body>
+</html>

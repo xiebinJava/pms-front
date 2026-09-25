@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import fs from 'node:fs'
+import path from 'node:path'
 import {
   canRollbackNode,
   buildTaskPayload,
@@ -8,17 +10,34 @@ import {
   getNodeProgress,
   getNodeStatusMeta,
   getNodeOwnerDisplay,
+  defaultNodeOwnerId,
+  listDefaultNodeOwnerAssignments,
+  shouldAssignDefaultNodeOwner,
   getNodeScopedParams,
   getMissingKickoffProfileFields,
   formatPersonLabel,
   buildBusinessLineOptions,
+  filterBusinessLineOptions,
+  getBusinessLineDisplay,
+  getBusinessLineLabels,
+  getBusinessLineTreeRows,
+  hoverBusinessLinePath,
   findOrgUnitById,
   getOrgUnitPath,
   getProjectManagerDisplay,
   getProjectOverallProgress,
   getProjectProfileFields,
   getPersonDisplay,
+  normalizePersonDisplayLabel,
+  resolvePersonSelectLabel,
   getSinglePersonSelection,
+  listPersonSelectOptions,
+  pickFallbackPeople,
+  readRecentPeople,
+  rememberRecentPeople,
+  RECENT_PERSON_LIMIT,
+  isSelectableAccount,
+  mergeMemberIdsAfterRefresh,
   getProjectStatusTone,
   normalizeRequiredReason,
   isKickoffNode,
@@ -29,7 +48,205 @@ import {
   shouldAutoSaveProfile,
   sortTasksByPriority,
 } from './workflow.ts'
-import { getProjectStatusLabel, ProjectStatus, statusTagColor } from '../../../enums/index.ts'
+import * as workflow from './workflow.ts'
+import {
+  getProjectStatusLabel,
+  milestoneStatusTagColor,
+  nodeStatusTagColor,
+  ProjectStatus,
+  projectStatusTagColor,
+  taskStatusTagColor,
+} from '../../../enums/index.ts'
+
+const detailRoot = path.resolve(import.meta.dirname)
+
+test('task board keeps drag surfaces and an accessible delete affordance', () => {
+  const source = fs.readFileSync(path.join(detailRoot, 'components/TaskKanban.vue'), 'utf8')
+  assert.match(source, /:draggable="Boolean\(task\.permissions\?\.canMove && !nodeReadOnly\)"/)
+  assert.match(source, /class="[^"]*pms-task-card__delete[^"]*"[^>]*:aria-label=/)
+  assert.match(source, /class="pms-task-card__actions"/)
+})
+
+test('project collaboration controls consume backend capabilities', () => {
+  const list = fs.readFileSync(path.resolve(detailRoot, '../list/index.vue'), 'utf8')
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  const kanban = fs.readFileSync(path.join(detailRoot, 'components/TaskKanban.vue'), 'utf8')
+  const comments = fs.readFileSync(path.join(detailRoot, 'components/Comments.vue'), 'utf8')
+  const workPanel = fs.readFileSync(path.join(detailRoot, 'components/TaskWorkPanel.vue'), 'utf8')
+  assert.match(list, /userStore\.can\('project:create'\)/)
+  assert.match(list, /v-if="canCreateProject"[^>]*class="[^"]*pms-primary-button[^"]*"/)
+  assert.match(detail, /canManageMembers/)
+  assert.match(detail, /canSetProjectManager/)
+  assert.match(detail, /if \(canManageMembers\.value && profileMembersDirty\.value\)/)
+  assert.match(detail, /if \(canSetProjectManager\.value && profileForm\.projectManagerId != null\)/)
+  assert.match(comments, /v-if="canWrite"/)
+  assert.match(comments, /v-if="item\.canDelete"/)
+  assert.match(workPanel, /v-if="canWriteComment"/)
+  assert.match(workPanel, /v-if="item\.canDelete"/)
+  assert.match(workPanel, /v-if="item\.canDelete"[^>]*type="text"[^>]*size="small"[^>]*danger/)
+  assert.match(kanban, /Boolean\(props\.node\.permissions\?\.canManageTasks\)/)
+})
+
+test('refreshes project-level person pickers when collaboration members change', () => {
+  const members = fs.readFileSync(path.join(detailRoot, 'components/Members.vue'), 'utf8')
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+
+  assert.match(members, /members-changed/)
+  assert.match(members, /await addMember\([\s\S]*?emit\('members-changed'\)/)
+  assert.match(members, /await removeMember\([\s\S]*?emit\('members-changed'\)/)
+  assert.match(detail, /@members-changed="onProjectMembersChanged"/)
+  assert.match(detail, /function onProjectMembersChanged\(/)
+})
+
+test('subtasks expose an editable status control backed by task capabilities', () => {
+  const workPanel = fs.readFileSync(path.join(detailRoot, 'components/TaskWorkPanel.vue'), 'utf8')
+  assert.match(workPanel, /TaskStatus\.options\(\)/)
+  assert.match(workPanel, /:value="item\.status"/)
+  assert.match(workPanel, /item\.permissions\?\.canEdit/)
+  assert.match(workPanel, /updateTask\(item\.id, \{ status, version: item\.version \}\)/)
+})
+
+test('subtasks support optional due dates and capability-gated deletion', () => {
+  const workPanel = fs.readFileSync(path.join(detailRoot, 'components/TaskWorkPanel.vue'), 'utf8')
+  assert.match(workPanel, /deleteTask/)
+  assert.match(workPanel, /subtaskDueDate/)
+  assert.match(workPanel, /a-date-picker/)
+  assert.match(workPanel, /clearDueDate: true/)
+  assert.match(workPanel, /item\.permissions\?\.canDelete/)
+  assert.match(workPanel, /onDeleteSubtask/)
+  assert.match(workPanel, /detail\.status === DONE_TASK_STATUS/)
+  assert.match(workPanel, /props\.detail\.status !== DONE_TASK_STATUS/)
+})
+
+test('project description stays a plain text field without image upload controls', () => {
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  assert.match(detail, /project-description-control/)
+  assert.doesNotMatch(detail, /descriptionImage|project-description-toolbar|PictureOutlined|insertImage|uploadProjectImage/)
+})
+
+test('project detail header uses the compact lifecycle menu and separates progress metrics', () => {
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  assert.match(detail, /project-header__actions/)
+  assert.match(detail, /MoreOutlined/)
+  assert.match(detail, /:aria-label="\$t\('detail\.more'\)"/)
+  assert.doesNotMatch(detail, /project-header__edit/)
+  assert.doesNotMatch(detail, /detail\.editProject/)
+  assert.match(detail, /pms-project-badge--level/)
+  assert.match(detail, /pms-project-badge--priority/)
+  assert.match(detail, /detail\.currentNodeTaskProgress/)
+  assert.match(detail, /detail\.nodeTaskCountSummary/)
+  assert.match(detail, /detail\.noNodeTasks/)
+  assert.match(detail, /project-header__insight-submetric-value/)
+  assert.match(detail, /currentNodeTaskProgress/)
+  assert.match(detail, /task-progress/)
+  assert.doesNotMatch(detail, /project-header__insight--node/)
+  assert.doesNotMatch(detail, /project-header__insight--health/)
+  assert.ok(detail.indexOf("detail.businessLine") < detail.indexOf("detail.projectPeriod"))
+})
+
+test('project detail keeps project lifecycle actions in the project header', () => {
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  const nodeActions = detail.match(/<div class="node-detail-actions">([\s\S]*?)<\/div>/)?.[1] || ''
+  const projectHeader = detail.match(/<div class="project-header__actions">([\s\S]*?)<\/div>/)?.[1] || ''
+
+  assert.doesNotMatch(nodeActions, /project-header__more|MoreOutlined/)
+  assert.match(projectHeader, /project-header__more/)
+  assert.match(projectHeader, /MoreOutlined/)
+})
+
+test('completed flow state uses the soft success treatment from the design system', () => {
+  const navigator = fs.readFileSync(path.join(detailRoot, 'components/NodeNavigator.vue'), 'utf8')
+  assert.match(navigator, /background: var\(--pms-success-soft\)/)
+  assert.match(navigator, /color: var\(--pms-success\)/)
+})
+
+test('task cards keep high-value fields visible with a structured meta row', () => {
+  const kanban = fs.readFileSync(path.join(detailRoot, 'components/TaskKanban.vue'), 'utf8')
+  const styles = fs.readFileSync(path.resolve(detailRoot, '../../../styles/pms-theme.css'), 'utf8')
+  assert.match(kanban, /CalendarOutlined/)
+  assert.match(kanban, /UserOutlined/)
+  assert.match(kanban, /task-card__assignee/)
+  assert.match(kanban, /task-card__context/)
+  assert.match(kanban, /pms-project-badge task-card__priority/)
+  assert.match(kanban, /priorityBadgeClass/)
+  assert.doesNotMatch(kanban, /pms-priority-tag--urgent/)
+  assert.doesNotMatch(kanban, /ExclamationCircleOutlined/)
+  assert.match(styles, /\.pms-project-badge--priority-urgent/)
+})
+
+test('node assignment row has no decorative separator borders', () => {
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  const styles = fs.readFileSync(path.resolve(detailRoot, '../../../styles/pms-theme.css'), 'utf8')
+  assert.match(detail, /class="node-assignment-row pms-assignment-grid"/)
+  const assignmentStart = detail.indexOf('class="node-assignment-row pms-assignment-grid"')
+  const profileStart = detail.indexOf('class="node-tab-profile"', assignmentStart)
+  assert.ok(assignmentStart >= 0 && profileStart > assignmentStart)
+  assert.doesNotMatch(detail.slice(assignmentStart, profileStart), /<a-divider \/>/)
+  assert.doesNotMatch(styles, /\.node-assignment-row,\s*\n\.pms-assignment-grid\s*\{[^}]*border-top/)
+  assert.doesNotMatch(styles, /\.node-assignment-row,\s*\n\.pms-assignment-grid\s*\{[^}]*border-bottom/)
+})
+
+test('task board reports current-node progress to the project header', () => {
+  const kanban = fs.readFileSync(path.join(detailRoot, 'components/TaskKanban.vue'), 'utf8')
+  assert.match(kanban, /task-progress/)
+  assert.match(kanban, /status === 2/)
+  assert.match(kanban, /emit\('task-progress'/)
+})
+
+test('task detail loading cannot cross-contaminate task modals', () => {
+  const kanban = fs.readFileSync(path.join(detailRoot, 'components/TaskKanban.vue'), 'utf8')
+  assert.match(kanban, /let detailSequence = 0/)
+  assert.match(kanban, /detail\.value = null/)
+  assert.match(kanban, /sequence !== detailSequence \|\| modalState\.editingId !== taskId/)
+})
+
+test('task drag progress ignores responses from an older node request', () => {
+  const kanban = fs.readFileSync(path.join(detailRoot, 'components/TaskKanban.vue'), 'utf8')
+  assert.match(kanban, /const originSequence = loadSequence/)
+  assert.match(kanban, /const originNodeId = props\.nodeId/)
+  assert.match(kanban, /originSequence !== loadSequence \|\| originProjectId !== props\.projectId \|\| originNodeId !== props\.nodeId/)
+})
+
+test('gantt node bars expose move and edge-resize interactions with parent synchronization', () => {
+  const chart = fs.readFileSync(path.join(detailRoot, 'components/ProjectScheduleChart.vue'), 'utf8')
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  assert.match(chart, /applyScheduleDrag/)
+  assert.match(chart, /createScheduleFromDrag/)
+  assert.match(chart, /startNodeRange/)
+  assert.match(chart, /gantt__track--creatable/)
+  assert.match(chart, /onNodeRangeEnd/)
+  assert.match(chart, /gantt__zoom/)
+  assert.match(chart, /adjustDayWidth/)
+  assert.match(chart, /resize-start/)
+  assert.match(chart, /resize-end/)
+  assert.match(chart, /updateNodeSchedule/)
+  assert.match(chart, /gantt-bar--editable/)
+  assert.match(detail, /canEditScheduleNode/)
+  assert.match(detail, /@update-node-schedule="onScheduleNodeScheduleChange"/)
+  assert.match(chart, /suppressBarClick.value = true/)
+  assert.match(chart, /window.setTimeout\(\(\) => \{ suppressBarClick.value = false \}, 0\)/)
+  assert.match(detail, /scheduleSaveFailed/)
+})
+
+test('workflow cards show the node owner and deadline without removing click navigation', () => {
+  const navigator = fs.readFileSync(path.join(detailRoot, 'components/NodeNavigator.vue'), 'utf8')
+  assert.match(navigator, /node-owner/)
+  assert.match(navigator, /node-deadline/)
+  assert.match(navigator, /node\.ownerName/)
+  assert.match(navigator, /node\.endDate/)
+  assert.match(navigator, /emit\('select', node\)/)
+})
+
+test('project detail surfaces follow the compact governance demo visual language', () => {
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  assert.match(detail, /--pms-primary:\s*#1769e0/)
+  assert.match(detail, /--pms-text:\s*#17243b/)
+  assert.match(detail, /\.project-header\s*\{[^}]*padding:\s*24px 26px 19px/)
+  assert.match(detail, /\.project-header\s*\{[^}]*border-radius:\s*14px/)
+  assert.match(detail, /\.project-header\s*\{[^}]*box-shadow:\s*0 12px 28px/)
+  assert.match(detail, /project-header__meta-item--divider/)
+  assert.match(detail, /\.project-header__insights\s*\{[^}]*margin-top:\s*19px/)
+})
 
 test('maps node status to the visual state used by the flow', () => {
   assert.deepEqual(getFlowNodeState(2), {
@@ -72,6 +289,19 @@ test('calculates project progress from completed nodes', () => {
   assert.equal(getNodeProgress(0, 0), 0)
 })
 
+test('keeps current-node task progress unknown until its summary is loaded', () => {
+  assert.equal(workflow.getCurrentNodeTaskProgress?.(null), undefined)
+})
+
+test('does not report a current-node task percentage when the loaded node has no tasks', () => {
+  assert.equal(workflow.getCurrentNodeTaskProgress?.({ done: 0, total: 0 }), null)
+})
+
+test('calculates progress from tasks in the current node', () => {
+  assert.equal(workflow.getCurrentNodeTaskProgress?.({ done: 2, total: 5 }), 40)
+  assert.equal(workflow.getCurrentNodeTaskProgress?.({ done: 5, total: 5 }), 100)
+})
+
 test('maps every project status to the shared visual tone and color', () => {
   assert.deepEqual(ProjectStatus.options(), [
     { value: 1, label: '进行中' },
@@ -86,12 +316,25 @@ test('maps every project status to the shared visual tone and color', () => {
     'terminated',
     'deleted',
   ])
-  assert.deepEqual([1, 2, 3, 4].map((status) => statusTagColor[status]), [
+  assert.deepEqual([0, 1, 2, 3, 4].map(projectStatusTagColor), [
+    'orange',
     'orange',
     'green',
     'red',
-    'red',
+    '#5d6b7e',
   ])
+  assert.deepEqual([0, 1, 2].map(taskStatusTagColor), ['default', 'orange', 'green'])
+  assert.deepEqual([0, 1, 2, 3].map(nodeStatusTagColor), ['default', 'orange', 'green', 'red'])
+  assert.deepEqual([0, 1, 2].map(milestoneStatusTagColor), ['default', 'orange', 'green'])
+})
+
+test('in-progress status styling uses the active orange token', () => {
+  const detailStyle = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  const navigatorStyle = fs.readFileSync(path.join(detailRoot, 'components/NodeNavigator.vue'), 'utf8')
+  const sharedStyle = fs.readFileSync(path.resolve(detailRoot, '../../../styles/pms-theme.css'), 'utf8')
+  assert.match(detailStyle, /\.project-header__status/)
+  assert.match(sharedStyle, /\.project-status-icon--active[^{]*\{[^}]*--pms-status-active/)
+  assert.match(navigatorStyle, /\.flow-node--active \.flow-node__dot-core[^{]*\{[^}]*--pms-status-active/)
 })
 
 test('renders legacy project status zero as active', () => {
@@ -113,6 +356,46 @@ test('reloads tasks when the same node changes lifecycle state', () => {
     { nodeId: 1, status: 1, readOnly: false },
     { nodeId: 2, status: 1, readOnly: false },
   ), true)
+})
+
+test('task board reloads in place without remounting the whole node detail', () => {
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  const kanban = fs.readFileSync(path.join(detailRoot, 'components/TaskKanban.vue'), 'utf8')
+  assert.doesNotMatch(detail, /<section\s+v-if="activeNode"\s+:key="activeNode\.id"/)
+  assert.doesNotMatch(detail, /<TaskKanban[\s\S]*?:key="activeNode\.id"/)
+  assert.match(detail, /:key="`node-owner-\$\{activeNode\.id\}`"/)
+  assert.match(detail, /:key="`node-schedule-\$\{activeNode\.id\}`"/)
+  assert.match(kanban, /tasks\.value = \[\]/)
+  assert.match(kanban, /softLoading/)
+  assert.match(kanban, /requestedNodeId !== props\.nodeId/)
+})
+
+test('node workbenches keep per-node keys while the shared detail chrome stays stable', () => {
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  assert.match(detail, /RequirementScopeWorkbench[\s\S]*?:key="activeNode\.id"/)
+  assert.match(detail, /class="node-detail-card/)
+})
+
+test('project detail renders compatibility field slots in order while fixed modules remain outside them', () => {
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  assert.match(detail, /nodeWorkflowContentOrder\(activeNode\.value\)/)
+  assert.match(detail, /nodeWorkflowFields\(activeNode\.value, 'fields'\)/)
+  assert.match(detail, /nodeWorkflowFields\(activeNode\.value, 'legacy-custom-fields'\)/)
+  assert.match(detail, /ref="profileContainer" class="node-tab-profile" :style="customFieldsSlotStyle\('fields'\)"/)
+  assert.match(detail, /<WorkflowCustomFields[\s\S]*?:fields="activeNodeFieldsSlot"[\s\S]*?#bound-field/)
+  assert.match(detail, /workflow-legacy-custom-fields" :style="customFieldsSlotStyle\('legacy-custom-fields'\)"[\s\S]*?:fields="activeNodeLegacyCustomFields"/)
+  assert.match(detail, /class="node-assignment-row pms-assignment-grid"/)
+  assert.match(detail, /class="node-task-section"/)
+})
+
+test('workflow workbenches are resolved by component identity rather than fixed node names', () => {
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  for (const component of ['requirement-scope', 'solution-design', 'plan-resource-risk', 'development-control', 'business-acceptance', 'release-handover', 'value-review', 'knowledge-standard']) {
+    assert.match(detail, new RegExp(`nodeHasComponent\\(activeNode, '${component}'\\)`))
+  }
+  assert.doesNotMatch(detail, /activeNode\.nodeKey === '(requirement|design|plan|develop|acceptance|release|review|knowledge)'/)
+  assert.match(detail, /class="node-assignment-row pms-assignment-grid"/)
+  assert.match(detail, /class="node-task-section"/)
 })
 
 test('only allows rollback for completed nodes', () => {
@@ -162,9 +445,30 @@ test('keeps creation time out of the editable project profile', () => {
   assert.deepEqual(getProjectProfileFields().map((field) => field.key), [
     'description',
     'priority',
+    'projectLevel',
     'schedule',
     'businessLine',
   ])
+})
+
+test('project level is placed after priority in the editable project profile', () => {
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  assert.match(detail, /profileForm\.projectLevel/)
+  assert.match(detail, /ProjectLevel\.options\(\)/)
+  assert.match(detail, /projectLevel: profileForm\.projectLevel/)
+  assert.match(detail, /field\.binding === 'project\.projectLevel'/)
+})
+
+test('profile member save keeps a baseline so auto-joined people are not replaced away', () => {
+  const detail = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  assert.match(detail, /expectedMemberIds/)
+  assert.match(detail, /profileMembersDirty/)
+  assert.match(detail, /mergeMemberIdsAfterRefresh/)
+  assert.match(detail, /nodes\.value = await getNodes\(project\.value\.id\)/)
+  assert.match(detail, /persistDefaultNodeOwners\(pendingPreviousManagerId\)/)
+  assert.match(detail, /listDefaultNodeOwnerAssignments/)
+  assert.match(detail, /updateNodeOwner\(requestProjectId, assignment\.node\.id/)
+  assert.match(detail, /void onSaveProfile\(\)/)
 })
 
 test('builds hierarchical business line options without exposing the company root', () => {
@@ -186,6 +490,28 @@ test('builds hierarchical business line options without exposing the company roo
     children: [{ value: 3, label: 'PDT-01' }],
   }])
   assert.deepEqual(getOrgUnitPath(tree, 3), [2, 3])
+})
+
+test('business line tree expands the hovered branch and filters by keyword', () => {
+  const options = [{
+    value: 2,
+    label: '产品制造 BG',
+    children: [{ value: 3, label: 'PDT-01' }],
+  }, {
+    value: 4,
+    label: 'PMO',
+  }]
+
+  assert.deepEqual(hoverBusinessLinePath([], 0, 2), [2])
+  assert.deepEqual(hoverBusinessLinePath([2, 3], 0, 4), [4])
+  assert.deepEqual(getBusinessLineTreeRows(options, [2]).map((row) => row.label), ['产品制造 BG', 'PDT-01', 'PMO'])
+  assert.deepEqual(getBusinessLineTreeRows(options, [4]).map((row) => row.label), ['产品制造 BG', 'PMO'])
+  assert.deepEqual(getBusinessLineLabels(options, [2, 3]), ['产品制造 BG', 'PDT-01'])
+  assert.equal(getBusinessLineDisplay(options, [2, 3]), '产品制造 BG / PDT-01')
+  assert.equal(getBusinessLineDisplay(options, [], '公司总部 / 产品制造 BG'), '公司总部 / 产品制造 BG')
+  assert.deepEqual(filterBusinessLineOptions(options, 'pmo').map((option) => option.label), ['PMO'])
+  assert.equal(filterBusinessLineOptions(options, 'pdt')[0]?.label, '产品制造 BG')
+  assert.deepEqual(getBusinessLineTreeRows(filterBusinessLineOptions(options, 'pdt'), [], true).map((row) => row.label), ['产品制造 BG', 'PDT-01'])
 })
 
 test('resolves the selected business line and its responsible leader', () => {
@@ -239,6 +565,32 @@ test('shows an unassigned node owner as pending assignment', () => {
   assert.equal(getNodeOwnerDisplay('李四'), '李四')
 })
 
+test('later nodes inherit the project manager unless someone already assigned an owner', () => {
+  assert.equal(defaultNodeOwnerId(true, 11, 22), 11)
+  assert.equal(defaultNodeOwnerId(false, 11, 22), 22)
+  assert.equal(shouldAssignDefaultNodeOwner(undefined, undefined, 22), true)
+  assert.equal(shouldAssignDefaultNodeOwner(22, 22, 33), true)
+  assert.equal(shouldAssignDefaultNodeOwner(99, 22, 33), false)
+  const nodes = [
+    { ownerId: 11, status: 1 },
+    { ownerId: undefined, status: 0 },
+    { ownerId: 99, status: 0 },
+    { ownerId: undefined, status: 2 },
+  ]
+  assert.deepEqual(
+    listDefaultNodeOwnerAssignments(nodes, 11, 22).map((item) => [item.index, item.ownerId]),
+    [[1, 22]],
+  )
+  assert.deepEqual(
+    listDefaultNodeOwnerAssignments([
+      { ownerId: 11, status: 1 },
+      { ownerId: 22, status: 0 },
+      { ownerId: 99, status: 0 },
+    ], 11, 33, 22).map((item) => [item.index, item.ownerId]),
+    [[1, 33]],
+  )
+})
+
 test('formats people consistently as name and account', () => {
   assert.equal(formatPersonLabel({ id: 1, nickname: '朱晨', username: 'Gloria.Zhu' }), '朱晨（Gloria.Zhu）')
   assert.equal(formatPersonLabel({ id: 4, nickname: '管理员（admin）', username: 'admin' }), '管理员（admin）')
@@ -260,6 +612,22 @@ test('normalizes duplicate preformatted person display labels', () => {
   })
 })
 
+test('ignores render-node labels instead of calling string methods on them', () => {
+  assert.equal(normalizePersonDisplayLabel({ type: 'span', children: '张伟（alex.zhang）' }), undefined)
+})
+
+test('uses the selected option text when a person tag renderer supplies a VNode', () => {
+  const renderedLabel = { type: 'span', children: 'rendered person label' }
+
+  assert.equal(resolvePersonSelectLabel(42, renderedLabel, '张伟(alex.zhang)'), '张伟（alex.zhang）')
+  assert.equal(resolvePersonSelectLabel(42, '郑琳 (Alice.Zheng)', '张伟（alex.zhang）'), '郑琳（Alice.Zheng）')
+  assert.equal(resolvePersonSelectLabel(42, renderedLabel), '用户 42')
+  assert.deepEqual(getPersonDisplay({ label: renderedLabel, avatar: '/avatar.png' }, '张伟(alex.zhang)'), {
+    label: '张伟（alex.zhang）',
+    avatar: '/avatar.png',
+  })
+})
+
 test('prefers the selected person label over the stale project fallback', () => {
   assert.deepEqual(getPersonDisplay({ label: '张三(zhangsan)', avatar: '/avatar.png' }, '管理员'), {
     label: '张三（zhangsan）',
@@ -274,6 +642,84 @@ test('prefers the selected person label over the stale project fallback', () => 
 test('replaces a single person selection with the latest choice', () => {
   assert.equal(getSinglePersonSelection([1, 2]), 2)
   assert.equal(getSinglePersonSelection([]), undefined)
+})
+
+test('keeps only the latest six recent people and shows them before search', () => {
+  const storage = {
+    data: {},
+    getItem(key) { return this.data[key] ?? null },
+    setItem(key, value) { this.data[key] = String(value) },
+  }
+  const zhang = { value: 1, label: '张伟（Alex.Zhang）' }
+  const people = [
+    zhang,
+    { value: 2, label: '李强（Terry.Li）' },
+    { value: 3, label: '周岚（Linda.Zhou）' },
+    { value: 4, label: '陈宇（Kevin.Chen）' },
+    { value: 5, label: '王璇（Claire.Wang）' },
+    { value: 6, label: '赵晨（Ethan.Zhao）' },
+    { value: 7, label: '刘洋（Andy.Liu）' },
+  ]
+  const recent = rememberRecentPeople(people, storage, 9)
+  assert.equal(recent.length, RECENT_PERSON_LIMIT)
+  assert.equal(recent[0].label, zhang.label)
+  assert.equal(readRecentPeople(storage, 9).length, RECENT_PERSON_LIMIT)
+  assert.deepEqual(listPersonSelectOptions({
+    keyword: '',
+    recent,
+    searchResults: [{ value: 8, label: '管理员（admin）' }],
+  }), recent)
+  assert.deepEqual(listPersonSelectOptions({
+    keyword: '张伟',
+    recent,
+    searchResults: [zhang],
+  }), [zhang])
+})
+
+test('fills an empty or short recent list with random people up to six', () => {
+  const zhang = { value: 1, label: '张伟（Alex.Zhang）' }
+  const pool = [
+    { value: 2, label: '李强（Terry.Li）' },
+    { value: 3, label: '周岚（Linda.Zhou）' },
+    { value: 4, label: '陈宇（Kevin.Chen）' },
+    { value: 5, label: '王璇（Claire.Wang）' },
+    { value: 6, label: '赵晨（Ethan.Zhao）' },
+    { value: 7, label: '刘洋（Andy.Liu）' },
+  ]
+  const filled = pickFallbackPeople([zhang], pool, RECENT_PERSON_LIMIT, () => 0)
+  assert.equal(filled.length, RECENT_PERSON_LIMIT)
+  assert.equal(filled[0].value, zhang.value)
+  assert.equal(new Set(filled.map((item) => item.value)).size, RECENT_PERSON_LIMIT)
+  assert.deepEqual(listPersonSelectOptions({
+    keyword: '',
+    recent: [zhang],
+    fallback: pool,
+    random: () => 0,
+  }), filled)
+})
+
+test('keeps explicitly supplied project people selectable when remote suggestions are empty', () => {
+  const projectMember = { value: 21, label: '管理员（admin）' }
+  const projectManager = { value: 34, label: '张伟（alex.zhang）' }
+
+  assert.deepEqual(listPersonSelectOptions({
+    keyword: '',
+    options: [projectMember, projectManager],
+    recent: [],
+    fallback: [],
+    random: () => 0,
+  }), [projectMember, projectManager])
+})
+
+test('only activated accounts can be picked from search', () => {
+  assert.equal(isSelectableAccount('ACTIVE'), true)
+  assert.equal(isSelectableAccount('PENDING_ACTIVATION'), false)
+  assert.equal(isSelectableAccount(undefined), false)
+})
+
+test('keeps unsaved member edits when refresh finds newly auto-joined people', () => {
+  assert.deepEqual(mergeMemberIdsAfterRefresh([1, 2], [1, 3], [1], true), [1, 2, 3])
+  assert.deepEqual(mergeMemberIdsAfterRefresh([1, 2], [1, 3], [1], false), [1, 3])
 })
 
 test('autosaves only when a dirty profile receives an outside click', () => {
@@ -308,7 +754,6 @@ test('keeps task deliverables in the task payload', () => {
     status: 0,
     priority: 1,
     assigneeId: 1,
-    milestoneId: undefined,
     dueDate: null,
   }, 12), {
     title: '资料评审',
@@ -317,11 +762,41 @@ test('keeps task deliverables in the task payload', () => {
     status: 0,
     priority: 1,
     assigneeId: 1,
-    milestoneId: undefined,
     dueDate: undefined,
     parentId: undefined,
     nodeId: 12,
   })
+})
+
+test('removes task-to-milestone association from the task board', () => {
+  const taskKanban = fs.readFileSync(path.join(detailRoot, 'components/TaskKanban.vue'), 'utf8')
+  assert.doesNotMatch(taskKanban, /getMilestones|milestoneId|task\.milestone|task\.milestonePlaceholder/)
+})
+
+test('carries an optional linked requirement into task creation', () => {
+  assert.equal(buildTaskPayload({
+    title: '商品详情页开发',
+    description: '',
+    deliverable: '',
+    status: 0,
+    priority: 1,
+    requirementId: 51,
+    dueDate: null,
+  }, 12).requirementId, 51)
+})
+
+test('tasks stay independent from development stories', () => {
+  const payload = buildTaskPayload({
+    title: '独立任务',
+    description: '',
+    deliverable: '',
+    status: 0,
+    priority: 1,
+    dueDate: null,
+  }, 12)
+  assert.equal('developmentStoryId' in payload, false)
+  const kanban = fs.readFileSync(path.join(detailRoot, 'components/TaskKanban.vue'), 'utf8')
+  assert.doesNotMatch(kanban, /openTasksForDevelopmentStory|storyFilterId|developmentStoryId|当前任务将关联故事/)
 })
 
 test('sorts tasks by priority without using creation time', () => {

@@ -1,8 +1,14 @@
 import type { SearchHit, SearchResult, UserNotification } from '/@/types/domain'
 
+export const NOTIFICATIONS_CHANGED_EVENT = 'pms:notifications-changed'
+
+export function notifyNotificationsChanged(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED_EVENT))
+}
+
 export interface ChromeRoute {
   path: string
-  query?: { task?: string; node?: string; milestone?: string }
+  query?: { task?: string; node?: string }
 }
 
 export function canSearch(query: string): boolean {
@@ -11,12 +17,11 @@ export function canSearch(query: string): boolean {
 
 export function firstSearchHit(result: SearchResult | null | undefined): SearchHit | null {
   if (!result) return null
-  return result.projects[0] || result.tasks[0] || result.milestones?.[0] || result.comments[0] || null
+  return result.projects[0] || result.tasks[0] || result.comments[0] || null
 }
 
 export function searchHitRoute(hit: SearchHit): ChromeRoute {
   if (hit.taskId) return { path: `/projects/${hit.projectId}`, query: { task: String(hit.taskId) } }
-  if (hit.milestoneId) return { path: `/projects/${hit.projectId}`, query: { milestone: String(hit.milestoneId) } }
   return { path: `/projects/${hit.projectId}` }
 }
 

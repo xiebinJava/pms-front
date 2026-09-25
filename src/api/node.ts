@@ -13,14 +13,18 @@ export function rollbackNode(projectId: number | string, nodeId: number, reason:
   return http.post(`/projects/${projectId}/nodes/${nodeId}/rollback`, { reason })
 }
 
-export function updateNodeOwner(projectId: number | string, nodeId: number, ownerId?: number): Promise<ProjectNode> {
-  return http.put(`/projects/${projectId}/nodes/${nodeId}/owner`, { ownerId })
+export function updateNodeOwner(
+  projectId: number | string,
+  nodeId: number,
+  payload: { ownerId?: number; version: number },
+): Promise<ProjectNode> {
+  return http.put(`/projects/${projectId}/nodes/${nodeId}/owner`, payload)
 }
 
 export function updateNodeSchedule(
   projectId: number | string,
   nodeId: number,
-  payload: { startDate?: string; endDate?: string },
+  payload: { startDate?: string; endDate?: string; version: number },
 ): Promise<ProjectNode> {
   return http.put(`/projects/${projectId}/nodes/${nodeId}/schedule`, payload)
 }

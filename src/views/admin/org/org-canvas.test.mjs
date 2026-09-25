@@ -13,6 +13,8 @@ test('organization canvas renders connected links and supports pan and zoom', ()
   assert.match(source, /translate\(/)
   assert.match(source, /function centerView\(/)
   assert.match(source, /ResizeObserver/)
+  assert.match(source, /@keydown="handleKeydown"/)
+  assert.match(source, /function handleKeydown\(/)
 })
 
 test('organization nodes expose their responsible leader and use the available workspace height', () => {
