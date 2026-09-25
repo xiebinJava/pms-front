@@ -63,17 +63,17 @@ test('user manuals explain workflow-template setup and topic/story item behavior
   assert.ok(enLocaleSource.includes("workflowTemplates: {\n        title: 'Workflow Templates'"), 'English manual should register workflow templates')
   assert.ok(zhLocaleSource.includes('专题流程模板指定的项目节点'))
   assert.ok(zhLocaleSource.includes('点击外部自动保存'))
-  assert.ok(zhLocaleSource.includes('故事拆分组件尚未开放'))
-  assert.ok(enLocaleSource.includes('story-splitting component is not available yet'))
+  assert.ok(zhLocaleSource.includes('故事拆分组件由专题流程模板配置挂载节点后使用'))
+  assert.ok(enLocaleSource.includes('story-splitting component is available when a published Story Management template provides its topic-node mount'))
   assert.ok(docsSource.includes('包含专题模板配置挂载节点'))
 })
 
-test('business-rules references define workflow bindings and call out deferred story splitting', () => {
+test('business-rules references define workflow bindings and story splitting placement', () => {
   assert.ok(referenceSource.includes("'workflow-templates'"))
   assert.ok(zhLocaleSource.includes("'workflow-templates': {"))
   assert.ok(enLocaleSource.includes("'workflow-templates': {"))
-  assert.ok(zhLocaleSource.includes('故事拆分组件当前尚未实现'))
-  assert.ok(enLocaleSource.includes('story-breakdown component is not implemented yet'))
+  assert.ok(zhLocaleSource.includes('专题流程实例会在故事挂载专题节点自动注入“故事拆分”组件'))
+  assert.ok(enLocaleSource.includes('story split'))
   assert.ok(logicDocsSource.includes('流程模板与工作项绑定'))
 })
 
@@ -159,7 +159,7 @@ test('manual reading surface exposes scoped search, mobile index controls, metad
 test('manual view wires scroll synchronization and documents the current release baseline', () => {
   assert.match(viewSource, /addEventListener\('scroll', onWindowScroll/)
   assert.match(viewSource, /router\.replace\(\{ path: '\/manual', hash: `#\$\{nextSection\}` \}\)/)
-  assert.ok(docsSource.includes('PMS v1.0.7') && docsSource.includes('V1–V54') && docsSource.includes('14 个功能模块'))
+  assert.ok(docsSource.includes('PMS v1.0.7') && docsSource.includes('V1–V55') && docsSource.includes('14 个功能模块'))
 })
 
 test('manual explains business rules and role capabilities instead of only listing operations', () => {
