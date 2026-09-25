@@ -17,6 +17,7 @@ import {
   archiveWorkflowTemplate,
   archiveWorkflowTemplateVersion,
   getWorkflowProjectNodeOptions,
+  getWorkflowTopicNodeOptions,
   getWorkflowTemplate,
   listWorkflowProjectTypes,
   listWorkflowTemplates,
@@ -39,6 +40,7 @@ import {
   removeWorkflowField,
   removeWorkflowNode,
   setTopicSourceProjectNodeKey,
+  setStorySourceTopicNodeKey,
 } from './workflow-template-model.mjs'
 import { PROJECT_FIELD_BINDINGS } from './workflow-template-schema.mjs'
 
@@ -51,6 +53,8 @@ const types = ref<ProjectType[]>([])
 const templates = ref<WorkflowTemplateSummary[]>([])
 const workflowProjectNodeOptions = ref<WorkflowProjectNodeOption[]>([])
 const workflowProjectNodeOptionsLoading = ref(false)
+const workflowTopicNodeOptions = ref<WorkflowProjectNodeOption[]>([])
+const workflowTopicNodeOptionsLoading = ref(false)
 const selectedTypeId = ref<number>()
 const selectedTemplateId = ref<number | null>(null)
 const selectedNodeKey = ref('')
@@ -76,6 +80,7 @@ let templateDetailRequestSequence = 0
 let typeChangeRequestSequence = 0
 let templateEditSequence = 0
 let workflowProjectNodeOptionsRequest: Promise<void> | undefined
+let workflowTopicNodeOptionsRequest: Promise<void> | undefined
 
 const COMPONENTS = [
   { key: 'requirement-scope' }, { key: 'solution-design' },
@@ -118,8 +123,11 @@ const workflowVersions = computed(() => [...(selectedTemplateSummary.value?.vers
   .sort((left, right) => right.versionNo - left.versionNo))
 
 watch(selectedTypeId, (typeId) => {
-  if (types.value.find((type) => type.id === typeId)?.code === 'topic-management') {
+  const processTypeCode = types.value.find((type) => type.id === typeId)?.code
+  if (processTypeCode === 'topic-management') {
     void loadWorkflowProjectNodeOptions()
+  } else if (processTypeCode === 'story-management') {
+    void loadWorkflowTopicNodeOptions()
   }
 })
 
@@ -137,9 +145,29 @@ function loadWorkflowProjectNodeOptions(): Promise<void> {
   return workflowProjectNodeOptionsRequest
 }
 
+function loadWorkflowTopicNodeOptions(): Promise<void> {
+  if (workflowTopicNodeOptions.value.length) return Promise.resolve()
+  if (workflowTopicNodeOptionsRequest) return workflowTopicNodeOptionsRequest
+  workflowTopicNodeOptionsLoading.value = true
+  workflowTopicNodeOptionsRequest = getWorkflowTopicNodeOptions()
+    .then((options) => { workflowTopicNodeOptions.value = Array.isArray(options) ? options : [] })
+    .catch((error) => { message.error((error as Error).message || t('admin.workflow.storySourceTopicNodeLoadFailed')) })
+    .finally(() => {
+      workflowTopicNodeOptionsLoading.value = false
+      workflowTopicNodeOptionsRequest = undefined
+    })
+  return workflowTopicNodeOptionsRequest
+}
+
 function updateTopicSourceProjectNodeKey(value: unknown) {
   if (selectedType.value?.code !== 'topic-management') return
   definition.value = setTopicSourceProjectNodeKey(definition.value, String(value || ''))
+  markDirty()
+}
+
+function updateStorySourceTopicNodeKey(value: unknown) {
+  if (selectedType.value?.code !== 'story-management') return
+  definition.value = setStorySourceTopicNodeKey(definition.value, String(value || ''))
   markDirty()
 }
 
@@ -924,6 +952,28 @@ onMounted(async () => {
                   />
                   <small v-if="!workflowProjectNodeOptionsLoading && !workflowProjectNodeOptions.length">
                     {{ $t('admin.workflow.topicSourceProjectNodeKeyNoOptions') }}
+                  </small>
+                </div>
+              </section>
+              <section v-if="selectedType?.code === 'story-management'" class="workflow-topic-binding" data-testid="workflow-story-binding">
+                <div class="workflow-topic-binding__copy">
+                  <strong>{{ $t('admin.workflow.storySourceTopicNodeKey') }}</strong>
+                  <p>{{ $t('admin.workflow.storySourceTopicNodeKeyHint') }}</p>
+                </div>
+                <div class="workflow-topic-binding__control">
+                  <a-select
+                    :value="definition.sourceTopicNodeKey"
+                    :options="workflowTopicNodeOptions.map((option) => ({ value: option.key, label: option.name }))"
+                    :loading="workflowTopicNodeOptionsLoading"
+                    :disabled="!canWrite || workflowTopicNodeOptionsLoading || !workflowTopicNodeOptions.length"
+                    :placeholder="$t('admin.workflow.storySourceTopicNodeKeyPlaceholder')"
+                    :aria-label="$t('admin.workflow.storySourceTopicNodeKey')"
+                    show-search
+                    option-filter-prop="label"
+                    @change="updateStorySourceTopicNodeKey"
+                  />
+                  <small v-if="!workflowTopicNodeOptionsLoading && !workflowTopicNodeOptions.length">
+                    {{ $t('admin.workflow.storySourceTopicNodeKeyNoOptions') }}
                   </small>
                 </div>
               </section>

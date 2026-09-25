@@ -63,7 +63,7 @@ test('workflow template entry requires an explicit type and template before show
   assert.equal(getEntryStep({ typeCount: 3, selectedTypeId: 2, templateCount: 0, creatingTemplate: true }), 'editor')
 })
 
-test('topic workflow normalization preserves and defaults the bound project node without changing other process types', () => {
+test('workflow normalization preserves only the mount metadata for its process type', () => {
   const normalizeForType = workflowTemplateModel.normalizeWorkflowDefinitionForProcessType
   const setTopicSourceNode = workflowTemplateModel.setTopicSourceProjectNodeKey
   assert.equal(typeof normalizeForType, 'function')
@@ -71,7 +71,7 @@ test('topic workflow normalization preserves and defaults the bound project node
   if (typeof normalizeForType !== 'function' || typeof setTopicSourceNode !== 'function') return
 
   const legacyTopic = normalizeForType({ schemaVersion: 1, nodes }, 'topic-management')
-  assert.equal(legacyTopic.sourceProjectNodeKey, 'develop')
+  assert.equal(Object.hasOwn(legacyTopic, 'sourceProjectNodeKey'), false)
 
   const configuredTopic = normalizeForType({
     schemaVersion: 2,
@@ -90,9 +90,11 @@ test('topic workflow normalization preserves and defaults the bound project node
   const storyWithStaleTopicBinding = normalizeForType({
     schemaVersion: 1,
     sourceProjectNodeKey: 'topic-only-key',
+    sourceTopicNodeKey: 'topic-requirements',
     nodes,
   }, 'story-management')
   assert.equal(Object.hasOwn(storyWithStaleTopicBinding, 'sourceProjectNodeKey'), false)
+  assert.equal(storyWithStaleTopicBinding.sourceTopicNodeKey, 'topic-requirements')
 })
 
 test('builds a process type request without asking the client to generate an internal code', () => {

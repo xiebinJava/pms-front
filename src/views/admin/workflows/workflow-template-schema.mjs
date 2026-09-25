@@ -102,5 +102,8 @@ export function normalizeWorkflowDefinition(definition) {
   if (typeof definition?.sourceProjectNodeKey === 'string') {
     normalized.sourceProjectNodeKey = definition.sourceProjectNodeKey
   }
+  if (typeof definition?.sourceTopicNodeKey === 'string') {
+    normalized.sourceTopicNodeKey = definition.sourceTopicNodeKey
+  }
   return normalized
 }

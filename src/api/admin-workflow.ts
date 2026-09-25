@@ -23,6 +23,10 @@ export function getWorkflowProjectNodeOptions(): Promise<WorkflowProjectNodeOpti
   return http.get('/admin/workflow-config/project-node-options')
 }
 
+export function getWorkflowTopicNodeOptions(): Promise<WorkflowProjectNodeOption[]> {
+  return http.get('/admin/workflow-config/topic-node-options')
+}
+
 export function createWorkflowProjectType(payload: Pick<ProjectType, 'name' | 'description' | 'sort'>): Promise<ProjectType> {
   return http.post('/admin/workflow-config/project-types', payload)
 }

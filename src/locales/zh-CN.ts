@@ -1241,6 +1241,7 @@ const zhCN = {
       newTemplate: '新建模板', newTemplateName: '新流程模板', templateName: '模板名称', templateDescription: '模板说明',
       versionGuidance: '草稿不会应用到项目。发布后，新建项目可选择此版本；已有项目仍使用创建时绑定的版本。设为默认后，新建项目会默认使用此版本。',
       topicSourceProjectNodeKey: '专题关联项目节点', topicSourceProjectNodeKeyHint: '选择专题流程要挂载的项目节点。发布后会在该项目节点自动加入“开发与迭代控制”工作台；已有专题仍保留在原节点。', topicSourceProjectNodeKeyPlaceholder: '请选择项目流程节点', topicSourceProjectNodeKeyNoOptions: '暂时没有可用的项目流程节点，请检查已发布的项目流程模板。', topicSourceProjectNodeLoadFailed: '项目流程节点加载失败，请切换流程类型后重试。',
+      storySourceTopicNodeKey: '故事关联专题节点', storySourceTopicNodeKeyHint: '选择故事流程要挂载的专题节点。故事关联专题后，会在该专题节点下显示故事拆分组件；已有故事仍保留创建时的流程快照。', storySourceTopicNodeKeyPlaceholder: '请选择专题流程节点', storySourceTopicNodeKeyNoOptions: '暂时没有可用的专题流程节点，请先发布专题流程模板。', storySourceTopicNodeLoadFailed: '专题流程节点加载失败，请切换流程类型后重试。',
       versionManager: '版本管理', versionManagerDescription: '可将已发布版本设为默认，或归档不再用于新项目的版本。已有项目仍保留创建时绑定的版本。', versionManagerClose: '关闭', noWorkflowVersions: '暂无流程版本',
       setDefaultVersion: '设为默认', setDefaultVersionTitle: '将 v{version} 设为默认版本？', setDefaultVersionContent: '新建项目将默认使用 v{version}；已有项目仍使用创建时绑定的版本。',
       archiveVersion: '归档版本', archivedVersion: '已归档', publishedVersionStatus: '已发布', draftVersionStatus: '草稿',

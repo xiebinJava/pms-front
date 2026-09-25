@@ -1,7 +1,6 @@
 import type { WorkflowFieldDefinition, WorkflowNodeDefinition, WorkflowNodeDefinitionV2, WorkflowProjectFieldDefinition } from '../../../types/workflow'
 
 export const FIXED_NODE_BLOCKS: readonly ('owner' | 'schedule' | 'task-board')[]
-export const LEGACY_TOPIC_SOURCE_PROJECT_NODE_KEY: 'develop'
 export const DEFAULT_PROJECT_BASIC_INFO_FIELDS: WorkflowProjectFieldDefinition[]
 export function getWorkflowTemplateEntryStep(options: {
   typeCount: number
@@ -13,6 +12,7 @@ export function getWorkflowTemplateEntryStep(options: {
 export function buildProjectTypeCreatePayload(form?: { name?: string | null; description?: string | null }, sort?: number): { name: string; description: string; sort: number }
 export function normalizeWorkflowDefinitionForProcessType(definition: WorkflowTemplateDefinition | null | undefined, processTypeCode?: string): WorkflowTemplateDefinitionV2
 export function setTopicSourceProjectNodeKey(definition: WorkflowTemplateDefinitionV2, nodeKey: string): WorkflowTemplateDefinitionV2
+export function setStorySourceTopicNodeKey(definition: WorkflowTemplateDefinitionV2, nodeKey: string): WorkflowTemplateDefinitionV2
 export function moveWorkflowNode<T extends WorkflowNodeDefinition | WorkflowNodeDefinitionV2>(nodes: T[], nodeKey: string, toIndex: number): T[]
 export function createWorkflowNode(nodes: WorkflowNodeDefinitionV2[], options?: { name?: string; description?: string; key?: string }): WorkflowNodeDefinitionV2
 export function removeWorkflowNode<T extends WorkflowNodeDefinition | WorkflowNodeDefinitionV2>(nodes: T[], nodeKey: string): T[]
