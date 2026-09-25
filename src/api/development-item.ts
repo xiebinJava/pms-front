@@ -84,6 +84,7 @@ export interface DevelopmentStoryRow {
 export interface DevelopmentTopicStory {
   id: number
   title: string
+  topicWorkflowNodeId?: number | null
   ownerId?: number
   ownerName?: string
   status: DevelopmentStoryStatus

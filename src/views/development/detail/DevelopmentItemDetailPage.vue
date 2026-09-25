@@ -15,9 +15,10 @@ import PersonSelect from '/@/views/project/detail/components/PersonSelect.vue'
 import DevelopmentItemFlow from './components/DevelopmentItemFlow.vue'
 import DevelopmentItemWorkflowFields from './components/DevelopmentItemWorkflowFields.vue'
 import DevelopmentItemTaskBoard from './components/DevelopmentItemTaskBoard.vue'
-import TopicStorySection from './TopicStorySection.vue'
+import DevelopmentStorySplitComponent from './DevelopmentStorySplitComponent.vue'
 import WorkflowNodeShell from '/@/components/workflow/WorkflowNodeShell.vue'
 import WorkflowRuntimeComponentHost from '/@/components/workflow/WorkflowRuntimeComponentHost.vue'
+import { WorkflowRuntimeComponentKey } from '/@/components/workflow/workflow-component-registry'
 import { isNodeReadOnly, shouldAutoSaveProfile } from '/@/views/project/detail/workflow'
 import { shouldAutoSaveOnBlur } from '/@/views/project/detail/workflow-config.mjs'
 
@@ -430,11 +431,15 @@ onBeforeUnmount(() => {
             </template>
 
             <template #components>
-              <WorkflowRuntimeComponentHost
-                v-for="componentKey in selectedNode.runtimeComponents || []"
-                :key="componentKey"
-                :component-key="componentKey"
-              />
+              <template v-for="componentKey in selectedNode.runtimeComponents || []" :key="componentKey">
+                <WorkflowRuntimeComponentHost
+                  v-if="props.itemType !== 'topic' || componentKey !== WorkflowRuntimeComponentKey.STORY_SPLIT"
+                  :component-key="componentKey"
+                />
+                <WorkflowRuntimeComponentHost v-else :component-key="componentKey">
+                  <DevelopmentStorySplitComponent :topic-id="detail.id" :node-id="selectedNode.id" />
+                </WorkflowRuntimeComponentHost>
+              </template>
             </template>
 
             <template #tasks>
@@ -452,7 +457,6 @@ onBeforeUnmount(() => {
               <div v-if="detail.blocker"><span>{{ t('developmentDetail.blocker') }}</span><strong>{{ detail.blocker }}</strong></div>
             </div>
           </section>
-          <TopicStorySection v-if="props.itemType === 'topic'" :topic-id="detail.id" />
         </template>
       </div>
     </a-spin>

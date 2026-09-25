@@ -103,3 +103,14 @@ test('development detail pages use the shared project-detail color system', () =
   assert.match(board, /class="pms-task-column"/)
   assert.match(board, /class="pms-task-card pms-task-card__surface item-task-board__task"/)
 })
+
+test('topic story splitting is rendered as a node-scoped runtime component', () => {
+  const split = fs.readFileSync(new URL('./detail/DevelopmentStorySplitComponent.vue', import.meta.url), 'utf8')
+  assert.match(detail, /DevelopmentStorySplitComponent/)
+  assert.match(detail, /componentKey !== WorkflowRuntimeComponentKey\.STORY_SPLIT/)
+  assert.match(detail, /:node-id="selectedNode\.id"/)
+  assert.doesNotMatch(detail, /<TopicStorySection/)
+  assert.match(split, /getDevelopmentTopicStories/)
+  assert.match(split, /story\.topicWorkflowNodeId === props\.nodeId/)
+  assert.match(split, /development\/stories\//)
+})

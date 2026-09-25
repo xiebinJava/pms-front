@@ -631,6 +631,10 @@ const zhCN = {
     topicStories: '专题故事',
     topicStoriesHint: '查看和维护当前专题下的故事。',
     noTopicStories: '当前专题还没有故事',
+    storySplitTitle: '故事拆分',
+    storySplitHint: '在当前专题流程节点下拆分并跟踪故事。',
+    noNodeStories: '当前节点还没有故事',
+    storySplitLoadFailed: '故事列表加载失败，请重试',
   },
   task: {
     board: '任务看板',

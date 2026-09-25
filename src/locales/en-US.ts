@@ -632,6 +632,10 @@ const enUS: MessageSchema = {
     topicStories: 'Topic stories',
     topicStoriesHint: 'Review and maintain stories under this topic.',
     noTopicStories: 'No stories in this topic yet',
+    storySplitTitle: 'Story split',
+    storySplitHint: 'Split and track stories under the current topic workflow node.',
+    noNodeStories: 'No stories in this node yet',
+    storySplitLoadFailed: 'Could not load stories. Please retry',
   },
   task: {
     board: 'Task board',
