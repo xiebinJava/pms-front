@@ -67,6 +67,7 @@ const selectedKeys = computed(() => {
   if (route.path.startsWith('/projects/dashboard')) return ['enterprise-project-board']
   if (route.path.startsWith('/development/topics')) return ['development-topics']
   if (route.path.startsWith('/development/stories')) return ['development-stories']
+  if (route.path.startsWith('/development/requirements')) return ['development-requirements']
   if (route.path.startsWith('/projects')) return ['projects']
   if (route.path.startsWith('/admin/users')) return ['admin-users']
   if (route.path.startsWith('/admin/org')) return ['admin-org']
@@ -88,6 +89,7 @@ const menuRoutes: Record<string, string> = {
   'enterprise-project-board': '/projects/dashboard',
   'development-topics': '/development/topics',
   'development-stories': '/development/stories',
+  'development-requirements': '/development/requirements',
   projects: '/projects',
   feedback: '/feedback',
   'admin-users': '/admin/users',
@@ -411,7 +413,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
             <div class="pms-nav-group pms-nav-group--projects">
-              <button class="pms-nav-section-label" :class="{ 'pms-nav-section-label--active': selectedKeys.some(key => ['projects', 'development-topics', 'development-stories'].includes(key)) }" type="button" aria-controls="pms-project-subnav" :aria-expanded="projectNavOpen" @click.stop="projectNavOpen = !projectNavOpen">
+              <button class="pms-nav-section-label" :class="{ 'pms-nav-section-label--active': selectedKeys.some(key => ['projects', 'development-topics', 'development-stories', 'development-requirements'].includes(key)) }" type="button" aria-controls="pms-project-subnav" :aria-expanded="projectNavOpen" @click.stop="projectNavOpen = !projectNavOpen">
                 <ExperimentOutlined /><span>{{ $t('nav.rdManagement') }}</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !projectNavOpen }" />
               </button>
               <div v-if="projectNavOpen" id="pms-project-subnav" class="pms-nav-subnav">
@@ -423,6 +425,9 @@ onBeforeUnmount(() => {
                 </button>
                 <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('development-stories') }" :aria-current="selectedKeys.includes('development-stories') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'development-stories' })">
                   <FileTextOutlined /><span>{{ $t('nav.stories') }}</span>
+                </button>
+                <button v-if="can('requirement:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('development-requirements') }" :aria-current="selectedKeys.includes('development-requirements') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'development-requirements' })">
+                  <NodeIndexOutlined /><span>{{ $t('nav.requirements') }}</span>
                 </button>
               </div>
             </div>

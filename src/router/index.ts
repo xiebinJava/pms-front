@@ -90,6 +90,12 @@ const router = createRouter({
           meta: { titleKey: 'route.developmentStories' },
         },
         {
+          path: 'development/requirements',
+          name: 'development-requirements',
+          component: () => import('/@/views/development/requirements/index.vue'),
+          meta: { titleKey: 'route.developmentRequirements', permission: 'requirement:read' },
+        },
+        {
           path: 'development/topics/:id',
           name: 'development-topic-detail',
           component: () => import('/@/views/development/detail/DevelopmentItemDetailPage.vue'),
@@ -102,6 +108,13 @@ const router = createRouter({
           component: () => import('/@/views/development/detail/DevelopmentItemDetailPage.vue'),
           props: { itemType: 'story' },
           meta: { titleKey: 'route.developmentStoryDetail', permission: 'project:read' },
+        },
+        {
+          path: 'development/requirements/:id',
+          name: 'development-requirement-detail',
+          component: () => import('/@/views/development/detail/DevelopmentItemDetailPage.vue'),
+          props: { itemType: 'requirement' },
+          meta: { titleKey: 'route.developmentRequirementDetail', permission: 'requirement:read' },
         },
         {
           path: 'projects/dashboard',

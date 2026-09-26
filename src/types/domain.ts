@@ -374,8 +374,37 @@ export interface NodeDevelopmentControlUpdate {
   }>
 }
 
-export type DevelopmentItemType = 'topic' | 'story'
+export type DevelopmentItemType = 'topic' | 'story' | 'requirement'
 export type DevelopmentWorkflowStatus = 'NOT_CONFIGURED' | 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'
+
+export type RequirementExecutionTargetType = 'PROJECT' | 'TOPIC' | 'STORY'
+
+export interface RequirementExecutionTarget {
+  targetType: RequirementExecutionTargetType
+  targetId: number
+  title?: string
+  code?: string
+  status?: string
+  ownerId?: number
+  ownerName?: string
+  progress?: number
+  navigationType?: string
+  navigationId?: number
+}
+
+export interface RequirementExecutionTargetHistory {
+  id: number
+  requirementId: number
+  action: 'LINK' | 'UNLINK' | 'REPLACE' | string
+  targetType?: RequirementExecutionTargetType
+  targetId?: number
+  previousTargetType?: RequirementExecutionTargetType
+  previousTargetId?: number
+  reason?: string
+  operatorId?: number
+  operatorName?: string
+  createdAt?: string
+}
 
 export interface DevelopmentItemTask {
   id: number
@@ -435,6 +464,9 @@ export interface DevelopmentItemWorkflowDetail {
   latestBuildVersion?: string
   testStatus?: string
   iterationPlanName?: string
+  sourceRequirement?: SourceRequirementSummary
+  executionTarget?: RequirementExecutionTarget
+  executionTargetHistory?: RequirementExecutionTargetHistory[]
   workflowConfigured: boolean
   workflowStatus: DevelopmentWorkflowStatus
   workflowProgress: number
@@ -444,6 +476,16 @@ export interface DevelopmentItemWorkflowDetail {
   completedNodeCount: number
   totalNodeCount: number
   nodes: DevelopmentItemWorkflowNode[]
+}
+
+export interface SourceRequirementSummary {
+  id: number
+  title: string
+  status?: string
+  ownerId?: number
+  ownerName?: string
+  targetType?: RequirementExecutionTargetType
+  targetId?: number
 }
 
 export interface DevelopmentItemNodeUpdate {

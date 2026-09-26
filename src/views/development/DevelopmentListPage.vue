@@ -6,24 +6,29 @@ import { PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons-
 import { message, Modal } from 'ant-design-vue'
 import PmsPageHeader from '/@/components/PmsPageHeader.vue'
 import {
+  deleteDevelopmentRequirement,
   deleteDevelopmentTopic,
+  getDevelopmentRequirementPage,
   getDevelopmentStoryPage,
   getDevelopmentTopicPage,
   restoreDevelopmentTopic,
+  type DevelopmentRequirementPageParams,
+  type DevelopmentRequirementRow,
   type DevelopmentStoryRow,
   type DevelopmentTopicRow,
 } from '/@/api/development-item'
 import { formatDate } from '/@/utils/format'
 import DevelopmentTopicEditModal from './DevelopmentTopicEditModal.vue'
 import DevelopmentStoryEditModal from './DevelopmentStoryEditModal.vue'
+import DevelopmentRequirementEditModal from './DevelopmentRequirementEditModal.vue'
 
-type DevelopmentListMode = 'topics' | 'stories'
-type DevelopmentRow = DevelopmentTopicRow | DevelopmentStoryRow
+type DevelopmentListMode = 'topics' | 'stories' | 'requirements'
+type DevelopmentRow = DevelopmentTopicRow | DevelopmentStoryRow | DevelopmentRequirementRow
 
 const props = defineProps<{ mode: DevelopmentListMode }>()
 const router = useRouter()
 const { t } = useI18n()
-const query = reactive({ keyword: '', status: undefined as string | undefined })
+const query = reactive({ keyword: '', status: undefined as string | undefined, targetType: undefined as DevelopmentRequirementPageParams['targetType'] })
 const topicScope = ref<'active' | 'deleted'>('active')
 const dataSource = ref<DevelopmentRow[]>([])
 const loading = ref(false)
@@ -31,27 +36,54 @@ const topicEditOpen = ref(false)
 const editingTopic = ref<DevelopmentTopicRow | null>(null)
 const storyEditOpen = ref(false)
 const editingStory = ref<DevelopmentStoryRow | null>(null)
+const requirementEditOpen = ref(false)
+const editingRequirement = ref<DevelopmentRequirementRow | null>(null)
 const topicMutationId = ref<number | null>(null)
+const requirementMutationId = ref<number | null>(null)
 const pagination = reactive({ current: 1, pageSize: 10, total: 0 })
 const isTopics = computed(() => props.mode === 'topics')
+const isRequirements = computed(() => props.mode === 'requirements')
 const deletedScope = computed(() => isTopics.value && topicScope.value === 'deleted')
-const titleKey = computed(() => isTopics.value ? 'developmentList.topicsTitle' : 'developmentList.storiesTitle')
-const descriptionKey = computed(() => isTopics.value ? 'developmentList.topicsDescription' : 'developmentList.storiesDescription')
-const searchKey = computed(() => isTopics.value ? 'developmentList.searchTopics' : 'developmentList.searchStories')
-const statusOptions = computed(() => isTopics.value
-  ? [
+const titleKey = computed(() => isTopics.value
+  ? 'developmentList.topicsTitle'
+  : isRequirements.value ? 'developmentList.requirementsTitle' : 'developmentList.storiesTitle')
+const descriptionKey = computed(() => isTopics.value
+  ? 'developmentList.topicsDescription'
+  : isRequirements.value ? 'developmentList.requirementsDescription' : 'developmentList.storiesDescription')
+const searchKey = computed(() => isTopics.value
+  ? 'developmentList.searchTopics'
+  : isRequirements.value ? 'developmentList.searchRequirements' : 'developmentList.searchStories')
+const statusOptions = computed(() => isRequirements.value
+  ? [{ value: 'ACTIVE', label: t('developmentList.requirementStatusActive') }]
+  : isTopics.value
+    ? [
       { value: 'NOT_STARTED', label: t('developmentList.statusNotStarted') },
       { value: 'IN_PROGRESS', label: t('developmentList.statusInProgress') },
       { value: 'DONE', label: t('developmentList.statusDone') },
     ]
-  : [
+    : [
       { value: 'NOT_STARTED', label: t('developmentList.statusNotStarted') },
       { value: 'IN_PROGRESS', label: t('developmentList.statusInProgress') },
       { value: 'TESTING', label: t('developmentList.statusTesting') },
       { value: 'BLOCKED', label: t('developmentList.statusBlocked') },
       { value: 'DONE', label: t('developmentList.statusDone') },
     ])
+const targetOptions = computed(() => [
+  { value: 'PROJECT', label: t('developmentList.targetProject') },
+  { value: 'TOPIC', label: t('developmentList.targetTopic') },
+  { value: 'STORY', label: t('developmentList.targetStory') },
+])
 const columns = computed(() => {
+  if (isRequirements.value) {
+    return [
+      { title: t('developmentList.item'), key: 'item', width: 230 },
+      { title: t('developmentList.requirementTarget'), key: 'context', width: 250 },
+      { title: t('developmentList.owner'), key: 'owner', width: 150 },
+      { title: t('common.status'), key: 'status', width: 110 },
+      { title: t('developmentList.progress'), key: 'progress', width: 150 },
+      { title: t('common.actions'), key: 'action', width: 175 },
+    ]
+  }
   const common = [
     { title: t('developmentList.item'), key: 'item', width: 180 },
     { title: t('developmentList.projectContext'), key: 'context', width: 170 },
@@ -65,6 +97,9 @@ const columns = computed(() => {
 })
 
 function statusLabel(status?: string) {
+  if (status && ['NOT_CONFIGURED', 'NOT_STARTED', 'IN_PROGRESS', 'COMPLETED'].includes(status)) {
+    return t(`developmentList.workflow.${status}`)
+  }
   return statusOptions.value.find((option) => option.value === status)?.label || (status ? t('developmentList.statusUnknown') : t('common.unset'))
 }
 
@@ -73,7 +108,12 @@ function statusColor(status?: string) {
   if (status === 'BLOCKED') return 'red'
   if (status === 'TESTING') return 'blue'
   if (status === 'IN_PROGRESS') return 'orange'
+  if (status === 'ACTIVE') return 'green'
   return 'default'
+}
+
+function isRequirement(record: DevelopmentRow): record is DevelopmentRequirementRow {
+  return 'version' in record
 }
 
 function isStory(record: DevelopmentRow): record is DevelopmentStoryRow {
@@ -85,12 +125,13 @@ function isTopic(record: DevelopmentRow): record is DevelopmentTopicRow {
 }
 
 function loadParams() {
-  return {
+  const params = {
     currPage: pagination.current,
     pageSize: pagination.pageSize,
     keyword: query.keyword || undefined,
     status: query.status,
   }
+  return isRequirements.value ? { ...params, targetType: query.targetType } : params
 }
 
 async function loadData() {
@@ -98,7 +139,9 @@ async function loadData() {
   try {
     const result = isTopics.value
       ? await getDevelopmentTopicPage({ ...loadParams(), deleted: deletedScope.value })
-      : await getDevelopmentStoryPage(loadParams())
+      : isRequirements.value
+        ? await getDevelopmentRequirementPage(loadParams())
+        : await getDevelopmentStoryPage(loadParams())
     dataSource.value = result.list
     pagination.total = result.total
   } catch (error) {
@@ -116,6 +159,7 @@ function onSearch() {
 function onReset() {
   query.keyword = ''
   query.status = undefined
+  query.targetType = undefined
   onSearch()
 }
 
@@ -131,12 +175,14 @@ function onTopicScopeChange() {
 }
 
 function openSource(record: DevelopmentRow) {
+  if (isRequirement(record)) return
   if (record.projectId == null || record.nodeId == null) return
   void router.push({ path: `/projects/${record.projectId}`, query: { node: String(record.nodeId) } })
 }
 
 function openItem(record: DevelopmentRow) {
-  void router.push(`/development/${isTopics.value ? 'topics' : 'stories'}/${record.id}`)
+  const collection = isTopics.value ? 'topics' : isRequirements.value ? 'requirements' : 'stories'
+  void router.push(`/development/${collection}/${record.id}`)
 }
 
 function openTopic(record: DevelopmentStoryRow) {
@@ -154,13 +200,27 @@ function createTopic() {
 }
 
 function createStory() {
+  if (isRequirements.value) {
+    createRequirement()
+    return
+  }
   editingStory.value = null
   storyEditOpen.value = true
+}
+
+function createRequirement() {
+  editingRequirement.value = null
+  requirementEditOpen.value = true
 }
 
 function editStory(record: DevelopmentStoryRow) {
   editingStory.value = record
   storyEditOpen.value = true
+}
+
+function editRequirement(record: DevelopmentRequirementRow) {
+  editingRequirement.value = record
+  requirementEditOpen.value = true
 }
 
 async function refreshAfterMutation() {
@@ -209,6 +269,30 @@ async function restoreTopic(record: DevelopmentTopicRow) {
   }
 }
 
+function deleteRequirement(record: DevelopmentRequirementRow) {
+  if (requirementMutationId.value != null) return
+  Modal.confirm({
+    title: t('developmentList.deleteRequirementTitle'),
+    content: t('developmentList.deleteRequirementContent', { title: record.title }),
+    okText: t('common.delete'),
+    okType: 'danger',
+    cancelText: t('common.cancel'),
+    onOk: async () => {
+      requirementMutationId.value = record.id
+      try {
+        await deleteDevelopmentRequirement(record.id)
+        message.success(t('developmentList.requirementDeleted'))
+        await refreshAfterMutation()
+      } catch (error) {
+        message.error((error as Error).message || t('developmentList.requirementDeleteFailed'))
+        throw error
+      } finally {
+        requirementMutationId.value = null
+      }
+    },
+  })
+}
+
 onMounted(() => { void loadData() })
 </script>
 
@@ -220,7 +304,7 @@ onMounted(() => { void loadData() })
           <a-radio-button value="active">{{ t('developmentList.activeTopics') }}</a-radio-button>
           <a-radio-button value="deleted">{{ t('developmentList.deletedTopics') }}</a-radio-button>
         </a-radio-group>
-        <a-button type="primary" class="pms-primary-button pms-project-button pms-project-button--primary" @click="isTopics ? createTopic() : createStory()"><PlusOutlined /> {{ t(isTopics ? 'developmentList.createTopic' : 'developmentList.createStory') }}</a-button>
+        <a-button type="primary" class="pms-primary-button pms-project-button pms-project-button--primary" @click="isTopics ? createTopic() : createStory()"><PlusOutlined /> {{ t(isTopics ? 'developmentList.createTopic' : isRequirements ? 'developmentList.createRequirement' : 'developmentList.createStory') }}</a-button>
         <a-button class="pms-secondary-button pms-filter-button pms-project-button pms-project-button--secondary" @click="loadData"><ReloadOutlined /> {{ t('common.refresh') }}</a-button>
       </template>
     </PmsPageHeader>
@@ -234,13 +318,16 @@ onMounted(() => { void loadData() })
           <a-select v-model:value="query.status" :placeholder="t('common.status')" :aria-label="t('developmentList.statusFilter')" allow-clear class="pms-status-select development-list-page__status-select pms-filter-control" @change="onSearch">
             <a-select-option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</a-select-option>
           </a-select>
+          <a-select v-if="isRequirements" v-model:value="query.targetType" :placeholder="t('developmentList.requirementTargetType')" :aria-label="t('developmentList.requirementTargetType')" allow-clear class="pms-target-select development-list-page__target-select pms-filter-control" @change="onSearch">
+            <a-select-option v-for="option in targetOptions" :key="option.value" :value="option.value">{{ option.label }}</a-select-option>
+          </a-select>
           <a-button class="pms-secondary-button pms-filter-button pms-project-button pms-project-button--secondary" @click="onSearch"><ReloadOutlined /> {{ t('common.query') }}</a-button>
           <a-button class="pms-secondary-button pms-filter-button pms-project-button pms-project-button--secondary" @click="onReset">{{ t('common.reset') }}</a-button>
         </div>
       </div>
 
       <div class="pms-table-scroll pms-project-table-scroll development-list-page__table-scroll">
-        <a-table :data-source="dataSource" :columns="columns" :loading="loading" row-key="id" :pagination="pagination" :scroll="{ x: isTopics ? 980 : 1240 }" @change="onTableChange">
+        <a-table :data-source="dataSource" :columns="columns" :loading="loading" row-key="id" :pagination="pagination" :scroll="{ x: isTopics ? 980 : isRequirements ? 1065 : 1240 }" @change="onTableChange">
           <template #emptyText>
             <div class="development-list-page__empty">
               <strong>{{ t('developmentList.emptyTitle') }}</strong>
@@ -255,35 +342,52 @@ onMounted(() => { void loadData() })
             </template>
             <template v-else-if="column.key === 'context'">
               <div class="development-list-page__context-cell">
-                <a v-if="record.projectId != null && record.nodeId != null" class="pms-project-link development-list-page__project-link" @click="openSource(record)">{{ record.projectName || t('common.unset') }}</a>
-                <span v-else class="pms-table-subtext">{{ t('developmentList.unboundProject') }}</span>
+                <template v-if="isRequirement(record)">
+                  <template v-if="record.executionTarget">
+                    <strong>{{ record.executionTarget.title || record.executionTarget.code || t('common.unset') }}</strong>
+                    <span class="pms-table-subtext">{{ record.executionTarget.targetType === 'PROJECT' ? t('developmentList.targetProject') : record.executionTarget.targetType === 'TOPIC' ? t('developmentList.targetTopic') : t('developmentList.targetStory') }}</span>
+                  </template>
+                  <span v-else class="pms-table-subtext">{{ t('developmentList.unassociatedRequirement') }}</span>
+                </template>
+                <template v-else>
+                  <a v-if="record.projectId != null && record.nodeId != null" class="pms-project-link development-list-page__project-link" @click="openSource(record)">{{ record.projectName || t('common.unset') }}</a>
+                  <span v-else class="pms-table-subtext">{{ t('developmentList.unboundProject') }}</span>
+                </template>
               </div>
             </template>
             <template v-else-if="column.key === 'owner'"><span>{{ record.ownerName || t('common.unset') }}</span></template>
-            <template v-else-if="column.key === 'status'"><a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag></template>
-            <template v-else-if="column.key === 'progress'"><a-progress :percent="record.progress" size="small" :status="record.progress === 100 ? 'success' : undefined" style="width: 120px" /></template>
+            <template v-else-if="column.key === 'status'"><a-tag :color="statusColor(isRequirement(record) ? (record.workflowStatus === 'NOT_CONFIGURED' ? record.status : record.workflowStatus) : record.status)">{{ statusLabel(isRequirement(record) ? (record.workflowStatus === 'NOT_CONFIGURED' ? record.status : record.workflowStatus) : record.status) }}</a-tag></template>
+            <template v-else-if="column.key === 'progress'"><a-progress :percent="isRequirement(record) ? (record.workflowProgress ?? 0) : record.progress" size="small" :status="(isRequirement(record) ? (record.workflowProgress ?? 0) : record.progress) === 100 ? 'success' : undefined" style="width: 120px" /></template>
             <template v-else-if="column.key === 'storyCount'"><div class="development-list-page__metric"><strong>{{ t('developmentList.storyCountValue', { count: record.storyCount }) }}</strong><span class="pms-table-subtext">{{ t('developmentList.completedStoryCount', { count: record.completedStoryCount }) }}</span></div></template>
             <template v-else-if="column.key === 'topic'"><button v-if="isStory(record) && record.topicId" type="button" class="pms-project-link development-list-page__topic-link" :title="record.topicTitle || t('common.unset')" @click="openTopic(record)">{{ record.topicTitle || t('common.unset') }}</button><span v-else class="pms-table-subtext">{{ isStory(record) ? (record.topicTitle || t('common.unset')) : t('common.unset') }}</span></template>
             <template v-else-if="column.key === 'iteration'">{{ isStory(record) ? (record.iterationPlanName || t('common.unset')) : '' }}</template>
             <template v-else-if="column.key === 'dueDate'">{{ isStory(record) ? formatDate(record.dueDate) : '' }}</template>
             <template v-else-if="column.key === 'action'">
-              <div v-if="isTopic(record)" class="pms-project-row-actions" role="group" :aria-label="t('common.actions')">
-                <button v-if="!deletedScope" type="button" class="pms-action-link pms-project-button pms-project-button--text" @click="openItem(record)">{{ t('common.detail') }}</button>
-                <button v-if="!deletedScope" type="button" class="pms-action-link pms-project-button pms-project-button--text" @click="editTopic(record)">{{ t('common.edit') }}</button>
-                <button v-if="!deletedScope" type="button" class="pms-action-link pms-action-link--danger pms-project-button pms-project-button--text pms-project-button--danger" :disabled="topicMutationId != null" @click="deleteTopic(record)">{{ t('common.delete') }}</button>
-                <button v-else type="button" class="pms-action-link pms-project-button pms-project-button--text" :disabled="topicMutationId != null" @click="restoreTopic(record)">{{ t('developmentList.restoreTopic') }}</button>
-              </div>
-              <div v-else class="pms-project-row-actions" role="group" :aria-label="t('common.actions')">
+              <div v-if="isRequirement(record)" class="pms-project-row-actions" role="group" :aria-label="t('common.actions')">
                 <button type="button" class="pms-action-link pms-project-button pms-project-button--text" @click="openItem(record)">{{ t('common.detail') }}</button>
-                <button type="button" class="pms-action-link pms-project-button pms-project-button--text" @click="editStory(record)">{{ t('common.edit') }}</button>
+                <button type="button" class="pms-action-link pms-project-button pms-project-button--text" @click="editRequirement(record)">{{ t('common.edit') }}</button>
+                <button type="button" class="pms-action-link pms-action-link--danger pms-project-button pms-project-button--text pms-project-button--danger" :disabled="requirementMutationId != null" @click="deleteRequirement(record)">{{ t('common.delete') }}</button>
               </div>
+              <template v-else>
+                <div v-if="isTopic(record)" class="pms-project-row-actions" role="group" :aria-label="t('common.actions')">
+                  <button v-if="!deletedScope" type="button" class="pms-action-link pms-project-button pms-project-button--text" @click="openItem(record)">{{ t('common.detail') }}</button>
+                  <button v-if="!deletedScope" type="button" class="pms-action-link pms-project-button pms-project-button--text" @click="editTopic(record)">{{ t('common.edit') }}</button>
+                  <button v-if="!deletedScope" type="button" class="pms-action-link pms-action-link--danger pms-project-button pms-project-button--text pms-project-button--danger" :disabled="topicMutationId != null" @click="deleteTopic(record)">{{ t('common.delete') }}</button>
+                  <button v-else type="button" class="pms-action-link pms-project-button pms-project-button--text" :disabled="topicMutationId != null" @click="restoreTopic(record)">{{ t('developmentList.restoreTopic') }}</button>
+                </div>
+                <div v-else class="pms-project-row-actions" role="group" :aria-label="t('common.actions')">
+                  <button type="button" class="pms-action-link pms-project-button pms-project-button--text" @click="openItem(record)">{{ t('common.detail') }}</button>
+                  <button type="button" class="pms-action-link pms-project-button pms-project-button--text" @click="editStory(record)">{{ t('common.edit') }}</button>
+                </div>
+              </template>
             </template>
           </template>
         </a-table>
       </div>
     </a-card>
     <DevelopmentTopicEditModal v-model:open="topicEditOpen" :topic="editingTopic" @saved="refreshAfterMutation" />
-    <DevelopmentStoryEditModal v-if="!isTopics" v-model:open="storyEditOpen" :story="editingStory" @saved="refreshAfterMutation" />
+    <DevelopmentStoryEditModal v-if="!isTopics && !isRequirements" v-model:open="storyEditOpen" :story="editingStory" @saved="refreshAfterMutation" />
+    <DevelopmentRequirementEditModal v-if="isRequirements" v-model:open="requirementEditOpen" :requirement="editingRequirement" @saved="refreshAfterMutation" />
   </div>
 </template>
 
@@ -293,6 +397,7 @@ onMounted(() => { void loadData() })
 .pms-table-toolbar__filters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .development-list-page__search { width: 220px; }
 .development-list-page__status-select { width: 130px; }
+.development-list-page__target-select { width: 130px; }
 .development-list-page__table-scroll { min-height: 220px; }
 .development-list-page__project-link { display: inline-block; max-width: 220px; }
 .development-list-page__item-cell, .development-list-page__context-cell { min-width: 0; }
