@@ -58,6 +58,10 @@ export function normalizeWorkflowDefinitionForProcessType(definition, processTyp
     const { sourceProjectNodeKey: _projectOnlyBinding, ...storyDefinition } = normalized
     return storyDefinition
   }
+  if (processTypeCode === 'requirement-management') {
+    const { sourceProjectNodeKey: _projectOnlyBinding, sourceTopicNodeKey: _storyOnlyBinding, ...requirementDefinition } = normalized
+    return requirementDefinition
+  }
   const { sourceProjectNodeKey: _projectOnlyBinding, sourceTopicNodeKey: _storyOnlyBinding, ...otherDefinition } = normalized
   return otherDefinition
 }

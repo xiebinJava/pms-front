@@ -53,6 +53,15 @@ test('workflow palette only exposes story list workbench for topic templates', (
   assert.match(template, /v-for="component in availableComponents"/)
 })
 
+test('workflow palette exposes requirement execution only for requirement templates', () => {
+  const registry = fs.readFileSync(new URL('../../../components/workflow/workflow-component-registry.ts', import.meta.url), 'utf8')
+  const model = fs.readFileSync(new URL('./workflow-template-model.mjs', import.meta.url), 'utf8')
+  assert.match(registry, /REQUIREMENT_EXECUTION/)
+  assert.match(registry, /processTypeCodes:\s*\['requirement-management'\]/)
+  assert.match(source, /component\.processTypeCodes\?\.[\s\S]*?includes\(selectedType\.value\?\.code \|\| ''\)/)
+  assert.match(model, /processTypeCode === 'requirement-management'/)
+})
+
 test('workflow layout spacing comes from the documented PMS spacing scale', () => {
   assert.deepEqual(designTokens.spacing, { 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32 })
   const spacingValues = [...style.matchAll(/(?:^|[;{}])\s*(?:gap|row-gap|column-gap|margin(?:-[a-z]+)?|padding(?:-[a-z]+)?)\s*:\s*([^;{}]+)/gm)]

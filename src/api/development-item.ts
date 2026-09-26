@@ -6,6 +6,8 @@ import type {
   DevelopmentItemType,
   DevelopmentItemWorkflowDetail,
   RequirementExecutionTarget,
+  RequirementExecutionTargetHistory,
+  RequirementExecutionTargetType,
 } from '/@/types/domain'
 import type { WorkflowTemplateSummary } from '/@/types/workflow'
 
@@ -171,6 +173,10 @@ export function getDevelopmentRequirementPage(params: DevelopmentRequirementPage
   return http.post('/development/requirements/page', params)
 }
 
+export function getDevelopmentRequirement(id: number | string): Promise<DevelopmentRequirementRow> {
+  return http.get(`/development/requirements/${id}`)
+}
+
 export function createDevelopmentRequirement(payload: {
   title: string
   description?: string
@@ -240,7 +246,58 @@ export function getDevelopmentItemWorkflow(
   itemId: number | string,
 ): Promise<DevelopmentItemWorkflowDetail> {
   const collection = itemType === 'topic' ? 'topics' : itemType === 'story' ? 'stories' : 'requirements'
-  return http.get(`/development/${collection}/${itemId}`)
+  const path = itemType === 'requirement'
+    ? `/development/requirements/${itemId}/workflow`
+    : `/development/${collection}/${itemId}`
+  return http.get(path)
+}
+
+export interface RequirementExecutionTargetOptionParams {
+  currPage: number
+  pageSize: number
+  keyword?: string
+  targetType?: RequirementExecutionTargetType
+}
+
+export interface RequirementExecutionTargetCommand {
+  targetType?: RequirementExecutionTargetType
+  targetId?: number
+  requirementVersion: number
+  reason?: string
+}
+
+export function getRequirementExecutionTargetOptions(
+  id: number | string,
+  params: RequirementExecutionTargetOptionParams,
+): Promise<PageResult<RequirementExecutionTarget>> {
+  return http.post(`/development/requirements/${id}/execution-target/options`, params)
+}
+
+export function linkRequirementExecutionTarget(
+  id: number | string,
+  payload: RequirementExecutionTargetCommand,
+): Promise<RequirementExecutionTarget> {
+  return http.post(`/development/requirements/${id}/execution-target`, payload)
+}
+
+export function unlinkRequirementExecutionTarget(
+  id: number | string,
+  payload: Pick<RequirementExecutionTargetCommand, 'requirementVersion' | 'reason'>,
+): Promise<null> {
+  return http.delete(`/development/requirements/${id}/execution-target`, { data: payload })
+}
+
+export function changeRequirementExecutionTarget(
+  id: number | string,
+  payload: RequirementExecutionTargetCommand,
+): Promise<RequirementExecutionTarget> {
+  return http.post(`/development/requirements/${id}/execution-target/change`, payload)
+}
+
+export function getRequirementExecutionTargetHistory(
+  id: number | string,
+): Promise<RequirementExecutionTargetHistory[]> {
+  return http.get(`/development/requirements/${id}/execution-target/history`)
 }
 
 function developmentItemMutationPath(itemType: DevelopmentItemType, itemId: number | string): string {

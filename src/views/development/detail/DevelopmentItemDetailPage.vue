@@ -17,16 +17,19 @@ import DevelopmentItemWorkflowFields from './components/DevelopmentItemWorkflowF
 import DevelopmentItemTaskBoard from './components/DevelopmentItemTaskBoard.vue'
 import DevelopmentStorySplitComponent from './DevelopmentStorySplitComponent.vue'
 import DevelopmentStoryListComponent from './DevelopmentStoryListComponent.vue'
+import RequirementExecutionComponent from './RequirementExecutionComponent.vue'
 import WorkflowNodeShell from '/@/components/workflow/WorkflowNodeShell.vue'
 import WorkflowRuntimeComponentHost from '/@/components/workflow/WorkflowRuntimeComponentHost.vue'
 import { WorkflowRuntimeComponentKey } from '/@/components/workflow/workflow-component-registry'
 import { isNodeReadOnly, shouldAutoSaveProfile } from '/@/views/project/detail/workflow'
 import { shouldAutoSaveOnBlur } from '/@/views/project/detail/workflow-config.mjs'
+import { useUserStore } from '/@/store/user'
 
 const props = defineProps<{ itemType: DevelopmentItemType }>()
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+const userStore = useUserStore()
 const detail = ref<DevelopmentItemWorkflowDetail>()
 const members = ref<PersonOption[]>([])
 const loading = ref(false)
@@ -37,10 +40,16 @@ const completingNode = ref(false)
 const selectedNodeId = ref<number>()
 const selectedNode = computed(() => detail.value?.nodes.find((node) => node.id === selectedNodeId.value))
 const selectedNodeEditable = computed(() => selectedNode.value != null && !isNodeReadOnly(selectedNode.value.status))
+const requirementTargetWritable = computed(() => props.itemType !== 'requirement' || userStore.can('requirement:write'))
+const requirementTargetManageable = computed(() => props.itemType !== 'requirement' || userStore.can('requirement:manage'))
 const activeNode = computed(() => detail.value?.nodes.find((node) => node.status === 1))
 const itemId = computed(() => Number(route.params.id))
-const pageTitle = computed(() => detail.value?.title || t(props.itemType === 'topic' ? 'developmentDetail.topicTitle' : 'developmentDetail.storyTitle'))
-const listPath = computed(() => props.itemType === 'topic' ? '/development/topics' : '/development/stories')
+const pageTitle = computed(() => detail.value?.title || t(props.itemType === 'topic'
+  ? 'developmentDetail.topicTitle'
+  : props.itemType === 'story' ? 'developmentDetail.storyTitle' : 'developmentDetail.requirementTitle'))
+const listPath = computed(() => props.itemType === 'topic'
+  ? '/development/topics'
+  : props.itemType === 'story' ? '/development/stories' : '/development/requirements')
 const progressPercent = computed(() => Math.max(0, Math.min(100, detail.value?.workflowProgress || 0)))
 const nodeForm = reactive({ ownerId: undefined as number | undefined, startDate: '', endDate: '', fieldValues: {} as Record<string, unknown> })
 const nodeFieldsContainer = ref<HTMLElement | null>(null)
@@ -179,6 +188,14 @@ function openTopic() {
   if (detail.value?.topicId) void router.push(`/development/topics/${detail.value.topicId}`)
 }
 
+function openRequirementTarget() {
+  const target = detail.value?.executionTarget
+  if (!target) return
+  const id = target.navigationId ?? target.targetId
+  const type = target.navigationType || target.targetType.toLowerCase()
+  void router.push(type === 'project' ? `/projects/${id}` : type === 'topic' ? `/development/topics/${id}` : `/development/stories/${id}`)
+}
+
 function saveNode(): Promise<boolean> {
   if (activeNodeSave) {
     queuedNodeSave = true
@@ -305,7 +322,11 @@ onBeforeUnmount(() => {
                 <span>{{ t('developmentDetail.owner') }}：</span><strong>{{ detail.ownerName || t('common.unset') }}</strong>
               </div>
               <div class="project-header__meta-item project-header__meta-item--wide">
-                <template v-if="detail.projectId != null && detail.sourceNodeId != null">
+                <template v-if="props.itemType === 'requirement' && detail.executionTarget">
+                  <span>{{ t('developmentDetail.requirementExecution.targetLabel') }}：</span>
+                  <button type="button" class="development-item-detail__context-link" @click="openRequirementTarget">{{ detail.executionTarget.title || t('common.unset') }}</button>
+                </template>
+                <template v-else-if="detail.projectId != null && detail.sourceNodeId != null">
                   <FolderOpenOutlined />
                   <button type="button" class="development-item-detail__context-link" @click="openSource">{{ detail.projectName || t('common.unset') }}</button>
                   <span class="development-item-detail__context-separator">/</span>
@@ -444,6 +465,20 @@ onBeforeUnmount(() => {
                   :component-key="componentKey"
                 >
                   <DevelopmentStorySplitComponent :topic-id="detail.id" :node-id="selectedNode.id" :can-edit="selectedNodeEditable" />
+                </WorkflowRuntimeComponentHost>
+                <WorkflowRuntimeComponentHost
+                  v-else-if="props.itemType === 'requirement' && componentKey === WorkflowRuntimeComponentKey.REQUIREMENT_EXECUTION"
+                  :component-key="componentKey"
+                >
+                  <RequirementExecutionComponent
+                    :item-id="detail.id"
+                    :target="detail.executionTarget"
+                    :target-history="detail.executionTargetHistory"
+                    :requirement-version="detail.version"
+                    :can-write="selectedNodeEditable && requirementTargetWritable"
+                    :can-manage="selectedNodeEditable && requirementTargetManageable"
+                    @updated="onDetailUpdated"
+                  />
                 </WorkflowRuntimeComponentHost>
                 <WorkflowRuntimeComponentHost v-else :component-key="componentKey" />
               </template>

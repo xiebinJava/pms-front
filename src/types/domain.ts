@@ -464,6 +464,7 @@ export interface DevelopmentItemWorkflowDetail {
   latestBuildVersion?: string
   testStatus?: string
   iterationPlanName?: string
+  version?: number
   sourceRequirement?: SourceRequirementSummary
   executionTarget?: RequirementExecutionTarget
   executionTargetHistory?: RequirementExecutionTargetHistory[]

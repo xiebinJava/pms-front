@@ -48,6 +48,7 @@ test('requirement workflow navigation uses its own detail path and preserves the
   const domain = read('types/domain.ts')
   assert.match(api, /itemType === 'topic' \? 'topics' : itemType === 'story' \? 'stories' : 'requirements'/)
   assert.match(api, /itemType === 'requirement' \? `\/development\/requirements\/\$\{itemId\}/)
+  assert.match(api, /path = itemType === 'requirement'[\s\S]*?\/workflow/)
   assert.match(domain, /DevelopmentItemType = 'topic' \| 'story' \| 'requirement'/)
   assert.match(domain, /executionTarget\??:/)
 })

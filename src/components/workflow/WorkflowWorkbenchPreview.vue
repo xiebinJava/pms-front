@@ -101,6 +101,10 @@ const PREVIEW_LAYOUTS: Record<string, PreviewLayout> = {
     metricKeys: { total: 'developmentDetail.storyListTotal', inProgress: 'developmentDetail.storyListInProgress', testing: 'developmentDetail.storyListTesting', blocked: 'developmentDetail.storyListBlocked', done: 'developmentDetail.storyListDone' },
     blocks: [{ key: 'stories', kind: 'table', titleKey: 'developmentDetail.storyListTitle', hintKey: 'developmentDetail.storyListSearch', columns: ['story', 'owner', 'points', 'dueDate', 'progress', 'status'], columnKeys: { story: 'admin.workflow.workbenchPreview.layouts.story-list.columns.story', owner: 'developmentDetail.storyListOwner', points: 'developmentDetail.storyListPoints', dueDate: 'developmentDetail.storyListDueDate', progress: 'developmentDetail.storyListProgress', status: 'admin.workflow.workbenchPreview.layouts.story-list.columns.status' } }],
   },
+  'requirement-execution': {
+    metrics: ['target', 'status', 'history'],
+    blocks: [{ key: 'target', kind: 'table', columns: ['targetType', 'target', 'owner', 'status'] }],
+  },
   'business-acceptance': {
     titleKey: 'detail.acceptance.title',
     hintKey: 'detail.acceptance.description',
