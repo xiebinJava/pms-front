@@ -27,7 +27,7 @@ test.describe('认证与项目主流程', () => {
     // Navigate through the application shell so the in-memory access token is
     // retained. A full document navigation would intentionally clear it and
     // turn this smoke test into a refresh-token test.
-    await page.locator('.pms-nav-group--projects .pms-nav-link').click()
+    await page.getByRole('button', { name: '项目管理子页签' }).click()
     await expect(page.getByRole('heading', { name: '项目管理' })).toBeVisible()
 
     const pages = [
