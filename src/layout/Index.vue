@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { BellOutlined, BookOutlined, CloudUploadOutlined, DashboardOutlined, DownOutlined, ExperimentOutlined, FileTextOutlined, FolderOpenOutlined, LineChartOutlined, LogoutOutlined, MenuOutlined, ProjectOutlined, SearchOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, MessageOutlined, NodeIndexOutlined } from '@ant-design/icons-vue'
+import { BellOutlined, BookOutlined, CalendarOutlined, CloudUploadOutlined, DashboardOutlined, DownOutlined, ExperimentOutlined, FileSearchOutlined, FileTextOutlined, FolderOpenOutlined, LineChartOutlined, LogoutOutlined, MenuOutlined, ProjectOutlined, SearchOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, MessageOutlined, NodeIndexOutlined } from '@ant-design/icons-vue'
 import { useUserStore } from '/@/store/user'
 import LocaleSwitch from '/@/components/LocaleSwitch.vue'
 import { message } from 'ant-design-vue'
@@ -419,6 +419,9 @@ onBeforeUnmount(() => {
                 <ExperimentOutlined /><span>{{ $t('nav.rdManagement') }}</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !projectNavOpen }" />
               </button>
               <div v-if="projectNavOpen" id="pms-project-subnav" class="pms-nav-subnav">
+                <button v-if="can('requirement:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('development-requirements') }" :aria-current="selectedKeys.includes('development-requirements') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'development-requirements' })">
+                  <FileSearchOutlined /><span>{{ $t('nav.requirements') }}</span>
+                </button>
                 <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('projects') }" :aria-current="selectedKeys.includes('projects') ? 'page' : undefined" type="button" :aria-label="$t('nav.projectsTab')" @click.stop="handleMenuClick({ key: 'projects' })">
                   <ProjectOutlined /><span>{{ $t('nav.projects') }}</span>
                 </button>
@@ -428,11 +431,8 @@ onBeforeUnmount(() => {
                 <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('development-stories') }" :aria-current="selectedKeys.includes('development-stories') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'development-stories' })">
                   <FileTextOutlined /><span>{{ $t('nav.stories') }}</span>
                 </button>
-                <button v-if="can('requirement:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('development-requirements') }" :aria-current="selectedKeys.includes('development-requirements') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'development-requirements' })">
-                  <NodeIndexOutlined /><span>{{ $t('nav.requirements') }}</span>
-                </button>
                 <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('development-iterations') }" :aria-current="selectedKeys.includes('development-iterations') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'development-iterations' })">
-                  <NodeIndexOutlined /><span>{{ $t('nav.iterationPlans') }}</span>
+                  <CalendarOutlined /><span>{{ $t('nav.iterationPlans') }}</span>
                 </button>
               </div>
             </div>

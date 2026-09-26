@@ -22,6 +22,7 @@ test('person select opens recent people and searches only after typing', () => {
   assert.match(personSelect, /listPersonSelectOptions/)
   assert.match(personSelect, /options: props\.options/)
   assert.match(personSelect, /pickFallbackPeople/)
+  assert.match(personSelect, /filterKnownRecentPeople/)
   assert.match(personSelect, /fillOpenOptions/)
   assert.match(personSelect, /searchUsers\(''\)/)
   assert.match(personSelect, /searchPersonHint/)

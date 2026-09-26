@@ -365,7 +365,7 @@ onMounted(() => { void loadData() })
       </div>
 
       <div class="pms-table-scroll pms-project-table-scroll development-list-page__table-scroll">
-        <a-table :data-source="dataSource" :columns="columns" :loading="loading" row-key="id" :pagination="pagination" :scroll="{ x: isTopics ? 980 : isRequirements ? 1065 : 1240 }" @change="onTableChange">
+        <a-table :data-source="dataSource" :columns="columns" :loading="loading" row-key="id" :pagination="pagination" @change="onTableChange">
           <template #emptyText>
             <div class="development-list-page__empty">
               <strong>{{ t('developmentList.emptyTitle') }}</strong>

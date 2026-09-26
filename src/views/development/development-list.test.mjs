@@ -193,3 +193,9 @@ test('development lists reuse the project list visual contracts without a second
   assert.doesNotMatch(source, /development-list-page__table-heading/)
   assert.doesNotMatch(source, /development-list-page__actions|development-list-page__action--primary/)
 })
+
+test('development aggregate tables use one horizontal scroll owner', () => {
+  const source = read('views/development/DevelopmentListPage.vue')
+  assert.match(source, /class="pms-table-scroll pms-project-table-scroll development-list-page__table-scroll"/)
+  assert.doesNotMatch(source, /<a-table[^>]*:scroll=/)
+})
