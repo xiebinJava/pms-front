@@ -8,6 +8,7 @@ import type {
   RequirementExecutionTarget,
   RequirementExecutionTargetHistory,
   RequirementExecutionTargetType,
+  SourceRequirementSummary,
 } from '/@/types/domain'
 import type { WorkflowTemplateSummary } from '/@/types/workflow'
 
@@ -90,6 +91,7 @@ export interface DevelopmentTopicRow {
   latestBuildVersion?: string
   testStatus?: string
   blocker?: string
+  sourceRequirement?: SourceRequirementSummary
 }
 
 export interface DevelopmentStoryRow {
@@ -115,6 +117,7 @@ export interface DevelopmentStoryRow {
   startDate?: string
   dueDate?: string
   blocker?: string
+  sourceRequirement?: SourceRequirementSummary
 }
 
 export interface DevelopmentTopicStory {

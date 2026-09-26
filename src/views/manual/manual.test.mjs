@@ -24,6 +24,7 @@ test('user manual exposes the navigation-aligned module catalog', () => {
     'workbench',
     'notifications',
     'rd-management',
+    'requirements',
     'manual.sections.rdManagement',
     'manual.sections.workflowTemplates',
     'manual.sections.projects',
@@ -64,8 +65,20 @@ test('user manuals explain workflow-template setup and topic/story item behavior
   assert.ok(zhLocaleSource.includes('专题流程模板指定的项目节点'))
   assert.ok(zhLocaleSource.includes('点击外部自动保存'))
   assert.ok(zhLocaleSource.includes('故事拆分组件由专题流程模板配置挂载节点后使用'))
+  assert.ok(zhLocaleSource.includes('需求管理流程模板'))
+  assert.ok(zhLocaleSource.includes('一个需求只能关联一个执行对象'))
   assert.ok(enLocaleSource.includes('story-splitting component is available when a published Story Management template provides its topic-node mount'))
+  assert.ok(enLocaleSource.includes('Requirement Management workflow template'))
+  assert.ok(enLocaleSource.includes('at most one execution target'))
   assert.ok(docsSource.includes('包含专题模板配置挂载节点'))
+})
+
+test('requirement manual rules close the target lifecycle and visibility loop', () => {
+  assert.ok(viewSource.includes("id: 'requirements'"), 'requirements should have a dedicated manual section')
+  assert.match(zhLocaleSource, /requirements: \{[\s\S]*?一个需求只能关联一个执行对象[\s\S]*?未关联需求对所有有研发管理读取权限的用户可见/)
+  assert.match(enLocaleSource, /requirements: \{[\s\S]*?at most one execution target[\s\S]*?unlinked requirements are visible to every user with development read access/)
+  assert.match(logicDocsSource, /需求只能关联一个执行目标|一个需求只能关联一个执行目标/)
+  assert.match(docsSource, /需求管理流程模板/)
 })
 
 test('business-rules references define workflow bindings and story splitting placement', () => {
@@ -159,7 +172,7 @@ test('manual reading surface exposes scoped search, mobile index controls, metad
 test('manual view wires scroll synchronization and documents the current release baseline', () => {
   assert.match(viewSource, /addEventListener\('scroll', onWindowScroll/)
   assert.match(viewSource, /router\.replace\(\{ path: '\/manual', hash: `#\$\{nextSection\}` \}\)/)
-  assert.ok(docsSource.includes('PMS v1.0.8') && docsSource.includes('V1–V55') && docsSource.includes('14 个功能模块'))
+  assert.ok(docsSource.includes('PMS v1.0.8') && docsSource.includes('V1–V55') && docsSource.includes('15 个功能模块'))
 })
 
 test('manual explains business rules and role capabilities instead of only listing operations', () => {
@@ -180,6 +193,7 @@ test('every feature module includes role-based examples grounded in default gran
     'quickStart',
     'workbench',
     'rdManagement',
+    'requirements',
     'projects',
     'configuration',
     'users',

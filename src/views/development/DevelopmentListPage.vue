@@ -189,6 +189,10 @@ function openTopic(record: DevelopmentStoryRow) {
   if (record.topicId) void router.push(`/development/topics/${record.topicId}`)
 }
 
+function openRequirement(requirementId: number) {
+  void router.push(`/development/requirements/${requirementId}`)
+}
+
 function editTopic(record: DevelopmentTopicRow) {
   editingTopic.value = record
   topicEditOpen.value = true
@@ -352,6 +356,15 @@ onMounted(() => { void loadData() })
                 <template v-else>
                   <a v-if="record.projectId != null && record.nodeId != null" class="pms-project-link development-list-page__project-link" @click="openSource(record)">{{ record.projectName || t('common.unset') }}</a>
                   <span v-else class="pms-table-subtext">{{ t('developmentList.unboundProject') }}</span>
+                  <button
+                    v-if="record.sourceRequirement"
+                    type="button"
+                    class="development-list-page__source-requirement"
+                    :title="record.sourceRequirement.title"
+                    @click.stop="openRequirement(record.sourceRequirement.id)"
+                  >
+                    {{ t('developmentList.sourceRequirement') }}：{{ record.sourceRequirement.title }}
+                  </button>
                 </template>
               </div>
             </template>
@@ -401,6 +414,8 @@ onMounted(() => { void loadData() })
 .development-list-page__table-scroll { min-height: 220px; }
 .development-list-page__project-link { display: inline-block; max-width: 220px; }
 .development-list-page__item-cell, .development-list-page__context-cell { min-width: 0; }
+.development-list-page__source-requirement { display: block; max-width: 220px; margin-top: 5px; padding: 0; overflow: hidden; border: 0; background: none; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.development-list-page__source-requirement:hover { color: var(--pms-primary); text-decoration: underline; }
 .development-list-page__topic-link { display: inline-block; max-width: 170px; padding: 0; overflow: hidden; border: 0; background: none; color: var(--pms-primary); text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .development-list-page__item-link { display: inline-flex; align-items: center; max-width: 220px; overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .development-list-page__metric { display: grid; gap: 3px; }

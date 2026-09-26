@@ -188,6 +188,10 @@ function openTopic() {
   if (detail.value?.topicId) void router.push(`/development/topics/${detail.value.topicId}`)
 }
 
+function openSourceRequirement() {
+  if (detail.value?.sourceRequirement?.id) void router.push(`/development/requirements/${detail.value.sourceRequirement.id}`)
+}
+
 function openRequirementTarget() {
   const target = detail.value?.executionTarget
   if (!target) return
@@ -337,6 +341,10 @@ onBeforeUnmount(() => {
                   <span class="development-item-detail__context-separator">/</span>
                   <button type="button" class="development-item-detail__context-link" @click="openTopic">{{ detail.topicTitle || t('developmentDetail.topicTitle') }}</button>
                 </template>
+              </div>
+              <div v-if="props.itemType !== 'requirement' && detail.sourceRequirement" class="project-header__meta-item project-header__meta-item--wide">
+                <span>{{ t('developmentDetail.sourceRequirement') }}：</span>
+                <button type="button" class="development-item-detail__context-link" @click="openSourceRequirement">{{ detail.sourceRequirement.title }}</button>
               </div>
             </div>
 

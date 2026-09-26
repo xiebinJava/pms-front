@@ -1113,6 +1113,10 @@ function onRestore() {
   openReasonModal('restore')
 }
 
+function openSourceRequirement() {
+  if (project.value?.sourceRequirement?.id) void router.push(`/development/requirements/${project.value.sourceRequirement.id}`)
+}
+
 function onRollback() {
   const targetNode = activeNode.value
   if (!targetNode || !canRollbackActiveNode.value) {
@@ -1216,6 +1220,10 @@ onBeforeUnmount(() => {
         <div class="project-header__meta-item">
           <span>{{ $t('detail.projectPeriod') }}：</span>
           <strong>{{ formatDate(project.startDate) }} → {{ formatDate(project.endDate) }}</strong>
+        </div>
+        <div v-if="project.sourceRequirement" class="project-header__meta-item project-header__meta-item--wide">
+          <span>{{ $t('detail.sourceRequirement') }}：</span>
+          <button type="button" class="project-header__source-requirement" @click="openSourceRequirement">{{ project.sourceRequirement.title }}</button>
         </div>
       </div>
 
@@ -1610,6 +1618,8 @@ onBeforeUnmount(() => {
 .project-header__meta-item { display: flex; align-items: baseline; min-width: 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); white-space: nowrap; }
 .project-header__meta-item > span { flex: 0 0 auto; }
 .project-header__meta-item strong { min-width: 0; overflow: hidden; color: var(--pms-text-strong); font-weight: 650; text-overflow: ellipsis; }
+.project-header__source-requirement { max-width: min(100%, 360px); padding: 0; overflow: hidden; border: 0; background: none; color: var(--pms-primary); font-size: inherit; font-weight: 650; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.project-header__source-requirement:hover { text-decoration: underline; }
 .project-header__meta-item--wide { flex: 0 1 auto; max-width: min(100%, 620px); }
 .project-header__meta-item--divider { padding-right: 20px; border-right: 1px solid var(--pms-border-soft); }
 .project-header__insights { gap: 24px; margin-top: 19px; padding-top: 17px; border-top: 1px solid var(--pms-border); }

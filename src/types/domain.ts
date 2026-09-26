@@ -47,6 +47,7 @@ export interface Project {
   orgUnitLeaderName?: string
   createdAt: string
   updatedAt: string
+  sourceRequirement?: SourceRequirementSummary
   permissions?: ProjectPermissions
   readiness?: ProjectReadiness
   attentionSummary?: ProjectAttentionSummary
