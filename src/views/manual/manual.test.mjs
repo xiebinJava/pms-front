@@ -159,7 +159,7 @@ test('manual reading surface exposes scoped search, mobile index controls, metad
 test('manual view wires scroll synchronization and documents the current release baseline', () => {
   assert.match(viewSource, /addEventListener\('scroll', onWindowScroll/)
   assert.match(viewSource, /router\.replace\(\{ path: '\/manual', hash: `#\$\{nextSection\}` \}\)/)
-  assert.ok(docsSource.includes('PMS v1.0.7') && docsSource.includes('V1–V55') && docsSource.includes('14 个功能模块'))
+  assert.ok(docsSource.includes('PMS v1.0.8') && docsSource.includes('V1–V55') && docsSource.includes('14 个功能模块'))
 })
 
 test('manual explains business rules and role capabilities instead of only listing operations', () => {
