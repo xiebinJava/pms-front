@@ -68,6 +68,7 @@ import WorkflowCustomFields from './components/WorkflowCustomFields.vue'
 import WorkflowNodeShell from '/@/components/workflow/WorkflowNodeShell.vue'
 import WorkflowRuntimeComponentHost from '/@/components/workflow/WorkflowRuntimeComponentHost.vue'
 import ProjectReadinessCard from './components/ProjectReadinessCard.vue'
+import SourceRequirementList from '/@/components/development/SourceRequirementList.vue'
 import { buildAttentionRoute } from './project-attention.mjs'
 import { missingConfiguredProjectFields, nodeHasComponent, nodeWorkflowContentOrder, nodeWorkflowFields, shouldAutoSaveOnBlur, transitionActiveNode } from './workflow-config.mjs'
 import type { PersonOption } from './workflow'
@@ -88,6 +89,12 @@ const focusNodeId = computed(() => {
   return Number.isFinite(value) && value > 0 ? value : null
 })
 const project = ref<Project | null>(null)
+const projectSourceRequirements = computed(() => {
+  const current = project.value
+  if (!current) return []
+  if (current.sourceRequirements?.length) return current.sourceRequirements
+  return current.sourceRequirement ? [current.sourceRequirement] : []
+})
 const nodes = ref<ProjectNode[]>([])
 const loading = ref(false)
 const loadError = ref(false)
@@ -1113,8 +1120,8 @@ function onRestore() {
   openReasonModal('restore')
 }
 
-function openSourceRequirement() {
-  if (project.value?.sourceRequirement?.id) void router.push(`/development/requirements/${project.value.sourceRequirement.id}`)
+function openSourceRequirement(requirementId: number) {
+  if (requirementId > 0) void router.push(`/development/requirements/${requirementId}`)
 }
 
 function onRollback() {
@@ -1221,9 +1228,8 @@ onBeforeUnmount(() => {
           <span>{{ $t('detail.projectPeriod') }}：</span>
           <strong>{{ formatDate(project.startDate) }} → {{ formatDate(project.endDate) }}</strong>
         </div>
-        <div v-if="project.sourceRequirement" class="project-header__meta-item project-header__meta-item--wide">
-          <span>{{ $t('detail.sourceRequirement') }}：</span>
-          <button type="button" class="project-header__source-requirement" @click="openSourceRequirement">{{ project.sourceRequirement.title }}</button>
+        <div v-if="projectSourceRequirements.length" class="project-header__meta-item project-header__meta-item--wide">
+          <SourceRequirementList :items="projectSourceRequirements" :label="$t('detail.sourceRequirement')" @open="openSourceRequirement" />
         </div>
       </div>
 

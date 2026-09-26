@@ -2,7 +2,7 @@ import { http } from '/@/plugins/http'
 import type { PageResult } from '/@/types/api'
 import type { Project } from '/@/types/domain'
 
-export interface ProjectUpdatePayload extends Omit<Partial<Project>, 'sourceRequirement'> {
+export interface ProjectUpdatePayload extends Omit<Partial<Project>, 'sourceRequirement' | 'sourceRequirements'> {
   version?: number
   memberIds?: number[]
   expectedMemberIds?: number[]

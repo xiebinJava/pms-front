@@ -67,7 +67,8 @@ function targetStatus(status?: string) {
 }
 
 function targetPath(target: RequirementExecutionTarget) {
-  const id = target.navigationId ?? target.targetId
+  if (target.navigationId == null) return ''
+  const id = target.navigationId
   const type = target.navigationType || target.targetType.toLowerCase()
   if (type === 'project') return `/projects/${id}`
   if (type === 'topic') return `/development/topics/${id}`
@@ -75,7 +76,7 @@ function targetPath(target: RequirementExecutionTarget) {
 }
 
 function openTarget(target?: RequirementExecutionTarget) {
-  if (!target) return
+  if (!target || target.navigationId == null) return
   void router.push(targetPath(target))
 }
 
@@ -230,9 +231,12 @@ onMounted(() => {
     <div v-if="props.target" class="requirement-execution-component__target">
       <div class="requirement-execution-component__target-main">
         <span class="requirement-execution-component__eyebrow">{{ targetLabel(props.target.targetType) }}</span>
-        <button type="button" class="requirement-execution-component__target-link" @click="openTarget(props.target)">
+        <button v-if="props.target.navigationId != null" type="button" class="requirement-execution-component__target-link" @click="openTarget(props.target)">
           <LinkOutlined /> {{ props.target.title || t('developmentDetail.requirementExecution.unnamedTarget') }}
         </button>
+        <span v-else class="requirement-execution-component__target-link is-unavailable">
+          {{ props.target.title || t('developmentDetail.requirementExecution.unnamedTarget') }}
+        </span>
         <span v-if="props.target.code" class="requirement-execution-component__code">{{ props.target.code }}</span>
       </div>
       <div class="requirement-execution-component__target-meta">

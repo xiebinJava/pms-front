@@ -20,11 +20,11 @@ test('topic story section creates stories with the current topic and keeps the l
   assert.doesNotMatch(section, /projectId|nodeId/)
 })
 
-test('topic and story list/detail surfaces show only their direct source requirement', () => {
-  assert.match(apiSource, /sourceRequirement\?: SourceRequirementSummary/)
-  assert.match(listPage, /record\.sourceRequirement/)
-  assert.match(listPage, /openRequirement\(record\.sourceRequirement\.id\)/)
-  assert.match(detailPage, /detail\.sourceRequirement/)
-  assert.match(detailPage, /openSourceRequirement/)
+test('topic and story list/detail surfaces show all direct source requirements', () => {
+  assert.match(apiSource, /sourceRequirements\?: SourceRequirementSummary\[\]/)
+  assert.match(listPage, /record\.sourceRequirements/)
+  assert.match(listPage, /openRequirement\(/)
+  assert.match(detailPage, /sourceRequirements/)
+  assert.match(detailPage, /openSourceRequirement\(/)
   assert.doesNotMatch(detailPage, /sourceRequirement\.sourceRequirement/)
 })

@@ -96,6 +96,18 @@ const router = createRouter({
           meta: { titleKey: 'route.developmentRequirements', permission: 'requirement:read' },
         },
         {
+          path: 'development/iterations',
+          name: 'development-iterations',
+          component: () => import('/@/views/development/iterations/index.vue'),
+          meta: { titleKey: 'route.developmentIterations', permission: 'project:read' },
+        },
+        {
+          path: 'development/iterations/:id',
+          name: 'development-iteration-detail',
+          component: () => import('/@/views/development/iterations/detail.vue'),
+          meta: { titleKey: 'route.developmentIterationDetail', permission: 'project:read' },
+        },
+        {
           path: 'development/topics/:id',
           name: 'development-topic-detail',
           component: () => import('/@/views/development/detail/DevelopmentItemDetailPage.vue'),

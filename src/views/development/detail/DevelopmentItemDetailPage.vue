@@ -20,6 +20,7 @@ import DevelopmentStoryListComponent from './DevelopmentStoryListComponent.vue'
 import RequirementExecutionComponent from './RequirementExecutionComponent.vue'
 import WorkflowNodeShell from '/@/components/workflow/WorkflowNodeShell.vue'
 import WorkflowRuntimeComponentHost from '/@/components/workflow/WorkflowRuntimeComponentHost.vue'
+import SourceRequirementList from '/@/components/development/SourceRequirementList.vue'
 import { WorkflowRuntimeComponentKey } from '/@/components/workflow/workflow-component-registry'
 import { isNodeReadOnly, shouldAutoSaveProfile } from '/@/views/project/detail/workflow'
 import { shouldAutoSaveOnBlur } from '/@/views/project/detail/workflow-config.mjs'
@@ -51,6 +52,12 @@ const listPath = computed(() => props.itemType === 'topic'
   ? '/development/topics'
   : props.itemType === 'story' ? '/development/stories' : '/development/requirements')
 const progressPercent = computed(() => Math.max(0, Math.min(100, detail.value?.workflowProgress || 0)))
+const sourceRequirements = computed(() => {
+  const current = detail.value
+  if (!current) return []
+  if (current.sourceRequirements?.length) return current.sourceRequirements
+  return current.sourceRequirement ? [current.sourceRequirement] : []
+})
 const nodeForm = reactive({ ownerId: undefined as number | undefined, startDate: '', endDate: '', fieldValues: {} as Record<string, unknown> })
 const nodeFieldsContainer = ref<HTMLElement | null>(null)
 let nodeFormEditRevision = 0
@@ -188,14 +195,14 @@ function openTopic() {
   if (detail.value?.topicId) void router.push(`/development/topics/${detail.value.topicId}`)
 }
 
-function openSourceRequirement() {
-  if (detail.value?.sourceRequirement?.id) void router.push(`/development/requirements/${detail.value.sourceRequirement.id}`)
+function openSourceRequirement(requirementId: number) {
+  if (requirementId > 0) void router.push(`/development/requirements/${requirementId}`)
 }
 
 function openRequirementTarget() {
   const target = detail.value?.executionTarget
-  if (!target) return
-  const id = target.navigationId ?? target.targetId
+  if (!target || target.navigationId == null) return
+  const id = target.navigationId
   const type = target.navigationType || target.targetType.toLowerCase()
   void router.push(type === 'project' ? `/projects/${id}` : type === 'topic' ? `/development/topics/${id}` : `/development/stories/${id}`)
 }
@@ -328,7 +335,8 @@ onBeforeUnmount(() => {
               <div class="project-header__meta-item project-header__meta-item--wide">
                 <template v-if="props.itemType === 'requirement' && detail.executionTarget">
                   <span>{{ t('developmentDetail.requirementExecution.targetLabel') }}：</span>
-                  <button type="button" class="development-item-detail__context-link" @click="openRequirementTarget">{{ detail.executionTarget.title || t('common.unset') }}</button>
+                  <button v-if="detail.executionTarget.navigationId != null" type="button" class="development-item-detail__context-link" @click="openRequirementTarget">{{ detail.executionTarget.title || t('common.unset') }}</button>
+                  <span v-else class="development-item-detail__context-unbound">{{ detail.executionTarget.title || t('common.unset') }}</span>
                 </template>
                 <template v-else-if="detail.projectId != null && detail.sourceNodeId != null">
                   <FolderOpenOutlined />
@@ -342,9 +350,8 @@ onBeforeUnmount(() => {
                   <button type="button" class="development-item-detail__context-link" @click="openTopic">{{ detail.topicTitle || t('developmentDetail.topicTitle') }}</button>
                 </template>
               </div>
-              <div v-if="props.itemType !== 'requirement' && detail.sourceRequirement" class="project-header__meta-item project-header__meta-item--wide">
-                <span>{{ t('developmentDetail.sourceRequirement') }}：</span>
-                <button type="button" class="development-item-detail__context-link" @click="openSourceRequirement">{{ detail.sourceRequirement.title }}</button>
+              <div v-if="props.itemType !== 'requirement' && sourceRequirements.length" class="project-header__meta-item project-header__meta-item--wide">
+                <SourceRequirementList :items="sourceRequirements" @open="openSourceRequirement" />
               </div>
             </div>
 

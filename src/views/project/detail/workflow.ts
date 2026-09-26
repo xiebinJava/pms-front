@@ -37,6 +37,7 @@ export interface TaskFormDraft {
   priority: number
   assigneeId?: number
   requirementId?: number
+  iterationPlanId?: number
   dueDate?: string | null
   parentId?: number
 }

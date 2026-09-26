@@ -38,6 +38,7 @@ test('requirement execution component supports zero or one target, search, chang
   assert.match(component, /changeReason/)
   assert.match(component, /executionTargetHistory/)
   assert.match(component, /target\s*\?\./)
+  assert.match(component, /target.navigationId != null/)
   assert.match(api, /http\.post\(`\/development\/requirements\/\$\{id\}\/execution-target\/options`/)
   assert.match(api, /http\.post\(`\/development\/requirements\/\$\{id\}\/execution-target`/)
   assert.match(api, /http\.delete\(`\/development\/requirements\/\$\{id\}\/execution-target`/)

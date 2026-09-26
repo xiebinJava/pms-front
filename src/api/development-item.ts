@@ -91,6 +91,7 @@ export interface DevelopmentTopicRow {
   latestBuildVersion?: string
   testStatus?: string
   blocker?: string
+  sourceRequirements?: SourceRequirementSummary[]
   sourceRequirement?: SourceRequirementSummary
 }
 
@@ -117,6 +118,7 @@ export interface DevelopmentStoryRow {
   startDate?: string
   dueDate?: string
   blocker?: string
+  sourceRequirements?: SourceRequirementSummary[]
   sourceRequirement?: SourceRequirementSummary
 }
 

@@ -47,6 +47,7 @@ export interface Project {
   orgUnitLeaderName?: string
   createdAt: string
   updatedAt: string
+  sourceRequirements?: SourceRequirementSummary[]
   sourceRequirement?: SourceRequirementSummary
   permissions?: ProjectPermissions
   readiness?: ProjectReadiness
@@ -183,6 +184,8 @@ export interface Task {
   version?: number
   projectId: number
   nodeId?: number
+  iterationPlanId?: number
+  iterationPlanName?: string
   parentId?: number
   title: string
   description?: string
@@ -299,6 +302,69 @@ export interface NodeIterationPlan {
   startDate?: string
   dueDate?: string
   sort?: number
+}
+
+export interface IterationPlanListItem {
+  id: number
+  projectId: number
+  projectCode?: string
+  projectName?: string
+  nodeId?: number
+  nodeName?: string
+  name: string
+  ownerId?: number
+  ownerName?: string
+  goal?: string
+  status: NodeIterationPlanStatus
+  startDate?: string
+  dueDate?: string
+  sort?: number
+  storyCount: number
+  completedStoryCount: number
+  taskCount: number
+  completedTaskCount: number
+  progress: number
+}
+
+export interface IterationPlanStory {
+  id: number
+  projectId: number
+  nodeId?: number
+  topicId?: number
+  topicTitle?: string
+  title: string
+  ownerId?: number
+  ownerName?: string
+  status: NodeDevelopmentStoryStatus
+  progress: number
+  storyPoints: number
+  startDate?: string
+  dueDate?: string
+  blocker?: string
+}
+
+export interface IterationPlanTask {
+  id: number
+  version?: number
+  projectId: number
+  nodeId?: number
+  nodeName?: string
+  parentId?: number
+  title: string
+  description?: string
+  deliverable?: string
+  status: number
+  priority: number
+  assigneeId?: number
+  assigneeName?: string
+  dueDate?: string
+  sort?: number
+}
+
+export interface IterationPlanDetail {
+  plan: IterationPlanListItem
+  stories: IterationPlanStory[]
+  tasks: IterationPlanTask[]
 }
 
 export interface NodeDevelopmentStory {
@@ -466,6 +532,7 @@ export interface DevelopmentItemWorkflowDetail {
   testStatus?: string
   iterationPlanName?: string
   version?: number
+  sourceRequirements?: SourceRequirementSummary[]
   sourceRequirement?: SourceRequirementSummary
   executionTarget?: RequirementExecutionTarget
   executionTargetHistory?: RequirementExecutionTargetHistory[]

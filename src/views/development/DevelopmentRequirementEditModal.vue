@@ -21,7 +21,7 @@ const { t } = useI18n()
 const form = reactive({
   title: '',
   description: '',
-  priority: 2,
+  priority: 1,
   ownerId: undefined as number | undefined,
   templateVersionId: null as number | null,
   version: 0,
@@ -47,7 +47,7 @@ watch(() => [props.open, props.requirement?.id] as const, ([open]) => {
   const requirement = props.requirement
   form.title = requirement?.title || ''
   form.description = requirement?.description || ''
-  form.priority = requirement?.priority ?? 2
+  form.priority = requirement?.priority ?? 1
   form.ownerId = requirement?.ownerId
   form.templateVersionId = null
   form.version = requirement?.version ?? 0
@@ -134,10 +134,10 @@ async function save() {
       </a-form-item>
       <a-form-item :label="t('developmentList.requirementPriority')">
         <a-select v-model:value="form.priority">
+          <a-select-option :value="0">{{ t('developmentList.requirementPriorityLowest') }}</a-select-option>
           <a-select-option :value="1">{{ t('developmentList.requirementPriorityLow') }}</a-select-option>
           <a-select-option :value="2">{{ t('developmentList.requirementPriorityMedium') }}</a-select-option>
           <a-select-option :value="3">{{ t('developmentList.requirementPriorityHigh') }}</a-select-option>
-          <a-select-option :value="4">{{ t('developmentList.requirementPriorityUrgent') }}</a-select-option>
         </a-select>
       </a-form-item>
       <a-form-item v-if="!props.requirement" :label="t('developmentList.requirementWorkflowTemplate')">

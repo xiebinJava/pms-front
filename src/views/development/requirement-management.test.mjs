@@ -43,6 +43,25 @@ test('requirement basic editor never submits an execution target', () => {
   assert.doesNotMatch(api, /createDevelopmentRequirement[\s\S]*executionTargetType/)
 })
 
+test('requirement priority values follow the backend 0-3 enum', () => {
+  const modal = read('views/development/DevelopmentRequirementEditModal.vue')
+  assert.match(modal, /priority:.*1/)
+  assert.match(modal, /form.priority = requirement\?\.priority \?\? 1/)
+  assert.match(modal, /:value="0"/)
+  assert.match(modal, /:value="1"/)
+  assert.match(modal, /:value="2"/)
+  assert.match(modal, /:value="3"/)
+  assert.doesNotMatch(modal, /:value="4"/)
+})
+
+test('requirement list exposes deleted scope and restore action', () => {
+  const page = read('views/development/DevelopmentListPage.vue')
+  assert.match(page, /requirementScope/)
+  assert.match(page, /restoreDevelopmentRequirement/)
+  assert.match(page, /deleted:.*requirementDeletedScope/)
+  assert.match(page, /restoreRequirement\(/)
+})
+
 test('requirement workflow navigation uses its own detail path and preserves the shared mutation API', () => {
   const api = read('api/development-item.ts')
   const domain = read('types/domain.ts')

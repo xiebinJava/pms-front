@@ -11,6 +11,7 @@ import {
   getDevelopmentRequirementPage,
   getDevelopmentStoryPage,
   getDevelopmentTopicPage,
+  restoreDevelopmentRequirement,
   restoreDevelopmentTopic,
   type DevelopmentRequirementPageParams,
   type DevelopmentRequirementRow,
@@ -18,6 +19,7 @@ import {
   type DevelopmentTopicRow,
 } from '/@/api/development-item'
 import { formatDate } from '/@/utils/format'
+import SourceRequirementList from '/@/components/development/SourceRequirementList.vue'
 import DevelopmentTopicEditModal from './DevelopmentTopicEditModal.vue'
 import DevelopmentStoryEditModal from './DevelopmentStoryEditModal.vue'
 import DevelopmentRequirementEditModal from './DevelopmentRequirementEditModal.vue'
@@ -30,6 +32,7 @@ const router = useRouter()
 const { t } = useI18n()
 const query = reactive({ keyword: '', status: undefined as string | undefined, targetType: undefined as DevelopmentRequirementPageParams['targetType'] })
 const topicScope = ref<'active' | 'deleted'>('active')
+const requirementScope = ref<'active' | 'deleted'>('active')
 const dataSource = ref<DevelopmentRow[]>([])
 const loading = ref(false)
 const topicEditOpen = ref(false)
@@ -44,6 +47,7 @@ const pagination = reactive({ current: 1, pageSize: 10, total: 0 })
 const isTopics = computed(() => props.mode === 'topics')
 const isRequirements = computed(() => props.mode === 'requirements')
 const deletedScope = computed(() => isTopics.value && topicScope.value === 'deleted')
+const requirementDeletedScope = computed(() => isRequirements.value && requirementScope.value === 'deleted')
 const titleKey = computed(() => isTopics.value
   ? 'developmentList.topicsTitle'
   : isRequirements.value ? 'developmentList.requirementsTitle' : 'developmentList.storiesTitle')
@@ -131,7 +135,7 @@ function loadParams() {
     keyword: query.keyword || undefined,
     status: query.status,
   }
-  return isRequirements.value ? { ...params, targetType: query.targetType } : params
+  return isRequirements.value ? { ...params, targetType: query.targetType, deleted: requirementDeletedScope.value } : params
 }
 
 async function loadData() {
@@ -174,6 +178,12 @@ function onTopicScopeChange() {
   void loadData()
 }
 
+function onRequirementScopeChange() {
+  pagination.current = 1
+  query.status = undefined
+  void loadData()
+}
+
 function openSource(record: DevelopmentRow) {
   if (isRequirement(record)) return
   if (record.projectId == null || record.nodeId == null) return
@@ -191,6 +201,12 @@ function openTopic(record: DevelopmentStoryRow) {
 
 function openRequirement(requirementId: number) {
   void router.push(`/development/requirements/${requirementId}`)
+}
+
+function sourceRequirements(record: DevelopmentRow) {
+  if (isRequirement(record)) return []
+  if (record.sourceRequirements?.length) return record.sourceRequirements
+  return record.sourceRequirement ? [record.sourceRequirement] : []
 }
 
 function editTopic(record: DevelopmentTopicRow) {
@@ -297,6 +313,20 @@ function deleteRequirement(record: DevelopmentRequirementRow) {
   })
 }
 
+async function restoreRequirement(record: DevelopmentRequirementRow) {
+  if (requirementMutationId.value != null) return
+  requirementMutationId.value = record.id
+  try {
+    await restoreDevelopmentRequirement(record.id)
+    message.success(t('developmentList.requirementRestored'))
+    await refreshAfterMutation()
+  } catch (error) {
+    message.error((error as Error).message || t('developmentList.requirementRestoreFailed'))
+  } finally {
+    requirementMutationId.value = null
+  }
+}
+
 onMounted(() => { void loadData() })
 </script>
 
@@ -307,6 +337,10 @@ onMounted(() => { void loadData() })
         <a-radio-group v-if="isTopics" v-model:value="topicScope" button-style="solid" class="pms-project-view-switch" :aria-label="t('developmentList.topicScope')" @change="onTopicScopeChange">
           <a-radio-button value="active">{{ t('developmentList.activeTopics') }}</a-radio-button>
           <a-radio-button value="deleted">{{ t('developmentList.deletedTopics') }}</a-radio-button>
+        </a-radio-group>
+        <a-radio-group v-if="isRequirements" v-model:value="requirementScope" button-style="solid" class="pms-project-view-switch" :aria-label="t('developmentList.requirementScope')" @change="onRequirementScopeChange">
+          <a-radio-button value="active">{{ t('developmentList.activeRequirements') }}</a-radio-button>
+          <a-radio-button value="deleted">{{ t('developmentList.deletedRequirements') }}</a-radio-button>
         </a-radio-group>
         <a-button type="primary" class="pms-primary-button pms-project-button pms-project-button--primary" @click="isTopics ? createTopic() : createStory()"><PlusOutlined /> {{ t(isTopics ? 'developmentList.createTopic' : isRequirements ? 'developmentList.createRequirement' : 'developmentList.createStory') }}</a-button>
         <a-button class="pms-secondary-button pms-filter-button pms-project-button pms-project-button--secondary" @click="loadData"><ReloadOutlined /> {{ t('common.refresh') }}</a-button>
@@ -356,15 +390,12 @@ onMounted(() => { void loadData() })
                 <template v-else>
                   <a v-if="record.projectId != null && record.nodeId != null" class="pms-project-link development-list-page__project-link" @click="openSource(record)">{{ record.projectName || t('common.unset') }}</a>
                   <span v-else class="pms-table-subtext">{{ t('developmentList.unboundProject') }}</span>
-                  <button
-                    v-if="record.sourceRequirement"
-                    type="button"
-                    class="development-list-page__source-requirement"
-                    :title="record.sourceRequirement.title"
-                    @click.stop="openRequirement(record.sourceRequirement.id)"
-                  >
-                    {{ t('developmentList.sourceRequirement') }}：{{ record.sourceRequirement.title }}
-                  </button>
+                  <SourceRequirementList
+                    :items="sourceRequirements(record)"
+                    :label="t('developmentList.sourceRequirement')"
+                    compact
+                    @open="openRequirement"
+                  />
                 </template>
               </div>
             </template>
@@ -377,9 +408,12 @@ onMounted(() => { void loadData() })
             <template v-else-if="column.key === 'dueDate'">{{ isStory(record) ? formatDate(record.dueDate) : '' }}</template>
             <template v-else-if="column.key === 'action'">
               <div v-if="isRequirement(record)" class="pms-project-row-actions" role="group" :aria-label="t('common.actions')">
-                <button type="button" class="pms-action-link pms-project-button pms-project-button--text" @click="openItem(record)">{{ t('common.detail') }}</button>
-                <button type="button" class="pms-action-link pms-project-button pms-project-button--text" @click="editRequirement(record)">{{ t('common.edit') }}</button>
-                <button type="button" class="pms-action-link pms-action-link--danger pms-project-button pms-project-button--text pms-project-button--danger" :disabled="requirementMutationId != null" @click="deleteRequirement(record)">{{ t('common.delete') }}</button>
+                <template v-if="!requirementDeletedScope">
+                  <button type="button" class="pms-action-link pms-project-button pms-project-button--text" @click="openItem(record)">{{ t('common.detail') }}</button>
+                  <button type="button" class="pms-action-link pms-project-button pms-project-button--text" @click="editRequirement(record)">{{ t('common.edit') }}</button>
+                  <button type="button" class="pms-action-link pms-action-link--danger pms-project-button pms-project-button--text pms-project-button--danger" :disabled="requirementMutationId != null" @click="deleteRequirement(record)">{{ t('common.delete') }}</button>
+                </template>
+                <button v-else type="button" class="pms-action-link pms-project-button pms-project-button--text" :disabled="requirementMutationId != null" @click="restoreRequirement(record)">{{ t('developmentList.restoreRequirement') }}</button>
               </div>
               <template v-else>
                 <div v-if="isTopic(record)" class="pms-project-row-actions" role="group" :aria-label="t('common.actions')">
