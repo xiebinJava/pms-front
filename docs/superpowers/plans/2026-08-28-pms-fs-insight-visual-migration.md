@@ -1,21 +1,21 @@
-# PMS fs-insight 视觉迁移实施计划
+# PMS 统一视觉系统迁移实施计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task with review checkpoints.
 
-**Goal:** 在不改变 PMS 业务接口、路由和权限逻辑的前提下，将 `fs-insight-front` 的应用壳、视觉令牌、通用控件和页面布局迁移到 PMS。
+**Goal:** 在不改变 PMS 业务接口、路由和权限逻辑的前提下，将参考前端视觉系统的应用壳、视觉令牌、通用控件和页面布局迁移到 PMS。
 
 **Architecture:** 采用混合迁移。Vue 3、Ant Design Vue、Pinia 和现有页面状态继续保留；新增 PMS 自有的 CSS 令牌和少量可复用视觉组件，通过 class/slot 包装覆盖 Ant 默认视觉。页面按“认证 → 应用壳 → 项目 → 管理后台”的顺序迁移，每个任务都有独立的源代码断言、类型检查和浏览器回归点。
 
 **Tech Stack:** Vue 3.5, TypeScript, Ant Design Vue 4, Pinia, UnoCSS, Vite, Node test runner。
 
-**Spec:** `docs/superpowers/specs/2026-08-28-pms-fs-insight-design.md`
+**Spec:** 对应的视觉系统设计文档
 
 ## Global Constraints
 
 - 页面背景 `#f7f8fa`，面板 `#ffffff`，主色 `#0a5dc2`，边框 `#e1e6ed`。
 - 顶栏 62px，侧栏 236px，内容区最大 1460px，桌面内边距 31px 34px 64px。
-- 控件高度 36px，面板圆角 8px，小控件圆角 6px，字体栈与 `fs-insight-front` 一致。
-- 保留 Vue + Ant Design Vue，不迁移 fs-insight 的业务接口、品牌资产或登录方式。
+- 控件高度 36px，面板圆角 8px，小控件圆角 6px，字体栈与参考前端一致。
+- 保留 Vue + Ant Design Vue，不迁移参考前端的业务接口、品牌资产或登录方式。
 - 人员展示使用“中文名（英文名）”；组织负责人和员工主归属保持独立。
 - 每项改动先补一个会失败的 Node 测试，再写最小实现；每项完成后运行类型检查、Node 用例和浏览器烟测。
 
@@ -24,7 +24,7 @@
 **Files:**
 - Modify: `src/styles/design-system.ts`
 - Modify: `src/styles/index.css`
-- Create: `src/styles/fs-insight.css`
+- Create: 共享视觉样式文件（位于 `src/styles`）
 - Modify: `src/App.vue`
 - Test: `src/styles/design-system.test.mjs`
 
@@ -34,7 +34,7 @@
 
 - [ ] **Step 1: Write the failing token and global-style assertions**
 
-  Extend `design-system.test.mjs` with assertions for `primaryDark`, `primarySoft`, `surfaceMuted`, `borderStrong`, `shadowSm`, and the existence of `src/styles/fs-insight.css` containing `.pms-panel`, `.pms-page-header`, and `.pms-button--primary`.
+  Extend `design-system.test.mjs` with assertions for `primaryDark`, `primarySoft`, `surfaceMuted`, `borderStrong`, `shadowSm`, and the shared visual stylesheet containing `.pms-panel`, `.pms-page-header`, and `.pms-button--primary`.
 
 - [ ] **Step 2: Run the focused test and verify it fails**
 
@@ -43,7 +43,7 @@
 
 - [ ] **Step 3: Implement the baseline**
 
-  Add the missing token fields, align `index.css` root variables to the `fs-insight-front` values, move reusable panel/header/button/state styles into `fs-insight.css`, and import it from `App.vue` after `index.css`.
+  Add the missing token fields, align `index.css` root variables to the reference values, move reusable panel/header/button/state styles into the shared visual stylesheet, and import it from `App.vue` after `index.css`.
 
 - [ ] **Step 4: Verify the focused test and typecheck**
 
@@ -52,14 +52,14 @@
 
 - [ ] **Step 5: Commit**
 
-  `git add src/styles src/App.vue && git commit -m "refactor: align PMS visual tokens with fs-insight"`
+  `git add src/styles src/App.vue && git commit -m "refactor: align PMS visual tokens with reference system"`
 
 ### Task 2: 重做应用壳和导航
 
 **Files:**
 - Modify: `src/layout/Index.vue`
 - Modify: `src/layout/index.test.mjs`
-- Modify: `src/styles/fs-insight.css`
+- Modify: shared visual stylesheet under `src/styles`
 
 **Interfaces:**
 - Consumes `designTokens` and the existing `useUserStore`, route map, permissions and password modal.
@@ -85,7 +85,7 @@
 
 - [ ] **Step 5: Commit**
 
-  `git add src/layout/Index.vue src/layout/index.test.mjs src/styles/fs-insight.css && git commit -m "refactor: rebuild PMS application shell"`
+  `git add src/layout/Index.vue src/layout/index.test.mjs src/styles && git commit -m "refactor: rebuild PMS application shell"`
 
 ### Task 3: 迁移认证页与通用控件
 
@@ -93,7 +93,7 @@
 - Modify: `src/views/login/index.vue`
 - Modify: `src/views/auth/activate.vue`
 - Modify: `src/views/auth/reset-password.vue`
-- Modify: `src/styles/fs-insight.css`
+- Modify: shared visual stylesheet under `src/styles`
 - Create: `src/components/PmsPageHeader.vue`
 - Create: `src/components/PmsPanel.vue`
 - Create: `src/components/PmsStatus.vue`
@@ -124,7 +124,7 @@
 
 - [ ] **Step 5: Commit**
 
-  `git add src/views/login src/views/auth src/components src/styles/fs-insight.css && git commit -m "refactor: align authentication surfaces"`
+  `git add src/views/login src/views/auth src/components src/styles && git commit -m "refactor: align authentication surfaces"`
 
 ### Task 4: 迁移项目列表和项目详情
 
@@ -137,7 +137,7 @@
 - Modify: `src/views/project/detail/components/Members.vue`
 - Modify: `src/views/project/detail/components/Milestones.vue`
 - Modify: `src/views/project/detail/components/Comments.vue`
-- Modify: `src/styles/fs-insight.css`
+- Modify: shared visual stylesheet under `src/styles`
 - Test: existing `src/views/project/list/index.test.mjs`, `src/views/project/detail/workflow.test.mjs`, `src/views/project/detail/business-line-owner.test.mjs`
 
 **Interfaces:**
@@ -163,7 +163,7 @@
 
 - [ ] **Step 5: Commit**
 
-  `git add src/views/project src/styles/fs-insight.css && git commit -m "refactor: align project management surfaces"`
+  `git add src/views/project src/styles && git commit -m "refactor: align project management surfaces"`
 
 ### Task 5: 迁移管理后台页面
 
@@ -174,7 +174,7 @@
 - Modify: `src/views/admin/roles/index.vue`
 - Modify: `src/views/admin/import/index.vue`
 - Modify: `src/views/admin/audit/index.vue`
-- Modify: `src/styles/fs-insight.css`
+- Modify: shared visual stylesheet under `src/styles`
 - Modify: existing admin `*.test.mjs` files
 
 **Interfaces:**
@@ -200,16 +200,16 @@
 
 - [ ] **Step 5: Commit**
 
-  `git add src/views/admin src/styles/fs-insight.css && git commit -m "refactor: align administration surfaces"`
+  `git add src/views/admin src/styles && git commit -m "refactor: align administration surfaces"`
 
 ### Task 6: 全局回归、视觉对照与交付记录
 
 **Files:**
 - Modify: `README.md` only if the local dev/visual QA command changes.
-- Create: `docs/superpowers/reviews/2026-08-28-pms-fs-insight-fidelity.md`
+- Create: 视觉回归评审文档，位于 `docs/superpowers/reviews`
 
 **Interfaces:**
-- Consumes the finished frontend and the source reference at `../fs-insight-front`.
+- Consumes the finished frontend and the local reference design system.
 - Produces a fidelity ledger with at least five concrete comparison points, tested viewports, interaction evidence and intentional deviations.
 
 - [ ] **Step 1: Run the complete automated suite**
@@ -227,5 +227,4 @@
 
 - [ ] **Step 4: Commit**
 
-  `git add docs/superpowers/reviews README.md && git commit -m "docs: record fs-insight visual verification"`
-
+  `git add docs/superpowers/reviews README.md && git commit -m "docs: record visual verification"`

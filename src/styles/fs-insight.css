@@ -1,4 +1,4 @@
-/* PMS visual layer aligned with fs-insight-front. Business behavior remains in Vue/Ant Design. */
+/* PMS visual layer aligned with the shared reference system. Business behavior remains in Vue/Ant Design. */
 :root {
   --pms-font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --pms-content-max-width: 1460px;
@@ -744,7 +744,7 @@ body { font-family: var(--pms-font-family); background: var(--pms-bg); }
   padding-inline: 14px;
 }
 
-/* Ant controls are kept for behavior, but share fs-insight geometry. */
+/* Ant controls are kept for behavior, but share the unified geometry. */
 .pms-shell .ant-btn,
 .pms-shell .ant-input,
 .pms-shell .ant-input-affix-wrapper,

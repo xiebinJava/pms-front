@@ -1,17 +1,17 @@
-# PMS × fs-insight 视觉迁移回归记录
+# PMS 统一视觉系统迁移回归记录
 
 ## 参考基线
 
-- 参考项目：`/Users/fs/Desktop/Project/fs-insight-front`
-- 核对文件：`src/styles/base.css`、`src/styles/layout.css`、`src/styles/components.css`、`src/layouts/AppShell.tsx`、`src/components/ui.tsx`
-- 关键基线：62px 顶栏、236px 侧栏、1460px 内容宽度、`#f7f8fa` 页面底色、白色面板、8px 圆角、fs-blue 主色、1px 边框和双层轻阴影。
+- 参考项目：本地参考前端视觉系统
+- 核对文件：基础样式、布局样式、组件样式、应用壳和通用控件
+- 关键基线：62px 顶栏、236px 侧栏、1460px 内容宽度、`#f7f8fa` 页面底色、白色面板、8px 圆角、PMS 蓝色、1px 边框和双层轻阴影。
 
 ## 已完成映射
 
 | 区域 | 迁移结果 |
 | --- | --- |
-| 令牌 | PMS 全局颜色、圆角、字体、阴影和控件高度对齐 fs-insight；保留 Ant Design 作为行为层。 |
-| 应用壳 | 顶栏、侧栏、内容区、移动端抽屉和遮罩改为 fs-insight 几何关系。 |
+| 令牌 | PMS 全局颜色、圆角、字体、阴影和控件高度对齐统一视觉系统；保留 Ant Design 作为行为层。 |
+| 应用壳 | 顶栏、侧栏、内容区、移动端抽屉和遮罩采用统一几何关系。 |
 | 认证 | 登录、激活、重置密码统一使用 `pms-auth-page` / `pms-auth-card`，按钮、输入焦点和提示文本统一。 |
 | 项目 | 列表页使用共享页头和表格面板；详情页的头部、流程、节点和协作区使用统一面板层。 |
 | 管理后台 | 人员、角色、组织、批量导入、审计统一页头、筛选条、表格和组织工作区。 |
@@ -23,7 +23,7 @@
 - 应用壳改为可控的分组导航（`.pms-nav-list` / `.pms-nav-link`），保留原有路由映射和权限条件。
 - 项目详情补齐 hero、section heading、assignment grid、流程轨道和任务卡片的组件级视觉契约。
 - 后台页面统一 admin toolbar、表格操作链接、组织属性侧栏和全高画布。
-- 全局 Ant 控件统一为 fs-insight 的 36px 控件、8px 面板、1px 边框、轻阴影和焦点态。
+- 全局 Ant 控件统一为 36px 控件、8px 面板、1px 边框、轻阴影和焦点态。
 - 增加减少动效媒体查询，保证键盘焦点与窄屏布局可用。
 
 ## 浏览器回归
