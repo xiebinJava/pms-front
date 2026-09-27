@@ -31,6 +31,12 @@ const router = createRouter({
       meta: { titleKey: 'route.resetPassword' },
     },
     {
+      path: '/cli/authorize',
+      name: 'cli-authorize',
+      component: () => import('/@/views/auth/cli-authorize.vue'),
+      meta: { titleKey: 'route.login' },
+    },
+    {
       path: '/',
       component: () => import('/@/layout/Index.vue'),
       children: [

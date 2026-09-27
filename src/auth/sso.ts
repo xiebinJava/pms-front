@@ -1,4 +1,4 @@
-export const PUBLIC_AUTH_PATHS = ['/login', '/login/oidc/callback', '/auth/activate', '/auth/reset-password']
+export const PUBLIC_AUTH_PATHS = ['/login', '/login/oidc/callback', '/auth/activate', '/auth/reset-password', '/cli/authorize']
 export const OIDC_REDIRECT_KEY = 'pms.oidc.redirect'
 
 export interface AuthProvider {
