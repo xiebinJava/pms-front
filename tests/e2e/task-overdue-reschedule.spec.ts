@@ -225,7 +225,7 @@ test('task due-date state and reschedule history stay consistent', async ({ page
 
   await overdueCard.click()
   await expect(dialog.locator('.pms-task-schedule-summary')).toHaveText('已逾期 1 天')
-  await dialog.locator('.ant-select').first().click()
+  await dialog.locator('.ant-form-item').filter({ hasText: '状态' }).locator('.ant-select').click()
   await page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({ hasText: '已完成' }).click()
   await dialog.getByRole('button', { name: /保\s*存/ }).click()
   await expect(overdueCard.locator('.pms-task-schedule-badge')).toHaveCount(0)
