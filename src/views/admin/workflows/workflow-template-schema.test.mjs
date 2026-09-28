@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeWorkflowDefinition, REQUIREMENT_FIELD_BINDINGS } from './workflow-template-schema.mjs'
+import { normalizeWorkflowDefinition, REQUIREMENT_FIELD_BINDINGS, STORY_FIELD_BINDINGS, TOPIC_FIELD_BINDINGS } from './workflow-template-schema.mjs'
 
 const legacyDefinition = {
   schemaVersion: 1,
@@ -151,6 +151,27 @@ test('exposes requirement creation fields as explicit workflow bindings', () => 
   })
 })
 
+test('exposes topic and story record fields as explicit workflow bindings', () => {
+  assert.deepEqual(TOPIC_FIELD_BINDINGS, {
+    title: { binding: 'topic.title', type: 'TEXT' },
+    owner: { binding: 'topic.owner', type: 'PERSON' },
+    project: { binding: 'topic.project', type: 'TEXT' },
+    status: { binding: 'topic.status', type: 'TEXT' },
+    progress: { binding: 'topic.progress', type: 'NUMBER' },
+    latestBuildVersion: { binding: 'topic.latestBuildVersion', type: 'TEXT' },
+    testStatus: { binding: 'topic.testStatus', type: 'TEXT' },
+  })
+  assert.deepEqual(STORY_FIELD_BINDINGS, {
+    title: { binding: 'story.title', type: 'TEXT' },
+    owner: { binding: 'story.owner', type: 'PERSON' },
+    status: { binding: 'story.status', type: 'TEXT' },
+    progress: { binding: 'story.progress', type: 'NUMBER' },
+    storyPoints: { binding: 'story.storyPoints', type: 'NUMBER' },
+    schedule: { binding: 'story.schedule', type: 'DATE_RANGE' },
+    blocker: { binding: 'story.blocker', type: 'TEXTAREA' },
+  })
+})
+
 test('migrates existing requirement priority bindings from numeric input to a single select', () => {
   const definition = normalizeWorkflowDefinition({
     schemaVersion: 2,
@@ -174,4 +195,26 @@ test('migrates existing requirement priority bindings from numeric input to a si
   })
 
   assert.equal(definition.nodes[0].fields[0].type, 'SINGLE_SELECT')
+})
+
+test('preserves component configs while normalizing a v2 workflow definition', () => {
+  const config = {
+    'requirement-receiving-analysis': {
+      showFilter: true,
+      showAnalysis: true,
+      showDecision: true,
+    },
+  }
+  const definition = normalizeWorkflowDefinition({
+    schemaVersion: 2,
+    nodes: [{
+      key: 'receiving',
+      name: '需求接收',
+      fields: [],
+      contentOrder: ['component:requirement-receiving-analysis'],
+      componentConfigs: config,
+    }],
+  })
+
+  assert.deepEqual(definition.nodes[0].componentConfigs, config)
 })

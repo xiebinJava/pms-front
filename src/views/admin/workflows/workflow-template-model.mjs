@@ -1,6 +1,18 @@
-import { normalizeWorkflowDefinition } from './workflow-template-schema.mjs'
+import { DEFAULT_REQUIREMENT_RECEIVING_ANALYSIS_CONFIG, normalizeWorkflowDefinition } from './workflow-template-schema.mjs'
 
 export const FIXED_NODE_BLOCKS = Object.freeze(['owner', 'schedule', 'task-board'])
+
+export const WORKFLOW_PROCESS_SOURCES = Object.freeze({
+  general: 'project',
+  'project-management': 'project',
+  'requirement-management': 'requirement',
+  'topic-management': 'topic',
+  'story-management': 'story',
+})
+
+export function getWorkflowSourceForProcessType(processTypeCode) {
+  return WORKFLOW_PROCESS_SOURCES[String(processTypeCode || '')]
+}
 
 export const DEFAULT_PROJECT_BASIC_INFO_FIELDS = Object.freeze([
   { key: 'description', label: '项目描述', visible: true, required: true },
@@ -12,6 +24,10 @@ export const DEFAULT_PROJECT_BASIC_INFO_FIELDS = Object.freeze([
   { key: 'projectMembers', label: '项目成员', visible: true, required: true },
   { key: 'followers', label: '关注人', visible: true, required: false },
 ])
+
+export const DEFAULT_COMPONENT_CONFIGS = Object.freeze({
+  'requirement-receiving-analysis': DEFAULT_REQUIREMENT_RECEIVING_ANALYSIS_CONFIG,
+})
 
 export function getWorkflowTemplateEntryStep({
   typeCount,
@@ -120,6 +136,32 @@ export function moveWorkflowField(node, fieldKey, toIndex) {
 
 export function moveWorkflowContentItem(node, contentItem, toIndex) {
   return { ...node, contentOrder: moveByKey(node.contentOrder || [], contentItem, toIndex) }
+}
+
+export function addWorkflowComponent(node, componentKey) {
+  const contentItem = `component:${componentKey}`
+  if ((node.contentOrder || []).includes(contentItem)) return node
+  const componentConfigs = { ...(node.componentConfigs || {}) }
+  if (componentKey === 'requirement-receiving-analysis' && !componentConfigs[componentKey]) {
+    componentConfigs[componentKey] = structuredClone(DEFAULT_REQUIREMENT_RECEIVING_ANALYSIS_CONFIG)
+  }
+  return {
+    ...node,
+    contentOrder: [...(node.contentOrder || []), contentItem],
+    ...(Object.keys(componentConfigs).length ? { componentConfigs } : {}),
+  }
+}
+
+export function removeWorkflowComponent(node, componentKey) {
+  const contentItem = `component:${componentKey}`
+  const contentOrder = (node.contentOrder || []).filter((item) => item !== contentItem)
+  const componentConfigs = { ...(node.componentConfigs || {}) }
+  delete componentConfigs[componentKey]
+  return {
+    ...node,
+    contentOrder,
+    ...(Object.keys(componentConfigs).length ? { componentConfigs } : { componentConfigs: undefined }),
+  }
 }
 
 export function moveWorkflowNode(nodes, nodeKey, toIndex) {

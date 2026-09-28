@@ -442,7 +442,7 @@ export interface NodeDevelopmentControlUpdate {
 }
 
 export type DevelopmentItemType = 'topic' | 'story' | 'requirement'
-export type DevelopmentWorkflowStatus = 'NOT_CONFIGURED' | 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'
+export type DevelopmentWorkflowStatus = 'NOT_CONFIGURED' | 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED'
 
 export type RequirementExecutionTargetType = 'PROJECT' | 'TOPIC' | 'STORY'
 
@@ -508,6 +508,7 @@ export interface DevelopmentItemWorkflowNode {
   boundFieldValues?: Record<string, unknown>
   tasks: DevelopmentItemTask[]
   runtimeComponents?: string[]
+  componentConfigs?: Record<string, Record<string, unknown>>
 }
 
 export interface DevelopmentItemWorkflowDetail {
@@ -539,6 +540,7 @@ export interface DevelopmentItemWorkflowDetail {
   executionTargetHistory?: RequirementExecutionTargetHistory[]
   workflowConfigured: boolean
   workflowStatus: DevelopmentWorkflowStatus
+  terminalStatus?: string | null
   workflowProgress: number
   workflowId?: number
   templateVersionId?: number
@@ -564,6 +566,58 @@ export interface DevelopmentItemNodeUpdate {
   endDate?: string
   fieldValues?: Record<string, unknown>
   version: number
+}
+
+export type RequirementReceivingValidity = 'PENDING' | 'VALID' | 'INVALID' | 'INSUFFICIENT_INFO'
+export type RequirementReceivingFilterReason = 'DUPLICATE' | 'OUT_OF_SCOPE' | 'INSUFFICIENT_INFO' | 'LOW_VALUE' | 'INFEASIBLE' | 'EXISTING_SOLUTION' | 'OTHER'
+export type RequirementReceivingCategory = 'FUNCTIONAL' | 'NON_FUNCTIONAL'
+export type RequirementReceivingDecision = 'PASS' | 'NEEDS_INFO' | 'REJECT'
+export type RequirementReceivingValueConclusion = 'HIGH' | 'MEDIUM' | 'LOW' | 'PENDING'
+
+export interface RequirementReceivingAnalysisState {
+  validity?: RequirementReceivingValidity
+  filterReasons?: RequirementReceivingFilterReason[]
+  interpretation?: string
+  filterNote?: string
+  category?: RequirementReceivingCategory
+  feasibilityScore?: number
+  roiScore?: number
+  strategicFitScore?: number
+  analysisConclusion?: string
+  decision?: RequirementReceivingDecision
+  supplementNote?: string
+  decisionReason?: string
+}
+
+export interface RequirementReceivingAnalysisConfig {
+  showFilter: boolean
+  showAnalysis: boolean
+  showDecision: boolean
+  requireCategory: boolean
+  showFeasibilityScore: boolean
+  requireFeasibilityScore: boolean
+  showRoiScore: boolean
+  requireRoiScore: boolean
+  showStrategicFitScore: boolean
+  requireStrategicFitScore: boolean
+  requireAnalysisConclusion: boolean
+  allowReject: boolean
+}
+
+export interface RequirementReceivingAnalysis {
+  requirementId: number
+  nodeId: number
+  nodeVersion: number
+  nodeStatus: 0 | 1 | 2
+  terminalStatus?: string | null
+  state?: RequirementReceivingAnalysisState | null
+  config: RequirementReceivingAnalysisConfig
+  averageScore?: number | null
+  valueConclusion: RequirementReceivingValueConclusion
+}
+
+export interface RequirementReceivingAnalysisActionCmd {
+  reason: string
 }
 
 export interface DevelopmentItemTaskSave {

@@ -11,6 +11,8 @@ import type {
   DevelopmentItemWorkflowDetail,
   DevelopmentItemWorkflowNode,
   OrgUnit,
+  RequirementReceivingAnalysisConfig,
+  RequirementReceivingAnalysisState,
 } from '/@/types/domain'
 import { buildBusinessLineOptions } from '/@/views/project/detail/workflow'
 import type { BusinessLineOption, PersonOption } from '/@/views/project/detail/workflow'
@@ -21,6 +23,7 @@ import DevelopmentItemTaskBoard from './components/DevelopmentItemTaskBoard.vue'
 import DevelopmentStorySplitComponent from './DevelopmentStorySplitComponent.vue'
 import DevelopmentStoryListComponent from './DevelopmentStoryListComponent.vue'
 import RequirementExecutionComponent from './RequirementExecutionComponent.vue'
+import RequirementReceivingAnalysisComponent from './RequirementReceivingAnalysisComponent.vue'
 import WorkflowNodeShell from '/@/components/workflow/WorkflowNodeShell.vue'
 import WorkflowRuntimeComponentHost from '/@/components/workflow/WorkflowRuntimeComponentHost.vue'
 import SourceRequirementList from '/@/components/development/SourceRequirementList.vue'
@@ -48,7 +51,8 @@ const rollbackModalOpen = ref(false)
 const rollbackReason = ref('')
 const selectedNodeId = ref<number>()
 const selectedNode = computed(() => detail.value?.nodes.find((node) => node.id === selectedNodeId.value))
-const selectedNodeEditable = computed(() => selectedNode.value != null && !isNodeReadOnly(selectedNode.value.status))
+const selectedNodeEditable = computed(() => selectedNode.value != null
+  && !isNodeReadOnly(selectedNode.value.status) && !detail.value?.terminalStatus)
 const requirementTargetWritable = computed(() => props.itemType !== 'requirement' || userStore.can('requirement:write'))
 const requirementTargetManageable = computed(() => props.itemType !== 'requirement' || userStore.can('requirement:manage'))
 const activeNode = computed(() => detail.value?.nodes.find((node) => node.status === 1))
@@ -339,6 +343,34 @@ function onDetailUpdated(next: DevelopmentItemWorkflowDetail) {
   }
 }
 
+function onReceivingAnalysisUpdated() {
+  void loadData()
+}
+
+const receivingAnalysisState = computed(() => {
+  const values = selectedNode.value?.fieldValues as { __components?: Record<string, unknown> } | undefined
+  return values?.__components?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS] as RequirementReceivingAnalysisState | undefined
+})
+
+const receivingAnalysisConfig = computed<RequirementReceivingAnalysisConfig>(() => {
+  const config = selectedNode.value?.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]
+  return {
+    showFilter: true,
+    showAnalysis: true,
+    showDecision: true,
+    requireCategory: true,
+    showFeasibilityScore: true,
+    requireFeasibilityScore: true,
+    showRoiScore: true,
+    requireRoiScore: true,
+    showStrategicFitScore: true,
+    requireStrategicFitScore: true,
+    requireAnalysisConclusion: true,
+    allowReject: true,
+    ...(config || {}) as Partial<RequirementReceivingAnalysisConfig>,
+  }
+})
+
 watch(() => [props.itemType, route.params.id], () => { void loadData() }, { immediate: true })
 
 onMounted(() => document.addEventListener('pointerdown', onDocumentPointerDown))
@@ -460,7 +492,7 @@ onBeforeUnmount(() => {
                     @click="confirmRollbackNode"
                   ><RollbackOutlined />{{ t('developmentDetail.rollbackNodeAction') }}</a-button>
                   <a-button
-                    v-else-if="selectedNode.status === 1"
+                    v-else-if="selectedNode.status === 1 && !detail.terminalStatus"
                     type="primary"
                     class="pms-primary-button pms-project-button pms-project-button--primary"
                     :loading="completingNode"
@@ -544,6 +576,23 @@ onBeforeUnmount(() => {
                     :can-write="selectedNodeEditable && requirementTargetWritable"
                     :can-manage="selectedNodeEditable && requirementTargetManageable"
                     @updated="onDetailUpdated"
+                  />
+                </WorkflowRuntimeComponentHost>
+                <WorkflowRuntimeComponentHost
+                  v-else-if="props.itemType === 'requirement' && componentKey === WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS"
+                  :component-key="componentKey"
+                >
+                  <RequirementReceivingAnalysisComponent
+                    :requirement-id="detail.id"
+                    :node-id="selectedNode.id"
+                    :node-version="selectedNode.version"
+                    :node-status="selectedNode.status"
+                    :state="receivingAnalysisState"
+                    :config="receivingAnalysisConfig"
+                    :terminal-status="detail.terminalStatus"
+                    :can-write="requirementTargetWritable && selectedNode.status !== 2"
+                    :can-manage="requirementTargetManageable"
+                    @updated="onReceivingAnalysisUpdated"
                   />
                 </WorkflowRuntimeComponentHost>
                 <WorkflowRuntimeComponentHost v-else :component-key="componentKey" />

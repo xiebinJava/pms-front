@@ -47,8 +47,10 @@ test('topic templates select a backend project-node binding and explain runtime 
 })
 
 test('workflow palette only exposes story list workbench for topic templates', () => {
-  assert.match(source, /const availableComponents = computed\(\(\) => WORKFLOW_RUNTIME_COMPONENTS/)
+  assert.match(source, /const workflowSource = computed<WorkflowSource \| undefined>\(\(\) => getWorkflowSourceForProcessType\(selectedType\.value\?\.code\)\)/)
+  assert.match(source, /const availableComponents = computed\(\(\) => \{/)
   assert.match(source, /component\.processTypeCodes\?\.[\s\S]*?includes\(selectedType\.value\?\.code \|\| ''\)/)
+  assert.match(source, /component\.workbenchTypes\.includes\(source\)/)
   assert.match(template, /v-for="component in availableComponents"/)
 })
 
@@ -61,22 +63,92 @@ test('workflow palette exposes requirement execution only for requirement templa
   assert.match(model, /processTypeCode === 'requirement-management'/)
 })
 
-test('workflow palette exposes requirement record bindings only for requirement templates', () => {
+test('requirement management palette keeps only receiving analysis as its workbench', () => {
+  const registry = fs.readFileSync(new URL('../../../components/workflow/workflow-component-registry.ts', import.meta.url), 'utf8')
+  assert.match(registry, /REQUIREMENT_RECEIVING_ANALYSIS[\s\S]*workbenchTypes: \['requirement'\]/)
+  assert.match(registry, /REQUIREMENT_EXECUTION[\s\S]*workbenchTypes: \[\]/)
+  assert.match(registry, /REQUIREMENT_SCOPE[\s\S]*workbenchTypes: \['project', 'topic', 'story'\]/)
+  assert.match(registry, /SOLUTION_DESIGN[\s\S]*workbenchTypes: \['project', 'topic', 'story'\]/)
+})
+
+test('workflow palette exposes requirement record bindings through the unified bound-data filter', () => {
   const schema = fs.readFileSync(new URL('./workflow-template-schema.mjs', import.meta.url), 'utf8')
   assert.match(schema, /REQUIREMENT_FIELD_BINDINGS/)
-  assert.match(source, /availableRequirementBindings/)
-  assert.match(source, /selectedType\?\.code === 'requirement-management'/)
-  assert.match(template, /requirementFields/)
+  assert.doesNotMatch(source, /availableRequirementBindings/)
+  assert.match(source, /availableBoundFields/)
+  assert.match(source, /source === source/)
+  assert.match(template, /boundFieldSourceLabel\(workflowSource\)/)
   assert.match(zhLocale, /requirementFieldLabels/)
   assert.match(enLocale, /requirementFieldLabels/)
+})
+
+test('workflow palette groups bound data by project, requirement, topic, and story sources', () => {
+  const schema = fs.readFileSync(new URL('./workflow-template-schema.mjs', import.meta.url), 'utf8')
+  const types = fs.readFileSync(new URL('../../../types/workflow.ts', import.meta.url), 'utf8')
+  assert.match(schema, /TOPIC_FIELD_BINDINGS/)
+  assert.match(schema, /STORY_FIELD_BINDINGS/)
+  assert.match(source, /workflowSource/)
+  assert.match(template, /boundFieldSourceLabel\(workflowSource\)/)
+  assert.match(template, /绑定字段|bindingFields/)
+  assert.match(types, /topic\.title/)
+  assert.match(types, /story\.title/)
+  assert.match(zhLocale, /topicFieldLabels/)
+  assert.match(zhLocale, /storyFieldLabels/)
+  assert.match(enLocale, /topicFieldLabels/)
+  assert.match(enLocale, /storyFieldLabels/)
+})
+
+test('workflow palette scopes workbench components to the selected process type', () => {
+  const registry = fs.readFileSync(new URL('../../../components/workflow/workflow-component-registry.ts', import.meta.url), 'utf8')
+  assert.match(registry, /workbenchType/)
+  assert.doesNotMatch(source, /key !== WorkflowRuntimeComponentKey\.STORY_SPLIT/)
+  assert.match(source, /workbenchSourceLabel/)
+  assert.match(template, /workbenchSourceLabel\(workflowSource\)/)
+  assert.doesNotMatch(source, /workbenchSourceFilter/)
+})
+
+test('workflow palette keeps public fields unfiltered and scopes bound sources automatically', () => {
+  assert.match(template, /class="designer-palette-list"[\s\S]*?v-for="type in fieldTypes"[\s\S]*?<\/div>\s*<div class="designer-palette-section" data-testid="bound-data-fields">/)
+  assert.match(source, /getWorkflowSourceForProcessType\(selectedType\.value\?\.code\)/)
+  assert.match(template, /boundFieldSourceLabel\(workflowSource\)/)
+  assert.match(template, /workbenchSourceLabel\(workflowSource\)/)
+  assert.doesNotMatch(template, /v-model:value="fieldSourceFilter"/)
+  assert.doesNotMatch(template, /v-model:value="workbenchSourceFilter"/)
+  assert.doesNotMatch(source, /const availableBindings =/)
+  assert.doesNotMatch(source, /const availableRequirementBindings =/)
+})
+
+test('workflow palette labels the binding section and identifies the active source in its empty state', () => {
+  assert.match(template, /\$t\('admin\.workflow\.bindingFields'\)/)
+  assert.match(zhLocale, /bindingFields:\s*'绑定字段'/)
+  assert.match(enLocale, /bindingFields:\s*'Binding fields'/)
+  assert.match(template, /noAvailableBoundData[\s\S]*boundFieldSourceLabel\(workflowSource\)/)
+  assert.match(zhLocale, /noAvailableBoundData:\s*'[^']*\{source\}/)
+  assert.match(enLocale, /noAvailableBoundData:\s*'[^']*\{source\}/)
+  assert.match(template, /data-testid="bound-data-fields"/)
+  assert.match(template, /workbenchSourceLabel\(workflowSource\)/)
+})
+
+test('workflow locale keeps the binding source label keys unique', () => {
+  assert.equal((zhLocale.match(/\bprojectBinding:/g) || []).length, 1)
+  assert.equal((enLocale.match(/\bprojectBinding:/g) || []).length, 1)
+})
+
+test('topic field bindings include the associated project and remain separate from workbench components', () => {
+  const schema = fs.readFileSync(new URL('./workflow-template-schema.mjs', import.meta.url), 'utf8')
+  const registry = fs.readFileSync(new URL('../../../components/workflow/workflow-component-registry.ts', import.meta.url), 'utf8')
+  assert.match(schema, /project:\s*\{ binding: 'topic\.project', type: 'TEXT' \}/)
+  assert.match(zhLocale, /topicFieldLabels[\s\S]*关联项目/)
+  assert.match(enLocale, /topicFieldLabels[\s\S]*Associated project/)
+  assert.match(registry, /key: WorkflowRuntimeComponentKey\.STORY_SPLIT[\s\S]*workbenchTypes: \['topic', 'story'\]/)
 })
 
 test('requirement priority binding uses the requirement field category and single-select control', () => {
   const schema = fs.readFileSync(new URL('./workflow-template-schema.mjs', import.meta.url), 'utf8')
   assert.match(schema, /priority:\s*\{ binding: 'requirement\.priority', type: 'SINGLE_SELECT' \}/)
   assert.match(template, /field\.binding\.startsWith\('requirement\.'\)[\s\S]*?requirementBinding/)
-  assert.match(zhLocale, /requirementBinding:\s*'需求字段'/)
-  assert.match(enLocale, /requirementBinding:\s*'Requirement field'/)
+  assert.match(zhLocale, /requirementBinding:\s*'绑定已有数据 · 需求字段'/)
+  assert.match(enLocale, /requirementBinding:\s*'Bound existing data · Requirement field'/)
 })
 
 test('workflow layout spacing comes from the documented PMS spacing scale', () => {

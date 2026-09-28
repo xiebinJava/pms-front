@@ -3,7 +3,9 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   DEFAULT_PROJECT_BASIC_INFO_FIELDS,
+  DEFAULT_COMPONENT_CONFIGS,
   FIXED_NODE_BLOCKS,
+  addWorkflowComponent,
   addWorkflowField,
   createWorkflowNode,
   moveWorkflowContentItem,
@@ -97,6 +99,19 @@ test('workflow normalization preserves only the mount metadata for its process t
   assert.equal(storyWithStaleTopicBinding.sourceTopicNodeKey, 'topic-requirements')
 })
 
+test('maps each process template type to one matching field and workbench source', () => {
+  const getSource = workflowTemplateModel.getWorkflowSourceForProcessType
+  assert.equal(typeof getSource, 'function')
+  if (typeof getSource !== 'function') return
+
+  assert.equal(getSource('general'), 'project')
+  assert.equal(getSource('project-management'), 'project')
+  assert.equal(getSource('requirement-management'), 'requirement')
+  assert.equal(getSource('topic-management'), 'topic')
+  assert.equal(getSource('story-management'), 'story')
+  assert.equal(getSource('custom-process'), undefined)
+})
+
 test('builds a process type request without asking the client to generate an internal code', () => {
   const buildPayload = workflowTemplateModel.buildProjectTypeCreatePayload
   assert.equal(typeof buildPayload, 'function')
@@ -148,6 +163,19 @@ test('moves fields and content items immutably and removes fields content after 
   assert.deepEqual(empty.fields, [])
   assert.deepEqual(empty.contentOrder, ['component:requirement-scope', 'component:solution-design'])
   assert.deepEqual(node.fields.map((field) => field.key), ['first', 'second'])
+})
+
+test('adds and removes the requirement receiving component without losing its config', () => {
+  const node = { ...nodes[0], contentOrder: [], fields: [] }
+  const configured = addWorkflowComponent(node, 'requirement-receiving-analysis')
+
+  assert.deepEqual(configured.contentOrder, ['component:requirement-receiving-analysis'])
+  assert.deepEqual(configured.componentConfigs['requirement-receiving-analysis'], DEFAULT_COMPONENT_CONFIGS['requirement-receiving-analysis'])
+  assert.deepEqual(node.contentOrder, [])
+
+  const removed = workflowTemplateModel.removeWorkflowComponent(configured, 'requirement-receiving-analysis')
+  assert.deepEqual(removed.contentOrder, [])
+  assert.equal(removed.componentConfigs, undefined)
 })
 
 test('removing the last legacy custom field clears only its compatibility slot', () => {

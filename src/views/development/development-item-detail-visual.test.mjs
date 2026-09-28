@@ -57,7 +57,7 @@ test('node header keeps completion and rollback actions at the right edge by sta
   const header = detail.slice(detail.indexOf('<template #header>'), detail.indexOf('</template>', detail.indexOf('<template #header>')))
   assert.match(header, /class="node-detail-actions"/)
   assert.match(header, /v-if="selectedNode\.status === 2"[\s\S]*confirmRollbackNode/)
-  assert.match(header, /v-else-if="selectedNode\.status === 1"[\s\S]*confirmCompleteNode/)
+  assert.match(header, /v-else-if="selectedNode\.status === 1(?: && !detail\.terminalStatus)?"[\s\S]*confirmCompleteNode/)
   assert.doesNotMatch(header, /selectedNode\.status === 0[\s\S]*@click/)
 })
 
@@ -119,7 +119,7 @@ test('development workflow field controls forward their emitted values to the fo
 
 test('workflow nodes expose editable metadata, template fields, and tasks with lifecycle guards', () => {
   const board = fs.readFileSync(new URL('./detail/components/DevelopmentItemTaskBoard.vue', import.meta.url), 'utf8')
-  assert.match(detail, /const selectedNodeEditable = computed\(\(\) => selectedNode\.value != null && !isNodeReadOnly\(selectedNode\.value\.status\)\)/)
+  assert.match(detail, /const selectedNodeEditable = computed\(\(\) => selectedNode\.value != null\s*&& !isNodeReadOnly\(selectedNode\.value\.status\)(?:\s*&& !detail\.value\?\.terminalStatus)?\s*\)/)
   assert.match(detail, /:disabled="!selectedNodeEditable \|\| savingNode"/)
   assert.match(detail, /if \(!detail\.value \|\| !node \|\| isNodeReadOnly\(node\.status\)\) return Promise\.resolve\(false\)/)
   assert.match(board, /const canEdit = computed\(\(\) => !isNodeReadOnly\(props\.node\.status\)\)/)

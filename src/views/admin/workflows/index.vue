@@ -34,17 +34,26 @@ import {
   addWorkflowField,
   buildProjectTypeCreatePayload,
   createWorkflowNode,
+  getWorkflowSourceForProcessType,
   getWorkflowTemplateEntryStep,
   normalizeWorkflowDefinitionForProcessType,
   moveWorkflowContentItem,
   moveWorkflowField,
   moveWorkflowNode,
   removeWorkflowField,
+  addWorkflowComponent,
+  removeWorkflowComponent,
   removeWorkflowNode,
   setTopicSourceProjectNodeKey,
   setStorySourceTopicNodeKey,
 } from './workflow-template-model.mjs'
-import { PROJECT_FIELD_BINDINGS, REQUIREMENT_FIELD_BINDINGS } from './workflow-template-schema.mjs'
+import {
+  DEFAULT_REQUIREMENT_RECEIVING_ANALYSIS_CONFIG,
+  PROJECT_FIELD_BINDINGS,
+  REQUIREMENT_FIELD_BINDINGS,
+  STORY_FIELD_BINDINGS,
+  TOPIC_FIELD_BINDINGS,
+} from './workflow-template-schema.mjs'
 
 const { t } = useI18n()
 const userStore = useUserStore()
@@ -61,6 +70,18 @@ const selectedTypeId = ref<number>()
 const selectedTemplateId = ref<number | null>(null)
 const selectedNodeKey = ref('')
 const selectedFieldKey = ref('')
+type WorkflowSource = 'project' | 'requirement' | 'topic' | 'story'
+type BoundFieldDefinition = { binding: WorkflowFieldBinding; type: WorkflowFieldType }
+type BoundFieldGroup = {
+  source: WorkflowSource
+  bindings: Readonly<Record<string, BoundFieldDefinition>>
+}
+const boundFieldGroups: readonly BoundFieldGroup[] = [
+  { source: 'project', bindings: PROJECT_FIELD_BINDINGS },
+  { source: 'requirement', bindings: REQUIREMENT_FIELD_BINDINGS },
+  { source: 'topic', bindings: TOPIC_FIELD_BINDINGS },
+  { source: 'story', bindings: STORY_FIELD_BINDINGS },
+]
 const templateName = ref('')
 const templateDescription = ref('')
 const definition = ref<WorkflowTemplateDefinitionV2>({ schemaVersion: 2, nodes: [] })
@@ -99,6 +120,7 @@ const FIELD_TYPE_ICONS: Record<WorkflowFieldType, Component> = {
   ATTACHMENT: PaperClipOutlined,
 }
 const selectedType = computed(() => types.value.find((type) => type.id === selectedTypeId.value))
+const workflowSource = computed<WorkflowSource | undefined>(() => getWorkflowSourceForProcessType(selectedType.value?.code))
 const orderedWorkflowTypes = computed(() => types.value
   .map((type, index) => ({ type, index }))
   .sort((left, right) => {
@@ -107,10 +129,14 @@ const orderedWorkflowTypes = computed(() => types.value
     return leftPriority - rightPriority || left.index - right.index
   })
   .map(({ type }) => type))
-const availableComponents = computed(() => WORKFLOW_RUNTIME_COMPONENTS
-  .filter(({ key }) => key !== WorkflowRuntimeComponentKey.STORY_SPLIT)
-  .filter((component) => !component.processTypeCodes?.length || component.processTypeCodes.includes(selectedType.value?.code || ''))
-  .map(({ key }) => ({ key })))
+const availableComponents = computed(() => {
+  const source = workflowSource.value
+  if (!source) return []
+  return WORKFLOW_RUNTIME_COMPONENTS
+    .filter((component) => !component.processTypeCodes?.length || component.processTypeCodes.includes(selectedType.value?.code || ''))
+    .filter((component) => component.workbenchTypes.includes(source))
+    .map(({ key, workbenchTypes }) => ({ key, workbenchTypes }))
+})
 const selectedTemplateSummary = computed(() => templates.value.find((template) => template.id === selectedTemplateId.value))
 const workflowEntryStep = computed(() => getWorkflowTemplateEntryStep({
   typeCount: types.value.length,
@@ -124,12 +150,15 @@ const selectedField = computed(() => currentNode.value?.fields.find((field) => f
 const configuredComponents = computed(() => (currentNode.value?.contentOrder || [])
   .filter((item) => item.startsWith('component:'))
   .map((item) => item.slice('component:'.length)))
-const availableBindings = computed(() => Object.entries(PROJECT_FIELD_BINDINGS)
-  .filter(([, binding]) => !currentNode.value?.fields.some((field) => field.binding === binding.binding)))
-const availableRequirementBindings = computed(() => selectedType.value?.code === 'requirement-management'
-  ? Object.entries(REQUIREMENT_FIELD_BINDINGS)
-    .filter(([, binding]) => !currentNode.value?.fields.some((field) => field.binding === binding.binding))
-  : [])
+const availableBoundFields = computed(() => {
+  const source = workflowSource.value
+  if (!source) return []
+  return boundFieldGroups
+    .filter((group) => group.source === source)
+    .flatMap(({ source: groupSource, bindings }) => Object.entries(bindings)
+      .filter(([, binding]) => !currentNode.value?.fields.some((field) => field.binding === binding.binding))
+      .map(([key, binding]) => ({ key, binding, source: groupSource, bindings })))
+})
 const selectedNodeIndex = computed(() => definition.value.nodes.findIndex((node) => node.key === selectedNodeKey.value))
 const publishedVersion = computed(() => selectedTemplateSummary.value?.publishedVersionNo)
 const workflowVersions = computed(() => [...(selectedTemplateSummary.value?.versions || [])]
@@ -467,10 +496,24 @@ function toggleComponent(componentKey: string, checked: boolean) {
   const node = currentNode.value
   if (!node) return
   const contentItem = `component:${componentKey}` as WorkflowContentOrderItem
-  node.contentOrder = checked
-    ? (node.contentOrder.includes(contentItem) ? node.contentOrder : [...node.contentOrder, contentItem])
-    : node.contentOrder.filter((item) => item !== contentItem)
-  markDirty()
+  const next = checked ? addWorkflowComponent(node, componentKey) : removeWorkflowComponent(node, componentKey)
+  if (next.contentOrder.join('|') !== node.contentOrder.join('|') || Boolean(next.componentConfigs) !== Boolean(node.componentConfigs)) {
+    replaceCurrentNode(next)
+  }
+}
+
+function updateReceivingConfig(key: string, value: boolean) {
+  const node = currentNode.value
+  if (!node || !configuredComponents.value.includes(WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS)) return
+  const current = node.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]
+    || DEFAULT_REQUIREMENT_RECEIVING_ANALYSIS_CONFIG
+  replaceCurrentNode({
+    ...node,
+    componentConfigs: {
+      ...(node.componentConfigs || {}),
+      [WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]: { ...current, [key]: value },
+    },
+  })
 }
 
 function addField(type: WorkflowFieldType = 'TEXT', event?: MouseEvent) {
@@ -482,7 +525,7 @@ function addField(type: WorkflowFieldType = 'TEXT', event?: MouseEvent) {
   openMobileInspector(event?.currentTarget)
 }
 
-function addBoundField(fieldKey: string, bindings: typeof PROJECT_FIELD_BINDINGS | typeof REQUIREMENT_FIELD_BINDINGS, event?: MouseEvent) {
+function addBoundField(fieldKey: string, bindings: Readonly<Record<string, BoundFieldDefinition>>, event?: MouseEvent) {
   const node = currentNode.value
   const binding = bindings[fieldKey]
   if (!node || !binding) return
@@ -817,6 +860,25 @@ function openTypeModal() {
 function componentLabel(key: string) { return t(`admin.workflow.componentLabels.${key}`) }
 function fieldTypeLabel(type: WorkflowFieldType) { return t(`admin.workflow.fieldTypes.${type}`) }
 function bindingLabel(binding: WorkflowFieldBinding) { return t(`admin.workflow.bindingLabels.${binding}`) }
+function boundFieldLabel(source: WorkflowSource, key: string) { return t(`admin.workflow.${source}FieldLabels.${key}`) }
+function boundFieldSourceLabel(source: WorkflowSource | undefined) {
+  const labels: Record<WorkflowSource, string> = {
+    project: 'admin.workflow.fieldSourceProject',
+    requirement: 'admin.workflow.fieldSourceRequirement',
+    topic: 'admin.workflow.fieldSourceTopic',
+    story: 'admin.workflow.fieldSourceStory',
+  }
+  return t(source ? labels[source] : 'admin.workflow.unknownWorkflowSource')
+}
+function workbenchSourceLabel(source: WorkflowSource | undefined) {
+  const labels: Record<WorkflowSource, string> = {
+    project: 'admin.workflow.workbenchSourceProject',
+    requirement: 'admin.workflow.workbenchSourceRequirement',
+    topic: 'admin.workflow.workbenchSourceTopic',
+    story: 'admin.workflow.workbenchSourceStory',
+  }
+  return t(source ? labels[source] : 'admin.workflow.unknownWorkflowSource')
+}
 function fieldTypeIcon(type: WorkflowFieldType): Component { return FIELD_TYPE_ICONS[type] }
 function visibleFieldCount(node: WorkflowNodeDefinitionV2) { return node.fields.filter((field) => field.visible !== false).length }
 function setFieldOptionsFromEvent(field: WorkflowFieldDefinition, event: unknown) {
@@ -1034,18 +1096,21 @@ onMounted(async () => {
                       <span class="field-type-symbol"><component :is="fieldTypeIcon(type)" /></span><span class="designer-palette-item__copy"><strong>{{ fieldTypeLabel(type) }}</strong><small>{{ $t(`admin.workflow.fieldTypeHints.${type}`) }}</small></span><PlusOutlined />
                     </button>
                   </div>
-                  <div class="designer-palette-section">
-                    <div class="designer-subheading"><strong>{{ $t('admin.workflow.projectFields') }}</strong><small>{{ $t('admin.workflow.projectFieldsHint') }}</small></div>
-                    <button v-for="[key, binding] in availableBindings" :key="binding.binding" type="button" class="designer-palette-item designer-palette-item--compact" :disabled="!canWrite" @click="addBoundField(key, PROJECT_FIELD_BINDINGS, $event)"><span class="field-type-symbol"><component :is="fieldTypeIcon(binding.type)" /></span><span class="designer-palette-item__copy"><strong>{{ $t(`admin.workflow.projectFieldLabels.${key}`) }}</strong><small>{{ fieldTypeLabel(binding.type) }}</small></span><PlusOutlined /></button>
-                    <a-empty v-if="!availableBindings.length" :description="$t('admin.workflow.noAvailableProjectFields')" />
+                  <div class="designer-palette-section" data-testid="bound-data-fields">
+                    <div class="designer-subheading">
+                      <strong>{{ $t('admin.workflow.bindingFields') }}</strong>
+                      <a-tag v-if="workflowSource" color="blue">{{ boundFieldSourceLabel(workflowSource) }}</a-tag>
+                      <small>{{ $t('admin.workflow.boundDataHint') }}</small>
+                    </div>
+                    <button v-for="{ key, binding, source, bindings } in availableBoundFields" :key="binding.binding" type="button" class="designer-palette-item designer-palette-item--compact" :data-field-source="source" :disabled="!canWrite" @click="addBoundField(key, bindings, $event)"><span class="field-type-symbol"><component :is="fieldTypeIcon(binding.type)" /></span><span class="designer-palette-item__copy"><strong>{{ boundFieldLabel(source, key) }}</strong><small>{{ fieldTypeLabel(binding.type) }}</small></span><PlusOutlined /></button>
+                    <a-empty v-if="!availableBoundFields.length" :description="$t('admin.workflow.noAvailableBoundData', { source: boundFieldSourceLabel(workflowSource) })" />
                   </div>
-                  <div v-if="selectedType?.code === 'requirement-management'" class="designer-palette-section" data-testid="requirement-fields">
-                    <div class="designer-subheading"><strong>{{ $t('admin.workflow.requirementFields') }}</strong><small>{{ $t('admin.workflow.requirementFieldsHint') }}</small></div>
-                    <button v-for="[key, binding] in availableRequirementBindings" :key="binding.binding" type="button" class="designer-palette-item designer-palette-item--compact" :disabled="!canWrite" @click="addBoundField(key, REQUIREMENT_FIELD_BINDINGS, $event)"><span class="field-type-symbol"><component :is="fieldTypeIcon(binding.type)" /></span><span class="designer-palette-item__copy"><strong>{{ $t(`admin.workflow.requirementFieldLabels.${key}`) }}</strong><small>{{ fieldTypeLabel(binding.type) }}</small></span><PlusOutlined /></button>
-                    <a-empty v-if="!availableRequirementBindings.length" :description="$t('admin.workflow.noAvailableRequirementFields')" />
-                  </div>
                   <div class="designer-palette-section">
-                    <div class="designer-subheading"><strong>{{ $t('admin.workflow.workbenchComponents') }}</strong><small>{{ $t('admin.workflow.workbenchComponentsHint') }}</small></div>
+                    <div class="designer-subheading">
+                      <strong>{{ $t('admin.workflow.workbenchComponents') }}</strong>
+                      <a-tag v-if="workflowSource" color="blue">{{ workbenchSourceLabel(workflowSource) }}</a-tag>
+                      <small>{{ $t('admin.workflow.workbenchComponentsHint') }}</small>
+                    </div>
                     <button v-for="component in availableComponents" :key="component.key" type="button" class="designer-palette-item designer-palette-item--compact" :data-testid="`add-workflow-component-${component.key}`" :class="{ 'is-added': configuredComponents.includes(component.key) }" :aria-pressed="configuredComponents.includes(component.key)" :disabled="!canWrite" @click="toggleComponent(component.key, !configuredComponents.includes(component.key))"><span class="field-type-symbol"><CheckOutlined v-if="configuredComponents.includes(component.key)" /><PlusOutlined v-else /></span><span class="designer-palette-item__copy"><strong>{{ componentLabel(component.key) }}</strong><small>{{ $t(`admin.workflow.componentHints.${component.key}`) }}</small></span><span class="palette-state">{{ configuredComponents.includes(component.key) ? $t('admin.workflow.added') : $t('admin.workflow.add') }}</span></button>
                   </div>
                 </aside>
@@ -1063,7 +1128,7 @@ onMounted(async () => {
                         <div class="designer-content-heading"><div><strong>{{ contentItemLabel(contentItem) }}</strong><small>{{ $t('admin.workflow.individualFieldHint') }}</small></div><div class="designer-fields-section__tools"><span>{{ fieldsForContentItem(currentNode, contentItem, true).filter((field) => field.visible !== false).length }} / {{ fieldsForContentItem(currentNode, contentItem, true).length }}</span><a-button size="small" type="text" :disabled="!canWrite || contentIndex === 0" :data-testid="`move-workflow-section-up-${contentItem}`" :aria-label="`${$t('admin.workflow.moveUp')}：${contentItemLabel(contentItem)}`" @click="moveContentItem(contentItem, -1)"><ArrowUpOutlined /></a-button><a-button size="small" type="text" :disabled="!canWrite || contentIndex === currentNode.contentOrder.length - 1" :data-testid="`move-workflow-section-down-${contentItem}`" :aria-label="`${$t('admin.workflow.moveDown')}：${contentItemLabel(contentItem)}`" @click="moveContentItem(contentItem, 1)"><ArrowDownOutlined /></a-button></div></div>
                         <div class="designer-field-grid">
                           <article v-for="field in fieldsForContentItem(currentNode, contentItem, true)" :key="field.key" class="designer-field-card" :class="{ selected: selectedFieldKey === field.key, 'is-hidden': field.visible === false, 'designer-field-card--wide': isWorkflowFieldFullWidth(field) }" data-testid="designer-field-card" :data-field-key="field.key" :aria-label="`${field.label}，${fieldTypeLabel(field.type)}`" role="group" :draggable="canWrite" @dragstart.stop="fieldDragKey = field.key" @dragover.prevent @drop.prevent.stop="onFieldDrop(fieldIndex(field.key))" @dragend.stop="fieldDragKey = undefined">
-                            <div class="designer-field-card__top"><span>{{ fieldTypeLabel(field.type) }}</span><a-tag v-if="field.visible === false" color="default">{{ $t('admin.workflow.hidden') }}</a-tag><span v-else-if="field.binding" class="designer-field-binding">{{ field.binding.startsWith('requirement.') ? $t('admin.workflow.requirementBinding') : $t('admin.workflow.projectBinding') }}</span><a-tag v-else-if="field.required" color="red">{{ $t('admin.workflow.required') }}</a-tag></div>
+                            <div class="designer-field-card__top"><span>{{ fieldTypeLabel(field.type) }}</span><a-tag v-if="field.visible === false" color="default">{{ $t('admin.workflow.hidden') }}</a-tag><span v-else-if="field.binding" class="designer-field-binding">{{ field.binding.startsWith('requirement.') ? $t('admin.workflow.requirementBinding') : field.binding.startsWith('topic.') ? $t('admin.workflow.topicBinding') : field.binding.startsWith('story.') ? $t('admin.workflow.storyBinding') : $t('admin.workflow.projectBinding') }}</span><a-tag v-else-if="field.required" color="red">{{ $t('admin.workflow.required') }}</a-tag></div>
                             <div class="designer-field-card__name"><button type="button" class="designer-field-select" :aria-pressed="selectedFieldKey === field.key" aria-controls="workflow-inspector-panel" :aria-label="`${field.label}，${fieldTypeLabel(field.type)}`" @click="selectField(field.key, $event)"><strong>{{ field.label || $t('admin.workflow.unnamedField') }}</strong><em v-if="field.required">*</em></button><div class="designer-field-card__actions"><a-button size="small" type="text" :disabled="!canWrite || fieldIndexInContentItem(field.key, contentItem) === 0" :data-testid="`move-workflow-field-${field.key}-up`" :aria-label="`${$t('admin.workflow.moveUp')}：${field.label}`" @click.stop="moveField(field.key, -1, contentItem)"><ArrowUpOutlined /></a-button><a-button size="small" type="text" :disabled="!canWrite || fieldIndexInContentItem(field.key, contentItem) === fieldsForContentItem(currentNode, contentItem, true).length - 1" :data-testid="`move-workflow-field-${field.key}-down`" :aria-label="`${$t('admin.workflow.moveDown')}：${field.label}`" @click.stop="moveField(field.key, 1, contentItem)"><ArrowDownOutlined /></a-button></div></div>
                             <small class="designer-field-card__key">{{ field.binding ? bindingLabel(field.binding) : `${$t('admin.workflow.nodeField')} · ${field.key}` }}</small>
                             <div class="designer-field-control">
@@ -1111,6 +1176,18 @@ onMounted(async () => {
                     <a-form-item :label="$t('admin.workflow.nodeDescription')"><a-textarea v-model:value="currentNode.description" :disabled="!canWrite" :rows="3" @input="markDirty" /></a-form-item>
                     <a-form-item :label="$t('admin.workflow.deliverables')"><a-textarea v-model:value="currentNode.deliverable" :disabled="!canWrite" :rows="3" @input="markDirty" /></a-form-item>
                     <a-form-item :label="$t('admin.workflow.roles')"><a-textarea v-model:value="currentNode.roles" :disabled="!canWrite" :rows="3" @input="markDirty" /></a-form-item>
+                    <section v-if="selectedType?.code === 'requirement-management' && configuredComponents.includes(WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS)" class="designer-component-config" data-testid="requirement-receiving-analysis-config">
+                      <div class="designer-component-config__heading"><strong>需求接收与分析配置</strong><small>控制需求过滤、价值分析和接收结论的展示与完成规则。</small></div>
+                      <a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.showFilter ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('showFilter', checkboxChecked($event))">显示需求过滤</a-checkbox>
+                      <a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.showAnalysis ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('showAnalysis', checkboxChecked($event))">显示需求分析</a-checkbox>
+                      <a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.requireCategory ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('requireCategory', checkboxChecked($event))">需求分类必填</a-checkbox>
+                      <div class="designer-component-config__score"><span>可实现性评分</span><a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.showFeasibilityScore ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('showFeasibilityScore', checkboxChecked($event))">显示</a-checkbox><a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.requireFeasibilityScore ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('requireFeasibilityScore', checkboxChecked($event))">必填</a-checkbox></div>
+                      <div class="designer-component-config__score"><span>ROI评分</span><a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.showRoiScore ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('showRoiScore', checkboxChecked($event))">显示</a-checkbox><a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.requireRoiScore ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('requireRoiScore', checkboxChecked($event))">必填</a-checkbox></div>
+                      <div class="designer-component-config__score"><span>战略契合度评分</span><a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.showStrategicFitScore ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('showStrategicFitScore', checkboxChecked($event))">显示</a-checkbox><a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.requireStrategicFitScore ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('requireStrategicFitScore', checkboxChecked($event))">必填</a-checkbox></div>
+                      <a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.requireAnalysisConclusion ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('requireAnalysisConclusion', checkboxChecked($event))">分析结论必填</a-checkbox>
+                      <a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.allowReject ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('allowReject', checkboxChecked($event))">允许驳回需求</a-checkbox>
+                      <small>接收结论区始终显示，不能关闭；隐藏的评分项不能设置为必填。</small>
+                    </section>
                   </a-form>
                 </aside>
               </div>
@@ -1157,6 +1234,12 @@ onMounted(async () => {
 
 <style scoped>
 .workflow-admin-page { display: grid; gap: var(--pms-space-4); min-width: 0; }
+.designer-component-config { display: grid; gap: var(--pms-space-2); margin-top: var(--pms-space-4); padding-top: var(--pms-space-4); border-top: 1px solid var(--pms-border); }
+.designer-component-config__heading { display: grid; gap: var(--pms-space-2); }
+.designer-component-config__heading strong { color: var(--pms-text); }
+.designer-component-config__heading small, .designer-component-config > small { color: var(--pms-text-muted); line-height: 1.5; }
+.designer-component-config__score { display: flex; align-items: center; gap: var(--pms-space-2); }
+.designer-component-config__score > span { min-width: 92px; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); }
 .workflow-admin-page :deep(.workflow-page-actions) { display: flex; align-items: center; justify-content: flex-end; gap: var(--pms-space-3); flex-wrap: wrap; }
 .workflow-admin-page :deep(.workflow-page-actions__secondary), .workflow-admin-page :deep(.workflow-page-actions__primary) { display: flex; align-items: center; gap: var(--pms-space-2); flex-wrap: nowrap; flex: 0 0 auto; }
 .workflow-admin-page :deep(.workflow-page-actions__primary) { padding-inline-start: var(--pms-space-3); border-inline-start: 1px solid var(--pms-border); }

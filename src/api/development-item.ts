@@ -9,6 +9,9 @@ import type {
   RequirementExecutionTargetHistory,
   RequirementExecutionTargetType,
   SourceRequirementSummary,
+  RequirementReceivingAnalysis,
+  RequirementReceivingAnalysisActionCmd,
+  RequirementReceivingAnalysisState,
 } from '/@/types/domain'
 import type { WorkflowTemplateSummary } from '/@/types/workflow'
 
@@ -336,6 +339,36 @@ export function rollbackDevelopmentItemNode(
   reason: string,
 ): Promise<DevelopmentItemWorkflowDetail> {
   return http.post(`${developmentItemMutationPath(itemType, itemId)}/nodes/${nodeId}/rollback`, { reason })
+}
+
+export function getRequirementReceivingAnalysis(
+  requirementId: number | string,
+  nodeId: number | string,
+): Promise<RequirementReceivingAnalysis> {
+  return http.get(`/development/requirements/${requirementId}/nodes/${nodeId}/requirement-receiving-analysis`)
+}
+
+export function saveRequirementReceivingAnalysis(
+  requirementId: number | string,
+  nodeId: number | string,
+  payload: { version: number; state: RequirementReceivingAnalysisState },
+): Promise<RequirementReceivingAnalysis> {
+  return http.put(`/development/requirements/${requirementId}/nodes/${nodeId}/requirement-receiving-analysis`, payload)
+}
+
+export function rejectRequirementReceivingAnalysis(
+  requirementId: number | string,
+  nodeId: number | string,
+  payload: RequirementReceivingAnalysisActionCmd,
+): Promise<RequirementReceivingAnalysis> {
+  return http.post(`/development/requirements/${requirementId}/nodes/${nodeId}/requirement-receiving-analysis/reject`, payload)
+}
+
+export function reopenRequirementReceivingAnalysis(
+  requirementId: number | string,
+  payload: RequirementReceivingAnalysisActionCmd,
+): Promise<RequirementReceivingAnalysis> {
+  return http.post(`/development/requirements/${requirementId}/requirement-receiving-analysis/reopen`, payload)
 }
 
 export function createDevelopmentItemTask(

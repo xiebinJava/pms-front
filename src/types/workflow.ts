@@ -1,5 +1,5 @@
 export type WorkflowFieldType = 'TEXT' | 'TEXTAREA' | 'NUMBER' | 'RADIO' | 'SINGLE_SELECT' | 'MULTI_SELECT' | 'PERSON' | 'PERSON_MULTI' | 'DATE' | 'DATE_RANGE' | 'ATTACHMENT'
-export type WorkflowFieldBinding = 'project.description' | 'project.priority' | 'project.projectLevel' | 'project.schedule' | 'project.businessLine' | 'project.projectManager' | 'project.projectMembers' | 'project.followers' | 'requirement.title' | 'requirement.description' | 'requirement.priority' | 'requirement.businessLine' | 'requirement.owner'
+export type WorkflowFieldBinding = 'project.description' | 'project.priority' | 'project.projectLevel' | 'project.schedule' | 'project.businessLine' | 'project.projectManager' | 'project.projectMembers' | 'project.followers' | 'requirement.title' | 'requirement.description' | 'requirement.priority' | 'requirement.businessLine' | 'requirement.owner' | 'topic.title' | 'topic.owner' | 'topic.project' | 'topic.status' | 'topic.progress' | 'topic.latestBuildVersion' | 'topic.testStatus' | 'story.title' | 'story.owner' | 'story.status' | 'story.progress' | 'story.storyPoints' | 'story.schedule' | 'story.blocker'
 
 export interface WorkflowFieldDefinition {
   key: string
@@ -40,6 +40,23 @@ export interface WorkflowTemplateDefinitionV1 {
 
 export type WorkflowContentOrderItem = 'fields' | 'legacy-custom-fields' | `component:${string}`
 
+export interface RequirementReceivingAnalysisComponentConfig {
+  showFilter?: boolean
+  showAnalysis?: boolean
+  showDecision?: boolean
+  requireCategory?: boolean
+  showFeasibilityScore?: boolean
+  requireFeasibilityScore?: boolean
+  showRoiScore?: boolean
+  requireRoiScore?: boolean
+  showStrategicFitScore?: boolean
+  requireStrategicFitScore?: boolean
+  requireAnalysisConclusion?: boolean
+  allowReject?: boolean
+}
+
+export type WorkflowComponentConfig = RequirementReceivingAnalysisComponentConfig | Record<string, unknown>
+
 export interface WorkflowNodeDefinitionV2 {
   key: string
   name: string
@@ -48,6 +65,7 @@ export interface WorkflowNodeDefinitionV2 {
   roles: string
   fields: WorkflowFieldDefinition[]
   contentOrder: WorkflowContentOrderItem[]
+  componentConfigs?: Record<string, WorkflowComponentConfig>
 }
 
 export interface WorkflowTemplateDefinitionV2 {
