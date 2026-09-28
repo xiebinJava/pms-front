@@ -20,11 +20,11 @@ const columns = computed(() => [
   { title: t('iterationPlanView.name'), key: 'name', width: 230 },
   { title: t('iterationPlanView.project'), key: 'project', width: 220 },
   { title: t('iterationPlanView.owner'), key: 'owner', width: 150 },
-  { title: t('iterationPlanView.schedule'), key: 'schedule', width: 180 },
   { title: t('iterationPlanView.status'), key: 'status', width: 110 },
+  { title: t('iterationPlanView.progress'), key: 'progress', width: 150 },
   { title: t('iterationPlanView.stories'), key: 'stories', width: 100 },
   { title: t('iterationPlanView.tasks'), key: 'tasks', width: 100 },
-  { title: t('iterationPlanView.progress'), key: 'progress', width: 150 },
+  { title: t('iterationPlanView.schedule'), key: 'schedule', width: 180 },
   { title: t('common.actions'), key: 'action', width: 90 },
 ])
 
@@ -101,15 +101,7 @@ onMounted(() => { void loadData() })
       </template>
     </PmsPageHeader>
 
-    <a-card :bordered="false" class="pms-table-panel pms-table-card">
-      <div class="iteration-plan-list-page__card-head">
-        <div>
-          <h2>{{ t('iterationPlanView.tableTitle') }}</h2>
-          <p>{{ t('iterationPlanView.total', { count: pagination.total }) }}</p>
-        </div>
-        <span class="iteration-plan-list-page__hint">{{ t('iterationPlanView.hint') }}</span>
-      </div>
-
+    <a-card :bordered="false" class="pms-table-panel pms-table-card pms-list-table">
       <div class="pms-table-toolbar" role="group" :aria-label="t('iterationPlanView.filters')">
         <div class="pms-table-toolbar__filters">
           <a-input
@@ -136,7 +128,7 @@ onMounted(() => { void loadData() })
         </div>
       </div>
 
-      <div class="pms-table-scroll iteration-plan-list-page__table-scroll">
+      <div class="pms-table-scroll pms-project-table-scroll iteration-plan-list-page__table-scroll">
         <a-table :data-source="dataSource" :columns="columns" :loading="loading" row-key="id" :pagination="pagination" :scroll="{ x: 1260 }" @change="onTableChange">
           <template #emptyText>
             <div class="iteration-plan-list-page__empty">
@@ -173,10 +165,6 @@ onMounted(() => { void loadData() })
 
 <style scoped>
 .iteration-plan-list-page { min-width: 0; }
-.iteration-plan-list-page__card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 2px 0 18px; border-bottom: 1px solid var(--pms-border); }
-.iteration-plan-list-page__card-head h2 { margin: 0; color: var(--pms-text); font-size: var(--pms-font-size-section); font-weight: 760; }
-.iteration-plan-list-page__card-head p { margin: 6px 0 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
-.iteration-plan-list-page__hint { max-width: 510px; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); line-height: 1.6; text-align: right; }
 .pms-table-toolbar { margin: 16px 0; }
 .pms-table-toolbar__filters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .iteration-plan-list-page__search { width: 280px; }
@@ -193,11 +181,9 @@ onMounted(() => { void loadData() })
 :deep(.ant-card-body) { padding: 20px; }
 :deep(.ant-input), :deep(.ant-select-selector) { border-color: var(--pms-border) !important; border-radius: 6px !important; }
 :deep(.ant-table-thead > tr > th) { color: var(--pms-text-faint); background: var(--pms-surface-muted); border-bottom-color: var(--pms-border); font-size: var(--pms-font-size-caption); font-weight: 750; }
-:deep(.ant-table-tbody > tr > td) { height: 82px; color: var(--pms-text-muted); border-bottom-color: var(--pms-border); font-size: 12.5px; }
+:deep(.ant-table-tbody > tr > td) { height: 95px; color: var(--pms-text-muted); border-bottom-color: var(--pms-border); font-size: 12.5px; }
 :deep(.ant-table-tbody > tr:hover > td) { background: var(--pms-surface-muted) !important; }
 @media (max-width: 768px) {
-  .iteration-plan-list-page__card-head { flex-direction: column; gap: 8px; }
-  .iteration-plan-list-page__hint { max-width: none; text-align: left; }
   .pms-table-toolbar__filters { display: grid; grid-template-columns: minmax(0, 1fr) 120px; width: 100%; }
   .iteration-plan-list-page__search { width: 100%; grid-column: 1 / -1; }
   .iteration-plan-list-page__status, .pms-filter-button { width: 100%; }

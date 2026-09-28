@@ -21,6 +21,13 @@ test('requirement detail reuses the shared workflow shell and mounts its configu
   assert.match(detail, /:target-history="detail\.executionTargetHistory"/)
   assert.match(flow, /class="flow-card pms-detail-panel pms-section-panel card-surface"/)
   assert.match(fields, /class="development-item-fields pms-workflow-fields node-tab-profile"/)
+  assert.match(fields, /Object\.prototype\.hasOwnProperty\.call\(props\.modelValue, field\.key\)/)
+  assert.match(fields, /function fieldDisabled\(_field: WorkflowFieldDefinition\)/)
+  assert.match(fields, /function fieldOptions\(field: WorkflowFieldDefinition\)/)
+  assert.match(fields, /field\.binding === 'requirement\.priority'/)
+  assert.match(fields, /developmentList\.requirementPriorityLowest/)
+  assert.doesNotMatch(fields, /isEditableBinding/)
+  assert.match(detail, /:business-line-options="businessLineOptions"/)
   assert.match(board, /class="task-board-shell"/)
 })
 

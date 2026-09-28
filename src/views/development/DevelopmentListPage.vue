@@ -23,6 +23,7 @@ import SourceRequirementList from '/@/components/development/SourceRequirementLi
 import DevelopmentTopicEditModal from './DevelopmentTopicEditModal.vue'
 import DevelopmentStoryEditModal from './DevelopmentStoryEditModal.vue'
 import DevelopmentRequirementEditModal from './DevelopmentRequirementEditModal.vue'
+import { lifecycleStatusTagColor } from '/@/enums'
 
 type DevelopmentListMode = 'topics' | 'stories' | 'requirements'
 type DevelopmentRow = DevelopmentTopicRow | DevelopmentStoryRow | DevelopmentRequirementRow
@@ -101,18 +102,18 @@ const columns = computed(() => {
 })
 
 function statusLabel(status?: string) {
-  if (status && ['NOT_CONFIGURED', 'NOT_STARTED', 'IN_PROGRESS', 'COMPLETED'].includes(status)) {
-    return t(`developmentList.workflow.${status}`)
-  }
+  if (status === 'NOT_CONFIGURED') return t('developmentList.statusUnknown')
+  if (status === 'NOT_STARTED') return t('developmentList.statusNotStarted')
+  if (status === 'IN_PROGRESS') return t('developmentList.statusInProgress')
+  if (status === 'COMPLETED') return t('developmentList.statusDone')
   return statusOptions.value.find((option) => option.value === status)?.label || (status ? t('developmentList.statusUnknown') : t('common.unset'))
 }
 
 function statusColor(status?: string) {
-  if (status === 'DONE') return 'green'
-  if (status === 'BLOCKED') return 'red'
+  if (status === 'DONE' || status === 'COMPLETED') return lifecycleStatusTagColor.completed
+  if (status === 'BLOCKED') return lifecycleStatusTagColor.terminated
   if (status === 'TESTING') return 'blue'
-  if (status === 'IN_PROGRESS') return 'orange'
-  if (status === 'ACTIVE') return 'green'
+  if (status === 'IN_PROGRESS' || status === 'ACTIVE') return lifecycleStatusTagColor.active
   return 'default'
 }
 
@@ -347,7 +348,7 @@ onMounted(() => { void loadData() })
       </template>
     </PmsPageHeader>
 
-    <a-card :bordered="false" class="pms-table-panel pms-table-card">
+    <a-card :bordered="false" class="pms-table-panel pms-table-card pms-list-table">
       <div class="pms-table-toolbar" role="group" :aria-label="t('developmentList.filters')">
         <div class="pms-table-toolbar__filters">
           <a-input v-model:value="query.keyword" :placeholder="t(searchKey)" :aria-label="t(searchKey)" allow-clear class="pms-search-input development-list-page__search pms-filter-control" @press-enter="onSearch">

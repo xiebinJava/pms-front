@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeWorkflowDefinition } from './workflow-template-schema.mjs'
+import { normalizeWorkflowDefinition, REQUIREMENT_FIELD_BINDINGS } from './workflow-template-schema.mjs'
 
 const legacyDefinition = {
   schemaVersion: 1,
@@ -139,4 +139,39 @@ test('preserves the runtime default project fields when migrating a v1 node with
     'project.businessLine', 'project.projectManager', 'project.projectMembers', 'project.followers',
   ])
   assert.deepEqual(definition.nodes[0].contentOrder, ['fields'])
+})
+
+test('exposes requirement creation fields as explicit workflow bindings', () => {
+  assert.deepEqual(REQUIREMENT_FIELD_BINDINGS, {
+    title: { binding: 'requirement.title', type: 'TEXT' },
+    description: { binding: 'requirement.description', type: 'TEXTAREA' },
+    priority: { binding: 'requirement.priority', type: 'SINGLE_SELECT' },
+    businessLine: { binding: 'requirement.businessLine', type: 'SINGLE_SELECT' },
+    owner: { binding: 'requirement.owner', type: 'PERSON' },
+  })
+})
+
+test('migrates existing requirement priority bindings from numeric input to a single select', () => {
+  const definition = normalizeWorkflowDefinition({
+    schemaVersion: 2,
+    nodes: [{
+      key: 'intake',
+      name: '需求录入',
+      description: '',
+      deliverable: '',
+      roles: '',
+      fields: [{
+        key: 'requirement-priority',
+        label: '需求优先级',
+        type: 'NUMBER',
+        required: true,
+        options: [],
+        visible: true,
+        binding: 'requirement.priority',
+      }],
+      contentOrder: ['fields'],
+    }],
+  })
+
+  assert.equal(definition.nodes[0].fields[0].type, 'SINGLE_SELECT')
 })

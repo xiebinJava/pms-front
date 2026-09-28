@@ -909,6 +909,27 @@ body { font-family: var(--pms-font-family); background: var(--pms-bg); }
 .pms-table-panel,
 .pms-detail-panel,
 .pms-admin-table { background: var(--pms-surface); }
+.pms-list-table .ant-table { background: transparent; }
+.pms-list-table .ant-table-thead > tr > th {
+  height: 42px;
+  padding: 0 16px;
+  color: var(--pms-text-faint);
+  background: var(--pms-surface-muted);
+  border-bottom: 1px solid var(--pms-border);
+  font-size: 11px;
+  font-weight: 750;
+}
+.pms-list-table .ant-table-tbody > tr > td {
+  min-height: 62px;
+  padding: 14px 16px;
+  color: var(--pms-text-muted);
+  border-bottom: 1px solid var(--pms-border);
+  font-size: 12.5px;
+  vertical-align: middle;
+}
+.pms-list-table .pms-project-table-scroll .ant-table-tbody > tr > td { height: 95px; }
+.pms-list-table .ant-table-tbody > tr:last-child > td { border-bottom: 0; }
+.pms-list-table .ant-table-tbody > tr:hover > td { background: var(--pms-surface-muted) !important; }
 .pms-table-panel .ant-card-body { padding: 0; }
 /* Keep the filter row visually attached to its divider instead of leaving a large blank band below it. */
 .pms-table-panel .pms-table-toolbar { padding: 14px 16px 4px; margin: 0; border-bottom: 1px solid var(--pms-border); }

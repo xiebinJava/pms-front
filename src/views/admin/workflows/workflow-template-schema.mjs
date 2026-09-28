@@ -9,6 +9,14 @@ export const PROJECT_FIELD_BINDINGS = Object.freeze({
   followers: { binding: 'project.followers', type: 'PERSON_MULTI' },
 })
 
+export const REQUIREMENT_FIELD_BINDINGS = Object.freeze({
+  title: { binding: 'requirement.title', type: 'TEXT' },
+  description: { binding: 'requirement.description', type: 'TEXTAREA' },
+  priority: { binding: 'requirement.priority', type: 'SINGLE_SELECT' },
+  businessLine: { binding: 'requirement.businessLine', type: 'SINGLE_SELECT' },
+  owner: { binding: 'requirement.owner', type: 'PERSON' },
+})
+
 const DEFAULT_PROJECT_FIELDS = Object.freeze([
   { key: 'description', label: 'detail.profileDescription', visible: true, required: true },
   { key: 'priority', label: 'detail.profilePriority', visible: true, required: true },
@@ -93,7 +101,16 @@ function normalizeNode(node) {
 }
 
 export function normalizeWorkflowDefinition(definition) {
-  if (definition?.schemaVersion === 2) return clone(definition)
+  if (definition?.schemaVersion === 2) {
+    const normalized = clone(definition)
+    normalized.nodes = (normalized.nodes || []).map((node) => ({
+      ...node,
+      fields: (node.fields || []).map((field) => field.binding === 'requirement.priority' && field.type === 'NUMBER'
+        ? { ...field, type: 'SINGLE_SELECT' }
+        : field),
+    }))
+    return normalized
+  }
 
   const normalized = {
     schemaVersion: 2,

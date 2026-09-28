@@ -44,7 +44,7 @@ import {
   setTopicSourceProjectNodeKey,
   setStorySourceTopicNodeKey,
 } from './workflow-template-model.mjs'
-import { PROJECT_FIELD_BINDINGS } from './workflow-template-schema.mjs'
+import { PROJECT_FIELD_BINDINGS, REQUIREMENT_FIELD_BINDINGS } from './workflow-template-schema.mjs'
 
 const { t } = useI18n()
 const userStore = useUserStore()
@@ -99,6 +99,14 @@ const FIELD_TYPE_ICONS: Record<WorkflowFieldType, Component> = {
   ATTACHMENT: PaperClipOutlined,
 }
 const selectedType = computed(() => types.value.find((type) => type.id === selectedTypeId.value))
+const orderedWorkflowTypes = computed(() => types.value
+  .map((type, index) => ({ type, index }))
+  .sort((left, right) => {
+    const leftPriority = left.type.code === 'requirement-management' ? 0 : 1
+    const rightPriority = right.type.code === 'requirement-management' ? 0 : 1
+    return leftPriority - rightPriority || left.index - right.index
+  })
+  .map(({ type }) => type))
 const availableComponents = computed(() => WORKFLOW_RUNTIME_COMPONENTS
   .filter(({ key }) => key !== WorkflowRuntimeComponentKey.STORY_SPLIT)
   .filter((component) => !component.processTypeCodes?.length || component.processTypeCodes.includes(selectedType.value?.code || ''))
@@ -118,6 +126,10 @@ const configuredComponents = computed(() => (currentNode.value?.contentOrder || 
   .map((item) => item.slice('component:'.length)))
 const availableBindings = computed(() => Object.entries(PROJECT_FIELD_BINDINGS)
   .filter(([, binding]) => !currentNode.value?.fields.some((field) => field.binding === binding.binding)))
+const availableRequirementBindings = computed(() => selectedType.value?.code === 'requirement-management'
+  ? Object.entries(REQUIREMENT_FIELD_BINDINGS)
+    .filter(([, binding]) => !currentNode.value?.fields.some((field) => field.binding === binding.binding))
+  : [])
 const selectedNodeIndex = computed(() => definition.value.nodes.findIndex((node) => node.key === selectedNodeKey.value))
 const publishedVersion = computed(() => selectedTemplateSummary.value?.publishedVersionNo)
 const workflowVersions = computed(() => [...(selectedTemplateSummary.value?.versions || [])]
@@ -470,13 +482,14 @@ function addField(type: WorkflowFieldType = 'TEXT', event?: MouseEvent) {
   openMobileInspector(event?.currentTarget)
 }
 
-function addBoundField(projectFieldKey: string, event?: MouseEvent) {
+function addBoundField(fieldKey: string, bindings: typeof PROJECT_FIELD_BINDINGS | typeof REQUIREMENT_FIELD_BINDINGS, event?: MouseEvent) {
   const node = currentNode.value
-  const binding = PROJECT_FIELD_BINDINGS[projectFieldKey]
+  const binding = bindings[fieldKey]
   if (!node || !binding) return
+  const bindingPrefix = binding.binding.split('.')[0]
   const next = addWorkflowField(node, {
-    key: `project-${projectFieldKey.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`,
-    label: t(`admin.workflow.projectFieldLabels.${projectFieldKey}`),
+    key: `${bindingPrefix}-${fieldKey.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`,
+    label: t(`admin.workflow.${bindingPrefix}FieldLabels.${fieldKey}`),
     type: binding.type,
     binding: binding.binding,
   })
@@ -849,7 +862,7 @@ onMounted(async () => {
             </div>
             <div v-if="types.length" class="workflow-choice-grid">
               <button
-                v-for="type in types"
+                v-for="type in orderedWorkflowTypes"
                 :key="type.id"
                 type="button"
                 class="workflow-choice-card"
@@ -1023,8 +1036,13 @@ onMounted(async () => {
                   </div>
                   <div class="designer-palette-section">
                     <div class="designer-subheading"><strong>{{ $t('admin.workflow.projectFields') }}</strong><small>{{ $t('admin.workflow.projectFieldsHint') }}</small></div>
-                    <button v-for="[key, binding] in availableBindings" :key="binding.binding" type="button" class="designer-palette-item designer-palette-item--compact" :disabled="!canWrite" @click="addBoundField(key, $event)"><span class="field-type-symbol"><component :is="fieldTypeIcon(binding.type)" /></span><span class="designer-palette-item__copy"><strong>{{ $t(`admin.workflow.projectFieldLabels.${key}`) }}</strong><small>{{ fieldTypeLabel(binding.type) }}</small></span><PlusOutlined /></button>
+                    <button v-for="[key, binding] in availableBindings" :key="binding.binding" type="button" class="designer-palette-item designer-palette-item--compact" :disabled="!canWrite" @click="addBoundField(key, PROJECT_FIELD_BINDINGS, $event)"><span class="field-type-symbol"><component :is="fieldTypeIcon(binding.type)" /></span><span class="designer-palette-item__copy"><strong>{{ $t(`admin.workflow.projectFieldLabels.${key}`) }}</strong><small>{{ fieldTypeLabel(binding.type) }}</small></span><PlusOutlined /></button>
                     <a-empty v-if="!availableBindings.length" :description="$t('admin.workflow.noAvailableProjectFields')" />
+                  </div>
+                  <div v-if="selectedType?.code === 'requirement-management'" class="designer-palette-section" data-testid="requirement-fields">
+                    <div class="designer-subheading"><strong>{{ $t('admin.workflow.requirementFields') }}</strong><small>{{ $t('admin.workflow.requirementFieldsHint') }}</small></div>
+                    <button v-for="[key, binding] in availableRequirementBindings" :key="binding.binding" type="button" class="designer-palette-item designer-palette-item--compact" :disabled="!canWrite" @click="addBoundField(key, REQUIREMENT_FIELD_BINDINGS, $event)"><span class="field-type-symbol"><component :is="fieldTypeIcon(binding.type)" /></span><span class="designer-palette-item__copy"><strong>{{ $t(`admin.workflow.requirementFieldLabels.${key}`) }}</strong><small>{{ fieldTypeLabel(binding.type) }}</small></span><PlusOutlined /></button>
+                    <a-empty v-if="!availableRequirementBindings.length" :description="$t('admin.workflow.noAvailableRequirementFields')" />
                   </div>
                   <div class="designer-palette-section">
                     <div class="designer-subheading"><strong>{{ $t('admin.workflow.workbenchComponents') }}</strong><small>{{ $t('admin.workflow.workbenchComponentsHint') }}</small></div>
@@ -1045,7 +1063,7 @@ onMounted(async () => {
                         <div class="designer-content-heading"><div><strong>{{ contentItemLabel(contentItem) }}</strong><small>{{ $t('admin.workflow.individualFieldHint') }}</small></div><div class="designer-fields-section__tools"><span>{{ fieldsForContentItem(currentNode, contentItem, true).filter((field) => field.visible !== false).length }} / {{ fieldsForContentItem(currentNode, contentItem, true).length }}</span><a-button size="small" type="text" :disabled="!canWrite || contentIndex === 0" :data-testid="`move-workflow-section-up-${contentItem}`" :aria-label="`${$t('admin.workflow.moveUp')}：${contentItemLabel(contentItem)}`" @click="moveContentItem(contentItem, -1)"><ArrowUpOutlined /></a-button><a-button size="small" type="text" :disabled="!canWrite || contentIndex === currentNode.contentOrder.length - 1" :data-testid="`move-workflow-section-down-${contentItem}`" :aria-label="`${$t('admin.workflow.moveDown')}：${contentItemLabel(contentItem)}`" @click="moveContentItem(contentItem, 1)"><ArrowDownOutlined /></a-button></div></div>
                         <div class="designer-field-grid">
                           <article v-for="field in fieldsForContentItem(currentNode, contentItem, true)" :key="field.key" class="designer-field-card" :class="{ selected: selectedFieldKey === field.key, 'is-hidden': field.visible === false, 'designer-field-card--wide': isWorkflowFieldFullWidth(field) }" data-testid="designer-field-card" :data-field-key="field.key" :aria-label="`${field.label}，${fieldTypeLabel(field.type)}`" role="group" :draggable="canWrite" @dragstart.stop="fieldDragKey = field.key" @dragover.prevent @drop.prevent.stop="onFieldDrop(fieldIndex(field.key))" @dragend.stop="fieldDragKey = undefined">
-                            <div class="designer-field-card__top"><span>{{ fieldTypeLabel(field.type) }}</span><a-tag v-if="field.visible === false" color="default">{{ $t('admin.workflow.hidden') }}</a-tag><span v-else-if="field.binding" class="designer-field-binding">{{ $t('admin.workflow.projectBinding') }}</span><a-tag v-else-if="field.required" color="red">{{ $t('admin.workflow.required') }}</a-tag></div>
+                            <div class="designer-field-card__top"><span>{{ fieldTypeLabel(field.type) }}</span><a-tag v-if="field.visible === false" color="default">{{ $t('admin.workflow.hidden') }}</a-tag><span v-else-if="field.binding" class="designer-field-binding">{{ field.binding.startsWith('requirement.') ? $t('admin.workflow.requirementBinding') : $t('admin.workflow.projectBinding') }}</span><a-tag v-else-if="field.required" color="red">{{ $t('admin.workflow.required') }}</a-tag></div>
                             <div class="designer-field-card__name"><button type="button" class="designer-field-select" :aria-pressed="selectedFieldKey === field.key" aria-controls="workflow-inspector-panel" :aria-label="`${field.label}，${fieldTypeLabel(field.type)}`" @click="selectField(field.key, $event)"><strong>{{ field.label || $t('admin.workflow.unnamedField') }}</strong><em v-if="field.required">*</em></button><div class="designer-field-card__actions"><a-button size="small" type="text" :disabled="!canWrite || fieldIndexInContentItem(field.key, contentItem) === 0" :data-testid="`move-workflow-field-${field.key}-up`" :aria-label="`${$t('admin.workflow.moveUp')}：${field.label}`" @click.stop="moveField(field.key, -1, contentItem)"><ArrowUpOutlined /></a-button><a-button size="small" type="text" :disabled="!canWrite || fieldIndexInContentItem(field.key, contentItem) === fieldsForContentItem(currentNode, contentItem, true).length - 1" :data-testid="`move-workflow-field-${field.key}-down`" :aria-label="`${$t('admin.workflow.moveDown')}：${field.label}`" @click.stop="moveField(field.key, 1, contentItem)"><ArrowDownOutlined /></a-button></div></div>
                             <small class="designer-field-card__key">{{ field.binding ? bindingLabel(field.binding) : `${$t('admin.workflow.nodeField')} · ${field.key}` }}</small>
                             <div class="designer-field-control">

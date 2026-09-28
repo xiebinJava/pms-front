@@ -3,14 +3,17 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { message, Modal } from 'ant-design-vue'
-import { ArrowLeftOutlined, FolderOpenOutlined, InfoCircleOutlined } from '@ant-design/icons-vue'
-import { getDevelopmentItemWorkflow, updateDevelopmentItemNode, completeDevelopmentItemNode } from '/@/api/development-item'
+import { ArrowLeftOutlined, FolderOpenOutlined, InfoCircleOutlined, RollbackOutlined } from '@ant-design/icons-vue'
+import { getDevelopmentItemWorkflow, updateDevelopmentItemNode, completeDevelopmentItemNode, rollbackDevelopmentItemNode } from '/@/api/development-item'
+import { getProjectOrgTree } from '/@/api/admin-org'
 import type {
   DevelopmentItemType,
   DevelopmentItemWorkflowDetail,
   DevelopmentItemWorkflowNode,
+  OrgUnit,
 } from '/@/types/domain'
-import type { PersonOption } from '/@/views/project/detail/workflow'
+import { buildBusinessLineOptions } from '/@/views/project/detail/workflow'
+import type { BusinessLineOption, PersonOption } from '/@/views/project/detail/workflow'
 import PersonSelect from '/@/views/project/detail/components/PersonSelect.vue'
 import DevelopmentItemFlow from './components/DevelopmentItemFlow.vue'
 import DevelopmentItemWorkflowFields from './components/DevelopmentItemWorkflowFields.vue'
@@ -33,11 +36,16 @@ const { t } = useI18n()
 const userStore = useUserStore()
 const detail = ref<DevelopmentItemWorkflowDetail>()
 const members = ref<PersonOption[]>([])
+const orgTree = ref<OrgUnit[]>([])
+const businessLineOptions = computed<BusinessLineOption[]>(() => buildBusinessLineOptions(orgTree.value))
 const loading = ref(false)
 const loadError = ref(false)
 const savingNode = ref(false)
 const nodeFormDirty = ref(false)
 const completingNode = ref(false)
+const rollingBack = ref(false)
+const rollbackModalOpen = ref(false)
+const rollbackReason = ref('')
 const selectedNodeId = ref<number>()
 const selectedNode = computed(() => detail.value?.nodes.find((node) => node.id === selectedNodeId.value))
 const selectedNodeEditable = computed(() => selectedNode.value != null && !isNodeReadOnly(selectedNode.value.status))
@@ -153,6 +161,7 @@ async function loadData() {
   loadError.value = false
   try {
     const result = await getDevelopmentItemWorkflow(props.itemType, id)
+    orgTree.value = props.itemType === 'requirement' ? await getProjectOrgTree().catch(() => []) : []
     detail.value = result
     setSelectedNode(result.nodes.find((node) => node.status === 1) || result.nodes[0])
     members.value = collectDetailPeople(result)
@@ -282,6 +291,44 @@ function confirmCompleteNode() {
   })
 }
 
+function confirmRollbackNode() {
+  const node = selectedNode.value
+  if (!detail.value || !node || node.status !== 2) return
+  rollbackReason.value = ''
+  rollbackModalOpen.value = true
+}
+
+function closeRollbackModal() {
+  if (rollingBack.value) return
+  rollbackModalOpen.value = false
+  rollbackReason.value = ''
+}
+
+async function submitRollbackNode() {
+  const reason = rollbackReason.value.trim()
+  if (!reason) {
+    message.warning(t('developmentDetail.rollbackReasonRequired'))
+    return
+  }
+  const node = selectedNode.value
+  if (!detail.value || !node || node.status !== 2) return
+  rollingBack.value = true
+  try {
+    detail.value = await rollbackDevelopmentItemNode(props.itemType, detail.value.id, node.id, reason)
+    const target = detail.value.nodes.find((item) => item.id === node.id)
+      || detail.value.nodes.find((item) => item.status === 1)
+      || detail.value.nodes[0]
+    setSelectedNode(target)
+    rollbackModalOpen.value = false
+    rollbackReason.value = ''
+    message.success(t('developmentDetail.nodeRolledBack'))
+  } catch (error) {
+    message.error(errorMessage(error, t('developmentDetail.rollbackFailed')))
+  } finally {
+    rollingBack.value = false
+  }
+}
+
 function onDetailUpdated(next: DevelopmentItemWorkflowDetail) {
   const currentId = selectedNodeId.value
   detail.value = next
@@ -407,7 +454,13 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="node-detail-actions">
                   <a-button
-                    v-if="selectedNode.status === 1"
+                    v-if="selectedNode.status === 2"
+                    class="pms-project-button pms-project-button--secondary"
+                    :loading="rollingBack"
+                    @click="confirmRollbackNode"
+                  ><RollbackOutlined />{{ t('developmentDetail.rollbackNodeAction') }}</a-button>
+                  <a-button
+                    v-else-if="selectedNode.status === 1"
                     type="primary"
                     class="pms-primary-button pms-project-button pms-project-button--primary"
                     :loading="completingNode"
@@ -423,17 +476,15 @@ onBeforeUnmount(() => {
                 <span class="node-owner-row__label">{{ t('developmentDetail.nodeOwner') }}</span>
                 <div class="node-owner-row__control">
                   <PersonSelect
-                    v-if="selectedNodeEditable"
                     v-model="nodeForm.ownerId"
                     class="node-owner-row__select"
                     :options="members"
                     :remote-search="true"
                     allow-clear
                     :placeholder="t('developmentDetail.assigneePlaceholder')"
-                    :disabled="savingNode"
+                    :disabled="!selectedNodeEditable || savingNode"
                     @change="onNodeOwnerChange"
                   />
-                  <strong v-else>{{ selectedNode.ownerName || t('common.unset') }}</strong>
                 </div>
               </div>
 
@@ -441,15 +492,13 @@ onBeforeUnmount(() => {
                 <span class="node-owner-row__label">{{ t('developmentDetail.nodeSchedule') }}</span>
                 <div class="node-owner-row__control">
                   <a-range-picker
-                    v-if="selectedNodeEditable"
                     :value="[nodeForm.startDate || null, nodeForm.endDate || null]"
                     value-format="YYYY-MM-DD"
                     class="node-schedule-picker"
                     :placeholder="[t('developmentDetail.startDate'), t('developmentDetail.endDate')]"
-                    :disabled="savingNode"
+                    :disabled="!selectedNodeEditable || savingNode"
                     @change="onScheduleChange"
                   />
-                  <strong v-else>{{ nodeForm.startDate || '—' }} → {{ nodeForm.endDate || '—' }}</strong>
                 </div>
               </div>
               </div>
@@ -460,7 +509,9 @@ onBeforeUnmount(() => {
                 <DevelopmentItemWorkflowFields
                   :model-value="nodeForm.fieldValues"
                   :fields="selectedNode.fields"
+                  :bound-values="selectedNode.boundFieldValues || {}"
                   :person-options="members"
+                  :business-line-options="businessLineOptions"
                   :disabled="!selectedNodeEditable || savingNode"
                   @update:model-value="onNodeFieldValuesChange"
                 />
@@ -506,6 +557,31 @@ onBeforeUnmount(() => {
             </template>
           </WorkflowNodeShell>
 
+          <a-modal
+            v-model:open="rollbackModalOpen"
+            class="pms-project-modal"
+            :title="t('developmentDetail.rollbackNodeTitle')"
+            :ok-text="t('developmentDetail.rollbackNodeAction')"
+            :confirm-loading="rollingBack"
+            :mask-closable="!rollingBack"
+            :closable="!rollingBack"
+            @ok="submitRollbackNode"
+            @cancel="closeRollbackModal"
+          >
+            <p class="rollback-modal__description">{{ t('developmentDetail.rollbackNodeContent') }}</p>
+            <div class="rollback-modal__field">
+              <div class="rollback-modal__label"><span>*</span> {{ t('developmentDetail.rollbackReasonLabel') }}</div>
+              <a-textarea
+                v-model:value="rollbackReason"
+                :rows="4"
+                :maxlength="200"
+                show-count
+                :disabled="rollingBack"
+                :placeholder="t('developmentDetail.rollbackReasonPlaceholder')"
+              />
+            </div>
+          </a-modal>
+
           <section v-if="props.itemType === 'story' && (detail.blocker || detail.iterationPlanName || detail.storyPoints || detail.latestBuildVersion || detail.testStatus)" class="management-card pms-detail-panel pms-section-panel card-surface">
             <div class="section-title-row pms-section-heading"><h2>{{ t('developmentDetail.developmentInfo') }}</h2></div>
             <div class="development-item-detail__info-grid">
@@ -548,9 +624,10 @@ onBeforeUnmount(() => {
 .detail-breadcrumb__back { padding: 0; color: var(--pms-text-muted); font: inherit; background: none; border: 0; cursor: pointer; }
 .detail-breadcrumb__back:hover { color: var(--pms-primary); }
 .detail-breadcrumb__separator { color: var(--pms-text-faint); }
-.node-detail-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.node-detail-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; }
 .node-detail-title { display: flex; align-items: center; flex: 1 1 auto; gap: 12px; min-width: 0; }
 .node-detail-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
+.node-detail-actions .ant-btn { margin-left: auto; }
 .node-detail-title__copy { flex: 1 1 auto; min-width: 0; }
 .node-detail-title__heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .node-detail-title h2 { margin: 0; color: var(--pms-text); font-size: 17px; font-weight: 600; line-height: var(--pms-line-height-tight); }
@@ -573,6 +650,10 @@ onBeforeUnmount(() => {
 .development-item-detail__info-grid > div { display: grid; gap: 3px; }
 .development-item-detail__info-grid span { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
 .development-item-detail__info-grid strong { color: var(--pms-text); }
+.rollback-modal__description { margin-bottom: 16px; color: var(--pms-text-muted); }
+.rollback-modal__field { display: grid; gap: 7px; }
+.rollback-modal__label { color: var(--pms-text); font-weight: 600; }
+.rollback-modal__label span { color: var(--pms-danger); }
 @media (min-width: 1100px) { .development-item-detail__summary { margin-inline: -7px; } }
 @media (max-width: 900px) { .project-header__meta,.project-header__insights { align-items: flex-start; flex-wrap: wrap; } .project-header__meta-item--wide { flex: 1 1 100%; } .project-header__meta-item--divider { padding-right: 0; border-right: 0; } }
 @media (max-width: 640px) {

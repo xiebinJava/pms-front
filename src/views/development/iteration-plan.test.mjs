@@ -47,3 +47,10 @@ test('iteration plan screens stay independent from workflow item details', () =>
   assert.doesNotMatch(detail, /getDevelopmentItemWorkflow/)
   assert.match(detail, /iterationPlanView\.hint/)
 })
+
+test('iteration list uses the shared project list table baseline without a second table header', () => {
+  const list = fs.readFileSync(path.join(root, 'views/development/iterations/index.vue'), 'utf8')
+  assert.match(list, /class="[^"]*pms-list-table[^"]*"/)
+  assert.match(list, /pms-project-table-scroll/)
+  assert.doesNotMatch(list, /iteration-plan-list-page__card-head/)
+})

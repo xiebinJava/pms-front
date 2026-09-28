@@ -44,6 +44,8 @@ test('development list follows the project workbench page pattern', () => {
   assert.match(source, /pagination\.total/)
   assert.match(source, /#emptyText/)
   assert.match(source, /development-list-page__table-scroll/)
+  assert.match(source, /class="[^"]*pms-list-table[^"]*"/)
+  assert.match(source, /pms-project-table-scroll/)
   assert.doesNotMatch(source, /development-list-page__view-switch|onViewChange/)
   assert.match(source, /t\('common\.refresh'\)/)
 })
@@ -58,6 +60,16 @@ test('development list uses translated state text and responsive filter geometry
   assert.doesNotMatch(source, /record\.testStatus \|\| ''/)
   assert.match(zh, /developmentList:\s*\{[\s\S]*eyebrow:/)
   assert.match(zh, /developmentList:\s*\{[\s\S]*emptyTitle:/)
+})
+
+test('development list uses project-style lifecycle labels for workflow states', () => {
+  const source = read('views/development/DevelopmentListPage.vue')
+  assert.match(source, /status === 'NOT_STARTED'[\s\S]*developmentList\.statusNotStarted/)
+  assert.match(source, /status === 'IN_PROGRESS'[\s\S]*developmentList\.statusInProgress/)
+  assert.match(source, /status === 'COMPLETED'[\s\S]*developmentList\.statusDone/)
+  assert.doesNotMatch(source, /developmentList\.workflow\.NOT_STARTED/)
+  assert.doesNotMatch(source, /developmentList\.workflow\.IN_PROGRESS/)
+  assert.doesNotMatch(source, /developmentList\.workflow\.COMPLETED/)
 })
 
 test('development filter controls use a flex row with explicit spacing and alignment', () => {

@@ -3,18 +3,61 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { WorkflowFieldDefinition } from '/@/types/workflow'
 import { isWorkflowFieldFullWidth } from '/@/utils/workflow-field-layout.mjs'
-import type { PersonOption } from '/@/views/project/detail/workflow'
+import BusinessLineSelect from '/@/views/project/detail/components/BusinessLineSelect.vue'
+import PersonSelect from '/@/views/project/detail/components/PersonSelect.vue'
+import type { BusinessLineOption, PersonOption } from '/@/views/project/detail/workflow'
 
 const props = defineProps<{
   fields: WorkflowFieldDefinition[]
+  boundValues: Record<string, unknown>
   modelValue: Record<string, unknown>
   personOptions: PersonOption[]
+  businessLineOptions: BusinessLineOption[]
   disabled: boolean
 }>()
 
 const emit = defineEmits<{ 'update:modelValue': [value: Record<string, unknown>] }>()
 const { t } = useI18n()
-const visibleFields = computed(() => props.fields.filter((field) => field.visible !== false && !field.binding))
+const visibleFields = computed(() => props.fields.filter((field) => field.visible !== false))
+
+function fieldValue(field: WorkflowFieldDefinition) {
+  if (field.binding && Object.prototype.hasOwnProperty.call(props.modelValue, field.key)) {
+    return props.modelValue[field.key]
+  }
+  return field.binding ? props.boundValues[field.key] : props.modelValue[field.key]
+}
+
+function fieldDisabled(_field: WorkflowFieldDefinition) {
+  return props.disabled
+}
+
+function fieldOptions(field: WorkflowFieldDefinition) {
+  if (field.binding === 'requirement.priority') {
+    return [
+      { label: t('developmentList.requirementPriorityLowest'), value: 0 },
+      { label: t('developmentList.requirementPriorityLow'), value: 1 },
+      { label: t('developmentList.requirementPriorityMedium'), value: 2 },
+      { label: t('developmentList.requirementPriorityHigh'), value: 3 },
+    ]
+  }
+  return field.options.map((label) => ({ label, value: label }))
+}
+
+function findBusinessLinePath(options: BusinessLineOption[], targetId: number, parentPath: number[] = []): number[] {
+  for (const option of options) {
+    const path = [...parentPath, option.value]
+    if (option.value === targetId) return path
+    const childPath = findBusinessLinePath(option.children || [], targetId, path)
+    if (childPath.length) return childPath
+  }
+  return []
+}
+
+function businessLinePath(field: WorkflowFieldDefinition) {
+  const value = fieldValue(field)
+  const id = typeof value === 'number' ? value : Number(value)
+  return Number.isSafeInteger(id) && id > 0 ? findBusinessLinePath(props.businessLineOptions, id) : []
+}
 
 function setValue(key: string, value: unknown) {
   emit('update:modelValue', { ...props.modelValue, [key]: value })
@@ -28,28 +71,13 @@ function setTextareaValue(key: string, event: Event) {
   setValue(key, (event.target as HTMLTextAreaElement).value)
 }
 
-function setDateValue(key: string, _date: unknown, value: string) {
-  setValue(key, value || null)
-}
-
-function setRangeValue(key: string, _dates: unknown, values: string[]) {
-  setValue(key, values)
-}
-
-function valueChangeHandler(key: string) {
-  return (value: unknown) => setValue(key, value ?? null)
-}
-
-function dateChangeHandler(key: string) {
-  return (_date: unknown, value: string) => setDateValue(key, _date, value)
-}
-
-function rangeChangeHandler(key: string) {
-  return (_dates: unknown, values: string[]) => setRangeValue(key, _dates, values)
-}
-
 function setRadioValue(key: string, event: { target?: { value?: unknown } }) {
   setValue(key, event.target?.value)
+}
+
+function setBusinessLineValue(key: string, value?: number[]) {
+  const path = Array.isArray(value) ? value : []
+  setValue(key, path.at(-1) ?? null)
 }
 </script>
 
@@ -68,16 +96,16 @@ function setRadioValue(key: string, event: { target?: { value?: unknown } }) {
         <a-input
           v-if="field.type === 'TEXT'"
           :id="`development-item-field-${field.key}`"
-          :value="modelValue[field.key] as string"
-          :disabled="disabled"
+          :value="fieldValue(field) as string"
+          :disabled="fieldDisabled(field)"
           :maxlength="500"
           @change="setTextValue(field.key, $event)"
         />
         <a-textarea
           v-else-if="field.type === 'TEXTAREA'"
           :id="`development-item-field-${field.key}`"
-          :value="modelValue[field.key] as string"
-          :disabled="disabled"
+          :value="fieldValue(field) as string"
+          :disabled="fieldDisabled(field)"
           :rows="3"
           :maxlength="10000"
           @change="setTextareaValue(field.key, $event)"
@@ -85,76 +113,82 @@ function setRadioValue(key: string, event: { target?: { value?: unknown } }) {
         <a-input-number
           v-else-if="field.type === 'NUMBER'"
           :id="`development-item-field-${field.key}`"
-          :value="modelValue[field.key] as number | undefined"
-          :disabled="disabled"
+          :value="fieldValue(field) as number | undefined"
+          :disabled="fieldDisabled(field)"
           class="development-item-fields__control"
-          @change="valueChangeHandler(field.key)"
+          @change="setValue(field.key, $event ?? null)"
         />
         <a-date-picker
           v-else-if="field.type === 'DATE'"
           :id="`development-item-field-${field.key}`"
-          :value="modelValue[field.key] as string | undefined"
+          :value="fieldValue(field) as string | undefined"
           value-format="YYYY-MM-DD"
-          :disabled="disabled"
+          :disabled="fieldDisabled(field)"
           class="development-item-fields__control"
-          @change="dateChangeHandler(field.key)"
+          @change="setValue(field.key, $event ?? null)"
         />
         <a-radio-group
           v-else-if="field.type === 'RADIO'"
           :id="`development-item-field-${field.key}`"
-          :value="modelValue[field.key]"
-          :disabled="disabled"
+          :value="fieldValue(field)"
+          :disabled="fieldDisabled(field)"
           :options="field.options.map((label) => ({ label, value: label }))"
           @change="setRadioValue(field.key, $event)"
+        />
+        <BusinessLineSelect
+          v-else-if="field.binding === 'requirement.businessLine'"
+          :model-value="businessLinePath(field)"
+          :options="businessLineOptions"
+          :disabled="fieldDisabled(field)"
+          :placeholder="t('detail.selectBusinessLine')"
+          @update:model-value="setBusinessLineValue(field.key, $event)"
         />
         <a-select
           v-else-if="field.type === 'SINGLE_SELECT'"
           :id="`development-item-field-${field.key}`"
-          :value="modelValue[field.key]"
-          :disabled="disabled"
-          :options="field.options.map((label) => ({ label, value: label }))"
+          :value="fieldValue(field)"
+          :disabled="fieldDisabled(field)"
+          :options="fieldOptions(field)"
           allow-clear
-          @change="valueChangeHandler(field.key)"
+          @change="setValue(field.key, $event ?? null)"
         />
         <a-select
           v-else-if="field.type === 'MULTI_SELECT'"
           :id="`development-item-field-${field.key}`"
-          :value="modelValue[field.key]"
-          :disabled="disabled"
+          :value="fieldValue(field)"
+          :disabled="fieldDisabled(field)"
           :options="field.options.map((label) => ({ label, value: label }))"
           mode="multiple"
-          @change="valueChangeHandler(field.key)"
+          @change="setValue(field.key, $event ?? null)"
         />
-        <a-select
+        <PersonSelect
           v-else-if="field.type === 'PERSON'"
-          :id="`development-item-field-${field.key}`"
-          :value="modelValue[field.key]"
-          :disabled="disabled"
+          :model-value="fieldValue(field) as number | null | undefined"
+          :disabled="fieldDisabled(field)"
           :options="personOptions"
+          :remote-search="true"
           allow-clear
-          show-search
-          option-filter-prop="label"
-          @change="valueChangeHandler(field.key)"
+          :placeholder="t('detail.selectPerson')"
+          @update:model-value="setValue(field.key, $event)"
         />
-        <a-select
+        <PersonSelect
           v-else-if="field.type === 'PERSON_MULTI'"
-          :id="`development-item-field-${field.key}`"
-          :value="modelValue[field.key]"
-          :disabled="disabled"
+          :model-value="fieldValue(field) as number[]"
+          :disabled="fieldDisabled(field)"
           :options="personOptions"
-          mode="multiple"
-          show-search
-          option-filter-prop="label"
-          @change="valueChangeHandler(field.key)"
+          :remote-search="true"
+          multiple
+          :placeholder="t('detail.selectPerson')"
+          @update:model-value="setValue(field.key, $event)"
         />
         <a-range-picker
           v-else-if="field.type === 'DATE_RANGE'"
           :id="`development-item-field-${field.key}`"
-          :value="modelValue[field.key] as [string, string] | undefined"
+          :value="fieldValue(field) as [string, string] | undefined"
           value-format="YYYY-MM-DD"
-          :disabled="disabled"
+          :disabled="fieldDisabled(field)"
           class="development-item-fields__control"
-          @change="rangeChangeHandler(field.key)"
+          @change="setValue(field.key, $event ?? null)"
         />
         <span v-else class="development-item-fields__unsupported">{{ t('developmentDetail.unsupportedFieldType') }}</span>
       </div>

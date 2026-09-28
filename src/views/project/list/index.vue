@@ -366,7 +366,7 @@ onMounted(async () => {
       </button>
     </section>
 
-    <a-card :bordered="false" class="pms-table-panel pms-table-card">
+    <a-card :bordered="false" class="pms-table-panel pms-table-card pms-list-table">
       <div class="pms-table-toolbar" role="group" :aria-label="$t('project.filters')">
         <div class="pms-table-toolbar__filters">
           <a-input

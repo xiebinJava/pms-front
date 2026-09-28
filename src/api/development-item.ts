@@ -60,6 +60,7 @@ export interface DevelopmentRequirementRow {
   priority?: number
   ownerId?: number
   ownerName?: string
+  orgUnitId?: number
   status: string
   deleted?: boolean
   version: number
@@ -187,6 +188,7 @@ export function createDevelopmentRequirement(payload: {
   description?: string
   priority?: number
   ownerId?: number | null
+  orgUnitId?: number | null
   templateVersionId?: number | null
 }): Promise<number> {
   return http.post('/development/requirements', payload)
@@ -197,6 +199,7 @@ export function updateDevelopmentRequirement(id: number, payload: {
   description?: string
   priority?: number
   ownerId?: number | null
+  orgUnitId?: number | null
   version: number
 }): Promise<void> {
   return http.put(`/development/requirements/${id}`, payload)
@@ -324,6 +327,15 @@ export function completeDevelopmentItemNode(
   nodeId: number | string,
 ): Promise<DevelopmentItemWorkflowDetail> {
   return http.post(`${developmentItemMutationPath(itemType, itemId)}/nodes/${nodeId}/complete`)
+}
+
+export function rollbackDevelopmentItemNode(
+  itemType: DevelopmentItemType,
+  itemId: number | string,
+  nodeId: number | string,
+  reason: string,
+): Promise<DevelopmentItemWorkflowDetail> {
+  return http.post(`${developmentItemMutationPath(itemType, itemId)}/nodes/${nodeId}/rollback`, { reason })
 }
 
 export function createDevelopmentItemTask(

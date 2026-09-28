@@ -9,6 +9,8 @@ const workbenchPreviewSource = fs.existsSync(new URL('../../../components/workfl
   : ''
 const style = source.match(/<style scoped>([\s\S]*?)<\/style>/)?.[1] || ''
 const template = source.split('<template>')[1]?.split('<style scoped>')[0] || ''
+const zhLocale = fs.readFileSync(new URL('../../../locales/zh-CN.ts', import.meta.url), 'utf8')
+const enLocale = fs.readFileSync(new URL('../../../locales/en-US.ts', import.meta.url), 'utf8')
 const spacingScale = new Set([0, ...Object.values(designTokens.spacing || {})])
 
 test('workflow template typography only uses documented readable type sizes', () => {
@@ -21,9 +23,6 @@ test('topic templates select a backend project-node binding and explain runtime 
   const api = fs.readFileSync(new URL('../../../api/admin-workflow.ts', import.meta.url), 'utf8')
   const types = fs.readFileSync(new URL('../../../types/workflow.ts', import.meta.url), 'utf8')
   const registry = fs.readFileSync(new URL('../../../components/workflow/workflow-component-registry.ts', import.meta.url), 'utf8')
-  const zhLocale = fs.readFileSync(new URL('../../../locales/zh-CN.ts', import.meta.url), 'utf8')
-  const enLocale = fs.readFileSync(new URL('../../../locales/en-US.ts', import.meta.url), 'utf8')
-
   assert.match(api, /getWorkflowProjectNodeOptions[\s\S]*?\/admin\/workflow-config\/project-node-options/)
   assert.match(types, /interface WorkflowProjectNodeOption\s*\{\s*key:\s*string\s*name:\s*string/s)
   assert.match(types, /interface WorkflowTemplateDefinitionV1\s*\{[^}]*sourceProjectNodeKey\?:\s*string/s)
@@ -60,6 +59,24 @@ test('workflow palette exposes requirement execution only for requirement templa
   assert.match(registry, /processTypeCodes:\s*\['requirement-management'\]/)
   assert.match(source, /component\.processTypeCodes\?\.[\s\S]*?includes\(selectedType\.value\?\.code \|\| ''\)/)
   assert.match(model, /processTypeCode === 'requirement-management'/)
+})
+
+test('workflow palette exposes requirement record bindings only for requirement templates', () => {
+  const schema = fs.readFileSync(new URL('./workflow-template-schema.mjs', import.meta.url), 'utf8')
+  assert.match(schema, /REQUIREMENT_FIELD_BINDINGS/)
+  assert.match(source, /availableRequirementBindings/)
+  assert.match(source, /selectedType\?\.code === 'requirement-management'/)
+  assert.match(template, /requirementFields/)
+  assert.match(zhLocale, /requirementFieldLabels/)
+  assert.match(enLocale, /requirementFieldLabels/)
+})
+
+test('requirement priority binding uses the requirement field category and single-select control', () => {
+  const schema = fs.readFileSync(new URL('./workflow-template-schema.mjs', import.meta.url), 'utf8')
+  assert.match(schema, /priority:\s*\{ binding: 'requirement\.priority', type: 'SINGLE_SELECT' \}/)
+  assert.match(template, /field\.binding\.startsWith\('requirement\.'\)[\s\S]*?requirementBinding/)
+  assert.match(zhLocale, /requirementBinding:\s*'需求字段'/)
+  assert.match(enLocale, /requirementBinding:\s*'Requirement field'/)
 })
 
 test('workflow layout spacing comes from the documented PMS spacing scale', () => {
@@ -117,7 +134,7 @@ test('workflow node cards keep a uniform height regardless of title wrapping', (
 })
 
 test('workflow editor presents the node field palette, visual canvas, and property inspector', () => {
-  assert.match(template, /data-testid="workflow-type-picker"[\s\S]*?v-for="type in types"[\s\S]*?:aria-pressed="selectedTypeId === type\.id"/)
+  assert.match(template, /data-testid="workflow-type-picker"[\s\S]*?v-for="type in orderedWorkflowTypes"[\s\S]*?:aria-pressed="selectedTypeId === type\.id"/)
   assert.match(template, /data-testid="workflow-template-picker"[\s\S]*?v-for="template in templates"[\s\S]*?:aria-pressed="selectedTemplateId === template\.id"/)
   assert.match(template, /v-if="workflowEntryStep === 'editor'"[\s\S]*?class="workflow-template-bar"[\s\S]*?class="workflow-canvas-panel"/)
   assert.match(template, /workflowEntryStep === 'empty-types'[\s\S]*?\$t\('admin\.workflow\.noTypes'\)/)

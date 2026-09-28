@@ -1,5 +1,5 @@
 export type WorkflowFieldType = 'TEXT' | 'TEXTAREA' | 'NUMBER' | 'RADIO' | 'SINGLE_SELECT' | 'MULTI_SELECT' | 'PERSON' | 'PERSON_MULTI' | 'DATE' | 'DATE_RANGE' | 'ATTACHMENT'
-export type WorkflowFieldBinding = 'project.description' | 'project.priority' | 'project.projectLevel' | 'project.schedule' | 'project.businessLine' | 'project.projectManager' | 'project.projectMembers' | 'project.followers'
+export type WorkflowFieldBinding = 'project.description' | 'project.priority' | 'project.projectLevel' | 'project.schedule' | 'project.businessLine' | 'project.projectManager' | 'project.projectMembers' | 'project.followers' | 'requirement.title' | 'requirement.description' | 'requirement.priority' | 'requirement.businessLine' | 'requirement.owner'
 
 export interface WorkflowFieldDefinition {
   key: string

@@ -4,6 +4,8 @@ import test from 'node:test'
 
 const detail = fs.readFileSync(new URL('./detail/DevelopmentItemDetailPage.vue', import.meta.url), 'utf8')
 const flow = fs.readFileSync(new URL('./detail/components/DevelopmentItemFlow.vue', import.meta.url), 'utf8')
+const fields = fs.readFileSync(new URL('./detail/components/DevelopmentItemWorkflowFields.vue', import.meta.url), 'utf8')
+const api = fs.readFileSync(new URL('../../api/development-item.ts', import.meta.url), 'utf8')
 
 test('development item detail follows the project detail page structure', () => {
   assert.match(detail, /class="detail-breadcrumb"/)
@@ -28,7 +30,35 @@ test('node details preserve assignment editing, completion, and node-scoped task
   assert.match(detail, /@change="onNodeOwnerChange"/)
   assert.match(detail, /@change="onScheduleChange"/)
   assert.match(detail, /@click="confirmCompleteNode"/)
+  assert.match(detail, /@click="confirmRollbackNode"/)
   assert.match(detail, /<DevelopmentItemTaskBoard/)
+})
+
+test('completed development nodes keep project-style disabled assignment controls', () => {
+  const assignments = detail.slice(detail.indexOf('<template #assignments>'), detail.indexOf('<template #fields>'))
+  assert.match(assignments, /<PersonSelect[\s\S]*:disabled="!selectedNodeEditable \|\| savingNode"/)
+  assert.match(assignments, /<a-range-picker[\s\S]*:disabled="!selectedNodeEditable \|\| savingNode"/)
+  assert.doesNotMatch(assignments, /<strong v-else>/)
+})
+
+test('completed development nodes expose the same reason-based rollback contract as projects', () => {
+  assert.match(api, /export function rollbackDevelopmentItemNode\(/)
+  assert.match(api, /nodes\/\$\{nodeId\}\/rollback/)
+  assert.match(api, /\{ reason \}/)
+  assert.match(detail, /const rollingBack = ref\(false\)/)
+  assert.match(detail, /rollbackDevelopmentItemNode\(/)
+  assert.match(detail, /rollbackReason/)
+  assert.match(detail, /回滚原因不能为空|rollbackReasonRequired/)
+  const rollbackHandler = detail.slice(detail.indexOf('async function submitRollbackNode'), detail.indexOf('\nfunction onDetailUpdated'))
+  assert.doesNotMatch(rollbackHandler, /saveNode\(\)/)
+})
+
+test('node header keeps completion and rollback actions at the right edge by status', () => {
+  const header = detail.slice(detail.indexOf('<template #header>'), detail.indexOf('</template>', detail.indexOf('<template #header>')))
+  assert.match(header, /class="node-detail-actions"/)
+  assert.match(header, /v-if="selectedNode\.status === 2"[\s\S]*confirmRollbackNode/)
+  assert.match(header, /v-else-if="selectedNode\.status === 1"[\s\S]*confirmCompleteNode/)
+  assert.doesNotMatch(header, /selectedNode\.status === 0[\s\S]*@click/)
 })
 
 test('historical assignees returned by detail remain selectable for display without project-member loading', () => {
@@ -67,15 +97,29 @@ test('node assignment labels do not retain desktop fixed widths on mobile', () =
 test('development workflow renders and saves the fields configured on each template node', () => {
   assert.match(detail, /<DevelopmentItemWorkflowFields/)
   assert.match(detail, /:fields="selectedNode\.fields"/)
+  assert.match(detail, /:bound-values="selectedNode\.boundFieldValues \|\| \{\}"/)
   assert.match(detail, /:model-value="nodeForm\.fieldValues"/)
   assert.match(detail, /@update:model-value="onNodeFieldValuesChange"/)
   assert.match(detail, /fieldValues:\s*\{ \.\.\.nodeForm\.fieldValues \}/)
 })
 
-test('all uncompleted workflow nodes expose editable metadata, template fields, and tasks', () => {
+test('development workflow fields render template bindings from the item record', () => {
+  assert.match(fields, /boundValues: Record<string, unknown>/)
+  assert.match(fields, /Object\.prototype\.hasOwnProperty\.call\(props\.modelValue, field\.key\)/)
+  assert.match(fields, /return props\.disabled/)
+  assert.doesNotMatch(fields, /isEditableBinding/)
+  assert.doesNotMatch(fields, /visibleFields = computed\(\(\) => props\.fields\.filter\(\(field\) => field\.visible !== false && !field\.binding\)\)/)
+})
+
+test('development workflow field controls forward their emitted values to the form model', () => {
+  assert.equal((fields.match(/@change="setValue\(field\.key, \$event \?\? null\)"/g) || []).length, 5)
+  assert.match(fields, /@update:model-value="setValue\(field\.key, \$event\)"/)
+  assert.doesNotMatch(fields, /@(change|update:model-value)="(?:valueChangeHandler|dateChangeHandler|rangeChangeHandler)\(field\.key\)"/)
+})
+
+test('workflow nodes expose editable metadata, template fields, and tasks with lifecycle guards', () => {
   const board = fs.readFileSync(new URL('./detail/components/DevelopmentItemTaskBoard.vue', import.meta.url), 'utf8')
   assert.match(detail, /const selectedNodeEditable = computed\(\(\) => selectedNode\.value != null && !isNodeReadOnly\(selectedNode\.value\.status\)\)/)
-  assert.match(detail, /v-if="selectedNodeEditable"/)
   assert.match(detail, /:disabled="!selectedNodeEditable \|\| savingNode"/)
   assert.match(detail, /if \(!detail\.value \|\| !node \|\| isNodeReadOnly\(node\.status\)\) return Promise\.resolve\(false\)/)
   assert.match(board, /const canEdit = computed\(\(\) => !isNodeReadOnly\(props\.node\.status\)\)/)

@@ -505,6 +505,7 @@ export interface DevelopmentItemWorkflowNode {
   version: number
   fields: WorkflowFieldDefinition[]
   fieldValues: Record<string, unknown>
+  boundFieldValues?: Record<string, unknown>
   tasks: DevelopmentItemTask[]
   runtimeComponents?: string[]
 }

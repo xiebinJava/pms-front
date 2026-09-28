@@ -26,3 +26,10 @@ test('project creation copy remains project-type-specific', () => {
 test('workflow type exposes project-creation scope as optional API metadata', () => {
   assert.match(workflowTypes, /projectCreationEnabled\?: boolean/)
 })
+
+test('requirement management is the first workflow type without reordering the remaining types', () => {
+  assert.match(source, /const orderedWorkflowTypes = computed\(\(\) => types\.value/)
+  assert.match(source, /left\.type\.code === 'requirement-management' \? 0 : 1/)
+  assert.match(source, /return leftPriority - rightPriority \|\| left\.index - right\.index/)
+  assert.match(source, /v-for="type in orderedWorkflowTypes"/)
+})

@@ -78,3 +78,9 @@ test('groups project filters and row actions without changing table geometry', (
   assert.match(source, /class="pms-table-scroll pms-project-table-scroll"/)
   assert.match(visualStyle, /\.pms-project-row-actions\s*\{/)
 })
+
+test('marks the project table as the shared list visual baseline', () => {
+  assert.match(source, /class="[^"]*pms-list-table[^"]*"/)
+  assert.match(visualStyle, /\.pms-list-table \.ant-table-thead > tr > th[\s\S]*height:\s*42px/)
+  assert.match(visualStyle, /\.pms-list-table \.ant-table-tbody > tr > td[\s\S]*min-height:\s*62px/)
+})
