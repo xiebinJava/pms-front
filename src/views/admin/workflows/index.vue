@@ -858,6 +858,10 @@ function openTypeModal() {
 }
 
 function componentLabel(key: string) { return t(`admin.workflow.componentLabels.${key}`) }
+function paletteComponentLabel(key: string) {
+  const node = definition.value.nodes.find((candidate) => candidate.contentOrder?.includes(`component:${key}`))
+  return node?.name?.trim() || componentLabel(key)
+}
 function fieldTypeLabel(type: WorkflowFieldType) { return t(`admin.workflow.fieldTypes.${type}`) }
 function bindingLabel(binding: WorkflowFieldBinding) { return t(`admin.workflow.bindingLabels.${binding}`) }
 function boundFieldLabel(source: WorkflowSource, key: string) { return t(`admin.workflow.${source}FieldLabels.${key}`) }
@@ -1111,7 +1115,7 @@ onMounted(async () => {
                       <a-tag v-if="workflowSource" color="blue">{{ workbenchSourceLabel(workflowSource) }}</a-tag>
                       <small>{{ $t('admin.workflow.workbenchComponentsHint') }}</small>
                     </div>
-                    <button v-for="component in availableComponents" :key="component.key" type="button" class="designer-palette-item designer-palette-item--compact" :data-testid="`add-workflow-component-${component.key}`" :class="{ 'is-added': configuredComponents.includes(component.key) }" :aria-pressed="configuredComponents.includes(component.key)" :disabled="!canWrite" @click="toggleComponent(component.key, !configuredComponents.includes(component.key))"><span class="field-type-symbol"><CheckOutlined v-if="configuredComponents.includes(component.key)" /><PlusOutlined v-else /></span><span class="designer-palette-item__copy"><strong>{{ componentLabel(component.key) }}</strong><small>{{ $t(`admin.workflow.componentHints.${component.key}`) }}</small></span><span class="palette-state">{{ configuredComponents.includes(component.key) ? $t('admin.workflow.added') : $t('admin.workflow.add') }}</span></button>
+                    <button v-for="component in availableComponents" :key="component.key" type="button" class="designer-palette-item designer-palette-item--compact" :data-testid="`add-workflow-component-${component.key}`" :class="{ 'is-added': configuredComponents.includes(component.key) }" :aria-pressed="configuredComponents.includes(component.key)" :disabled="!canWrite" @click="toggleComponent(component.key, !configuredComponents.includes(component.key))"><span class="field-type-symbol"><CheckOutlined v-if="configuredComponents.includes(component.key)" /><PlusOutlined v-else /></span><span class="designer-palette-item__copy"><strong>{{ paletteComponentLabel(component.key) }}</strong><small>{{ $t(`admin.workflow.componentHints.${component.key}`) }}</small></span><span class="palette-state">{{ configuredComponents.includes(component.key) ? $t('admin.workflow.added') : $t('admin.workflow.add') }}</span></button>
                   </div>
                 </aside>
 

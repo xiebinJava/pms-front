@@ -54,6 +54,11 @@ test('workflow palette only exposes story list workbench for topic templates', (
   assert.match(template, /v-for="component in availableComponents"/)
 })
 
+test('workflow palette labels each workbench with the matching node name from the active template', () => {
+  assert.match(source, /function paletteComponentLabel\(key: string\)[\s\S]*?definition\.value\.nodes\.find\([\s\S]*?contentOrder\?\.includes\(`component:\$\{key\}`\)[\s\S]*?node\?\.name\?\.trim\(\)/)
+  assert.match(template, /<strong>\{\{ paletteComponentLabel\(component\.key\) \}\}<\/strong>/)
+})
+
 test('workflow palette exposes requirement execution only for requirement templates', () => {
   const registry = fs.readFileSync(new URL('../../../components/workflow/workflow-component-registry.ts', import.meta.url), 'utf8')
   const model = fs.readFileSync(new URL('./workflow-template-model.mjs', import.meta.url), 'utf8')
@@ -264,10 +269,19 @@ test('workbench cards render a read-only preview of the actual business content'
 
   for (const key of [
     'requirement-scope', 'solution-design', 'plan-resource-risk', 'development-control',
-    'story-list', 'business-acceptance', 'release-handover', 'value-review', 'knowledge-standard',
+    'story-list', 'requirement-receiving-analysis', 'business-acceptance', 'release-handover', 'value-review', 'knowledge-standard',
   ]) {
     assert.match(workbenchPreviewSource, new RegExp(`['"]${key}['"]`), `missing preview layout for ${key}`)
   }
+})
+
+test('requirement receiving preview mirrors the runtime filter, analysis, and decision sections', () => {
+  assert.match(workbenchPreviewSource, /'requirement-receiving-analysis':\s*\{[\s\S]*?filter[\s\S]*?analysis[\s\S]*?decision/)
+  assert.match(workbenchPreviewSource, /validity[\s\S]*?interpretation[\s\S]*?filterReasons/)
+  assert.match(workbenchPreviewSource, /category[\s\S]*?feasibilityScore[\s\S]*?roiScore[\s\S]*?strategicFitScore/)
+  assert.match(workbenchPreviewSource, /supplementNote[\s\S]*?decisionReason/)
+  assert.match(zhLocale, /'requirement-receiving-analysis':\s*\{[\s\S]*?需求过滤[\s\S]*?需求分析[\s\S]*?接收结论/)
+  assert.match(enLocale, /'requirement-receiving-analysis':\s*\{[\s\S]*?Requirement filter[\s\S]*?Requirement analysis[\s\S]*?Receiving decision/)
 })
 
 test('business workbench previews reuse the actual project-page section keys and table columns', () => {

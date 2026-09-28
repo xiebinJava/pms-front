@@ -101,6 +101,48 @@ const PREVIEW_LAYOUTS: Record<string, PreviewLayout> = {
     metricKeys: { total: 'developmentDetail.storyListTotal', inProgress: 'developmentDetail.storyListInProgress', testing: 'developmentDetail.storyListTesting', blocked: 'developmentDetail.storyListBlocked', done: 'developmentDetail.storyListDone' },
     blocks: [{ key: 'stories', kind: 'table', titleKey: 'developmentDetail.storyListTitle', hintKey: 'developmentDetail.storyListSearch', columns: ['story', 'owner', 'points', 'dueDate', 'progress', 'status'], columnKeys: { story: 'admin.workflow.workbenchPreview.layouts.story-list.columns.story', owner: 'developmentDetail.storyListOwner', points: 'developmentDetail.storyListPoints', dueDate: 'developmentDetail.storyListDueDate', progress: 'developmentDetail.storyListProgress', status: 'admin.workflow.workbenchPreview.layouts.story-list.columns.status' } }],
   },
+  'requirement-receiving-analysis': {
+    titleKey: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.title',
+    hintKey: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.hint',
+    metrics: ['validity', 'value', 'decision'],
+    metricKeys: {
+      validity: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.metrics.validity',
+      value: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.metrics.value',
+      decision: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.metrics.decision',
+    },
+    blocks: [
+      {
+        key: 'filter', kind: 'form', titleKey: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.blocks.filter', hintKey: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.blocks.filterHint',
+        columns: ['validity', 'interpretation', 'filterReasons', 'filterNote'],
+        columnKeys: {
+          validity: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.validity',
+          interpretation: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.interpretation',
+          filterReasons: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.filterReasons',
+          filterNote: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.filterNote',
+        },
+      },
+      {
+        key: 'analysis', kind: 'form', titleKey: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.blocks.analysis', hintKey: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.blocks.analysisHint',
+        columns: ['category', 'feasibilityScore', 'roiScore', 'strategicFitScore', 'analysisConclusion'],
+        columnKeys: {
+          category: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.category',
+          feasibilityScore: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.feasibilityScore',
+          roiScore: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.roiScore',
+          strategicFitScore: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.strategicFitScore',
+          analysisConclusion: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.analysisConclusion',
+        },
+      },
+      {
+        key: 'decision', kind: 'form', titleKey: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.blocks.decision', hintKey: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.blocks.decisionHint',
+        columns: ['decision', 'supplementNote', 'decisionReason'],
+        columnKeys: {
+          decision: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.decision',
+          supplementNote: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.supplementNote',
+          decisionReason: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.decisionReason',
+        },
+      },
+    ],
+  },
   'requirement-execution': {
     metrics: ['target', 'status', 'history'],
     blocks: [{ key: 'target', kind: 'table', columns: ['targetType', 'target', 'owner', 'status'] }],
