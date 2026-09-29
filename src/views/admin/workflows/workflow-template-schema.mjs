@@ -49,17 +49,17 @@ const DEFAULT_PROJECT_FIELDS = Object.freeze([
 ])
 
 export const DEFAULT_REQUIREMENT_RECEIVING_ANALYSIS_CONFIG = Object.freeze({
-  showFilter: true,
+  showFilter: false,
   showAnalysis: true,
   showDecision: true,
   requireCategory: true,
-  showFeasibilityScore: true,
-  requireFeasibilityScore: true,
-  showRoiScore: true,
-  requireRoiScore: true,
+  showFeasibilityScore: false,
+  requireFeasibilityScore: false,
+  showRoiScore: false,
+  requireRoiScore: false,
   showStrategicFitScore: true,
   requireStrategicFitScore: true,
-  requireAnalysisConclusion: true,
+  requireAnalysisConclusion: false,
   allowReject: true,
 })
 

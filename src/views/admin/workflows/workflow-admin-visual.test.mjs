@@ -68,12 +68,12 @@ test('workflow palette exposes requirement execution only for requirement templa
   assert.match(model, /processTypeCode === 'requirement-management'/)
 })
 
-test('requirement management palette keeps only receiving analysis as its workbench', () => {
+test('requirement management keeps receiving and execution as runtime components', () => {
   const registry = fs.readFileSync(new URL('../../../components/workflow/workflow-component-registry.ts', import.meta.url), 'utf8')
-  assert.match(registry, /REQUIREMENT_RECEIVING_ANALYSIS[\s\S]*workbenchTypes: \['requirement'\]/)
-  assert.match(registry, /REQUIREMENT_EXECUTION[\s\S]*workbenchTypes: \[\]/)
-  assert.match(registry, /REQUIREMENT_SCOPE[\s\S]*workbenchTypes: \['project', 'topic', 'story'\]/)
-  assert.match(registry, /SOLUTION_DESIGN[\s\S]*workbenchTypes: \['project', 'topic', 'story'\]/)
+  assert.match(registry, /key: WorkflowRuntimeComponentKey\.REQUIREMENT_RECEIVING_ANALYSIS,[\s\S]*?workbenchTypes: \[\]/)
+  assert.match(registry, /key: WorkflowRuntimeComponentKey\.REQUIREMENT_EXECUTION,[\s\S]*?workbenchTypes: \[\]/)
+  assert.match(registry, /key: WorkflowRuntimeComponentKey\.REQUIREMENT_SCOPE,[\s\S]*?workbenchTypes: \['project', 'topic', 'story'\]/)
+  assert.match(registry, /key: WorkflowRuntimeComponentKey\.SOLUTION_DESIGN,[\s\S]*?workbenchTypes: \['project', 'topic', 'story'\]/)
 })
 
 test('workflow palette exposes requirement record bindings through the unified bound-data filter', () => {
@@ -275,13 +275,45 @@ test('workbench cards render a read-only preview of the actual business content'
   }
 })
 
-test('requirement receiving preview mirrors the runtime filter, analysis, and decision sections', () => {
-  assert.match(workbenchPreviewSource, /'requirement-receiving-analysis':\s*\{[\s\S]*?filter[\s\S]*?analysis[\s\S]*?decision/)
-  assert.match(workbenchPreviewSource, /validity[\s\S]*?interpretation[\s\S]*?filterReasons/)
-  assert.match(workbenchPreviewSource, /category[\s\S]*?feasibilityScore[\s\S]*?roiScore[\s\S]*?strategicFitScore/)
-  assert.match(workbenchPreviewSource, /supplementNote[\s\S]*?decisionReason/)
-  assert.match(zhLocale, /'requirement-receiving-analysis':\s*\{[\s\S]*?需求过滤[\s\S]*?需求分析[\s\S]*?接收结论/)
-  assert.match(enLocale, /'requirement-receiving-analysis':\s*\{[\s\S]*?Requirement filter[\s\S]*?Requirement analysis[\s\S]*?Receiving decision/)
+test('requirement development template preview follows the runtime target tree and stays within its card', () => {
+  assert.match(source, /function previewComponentConfig\(componentKey: string\)/)
+  assert.match(source, /nodeName:\s*currentNode\.value\?\.name\s*\|\|\s*''/)
+  assert.match(template, /:component-config="previewComponentConfig\(contentItem\.slice\('component:'\.length\)\)"/)
+  assert.match(workbenchPreviewSource, /isRequirementDevelopment/)
+  assert.match(workbenchPreviewSource, /data-testid="requirement-development-template-preview"/)
+  assert.match(workbenchPreviewSource, /workflow-workbench-preview__tree-table/)
+  assert.match(workbenchPreviewSource, /grid-template-columns:\s*minmax\(0,/)
+  assert.doesNotMatch(workbenchPreviewSource, /grid-template-columns:\s*repeat\(var\(--preview-columns, 4\), minmax\(96px, 1fr\)\)/)
+  assert.doesNotMatch(workbenchPreviewSource, /min-width:\s*max-content/)
+})
+
+test('requirement receiving preview only exposes the three retained single-select fields', () => {
+  assert.match(workbenchPreviewSource, /'requirement-receiving-analysis':\s*\{[\s\S]*?category[\s\S]*?strategicFitScore[\s\S]*?decision/)
+  assert.doesNotMatch(workbenchPreviewSource, /validity|interpretation|filterReasons|feasibilityScore|roiScore|analysisConclusion|averageScore/)
+  assert.match(zhLocale, /'requirement-receiving-analysis':\s*\{[\s\S]*?需求分类[\s\S]*?战略契合度[\s\S]*?接收结论/)
+  assert.doesNotMatch(zhLocale, /'requirement-receiving-analysis':\s*\{[\s\S]*?可实现性[\s\S]*?ROI[\s\S]*?综合价值/)
+  assert.match(enLocale, /'requirement-receiving-analysis':\s*\{[\s\S]*?Requirement category[\s\S]*?Strategic fit[\s\S]*?Receiving decision/)
+})
+
+test('requirement integration preview only exposes the conditional integration fields', () => {
+  assert.match(workbenchPreviewSource, /isRequirementIntegrationNode/)
+  assert.match(workbenchPreviewSource, /isRequirementNodeWorkbench && isRequirementIntegration/)
+  assert.match(workbenchPreviewSource, /是否整合需求/)
+  assert.match(workbenchPreviewSource, /选择“是”后显示，可多选/)
+  assert.match(workbenchPreviewSource, /确认需求规格/)
+  assert.match(workbenchPreviewSource, /项目 \/ 专题 \/ 故事/)
+})
+
+test('requirement scheduling demo and preview expose target binding and expected launch range', () => {
+  const demoSource = fs.readFileSync(new URL('./RequirementWorkbenchDemo.vue', import.meta.url), 'utf8')
+  assert.match(demoSource, /name: '需求排期'/)
+  assert.match(demoSource, /目标项目/)
+  assert.match(demoSource, /目标专题/)
+  assert.match(demoSource, /目标故事/)
+  assert.match(demoSource, /期望上线时间/)
+  assert.match(demoSource, /isSchedulingNode/)
+  assert.match(workbenchPreviewSource, /isRequirementSchedulingNode/)
+  assert.match(workbenchPreviewSource, /requirement-scheduling-template-fields/)
 })
 
 test('business workbench previews reuse the actual project-page section keys and table columns', () => {
@@ -438,4 +470,12 @@ test('legacy custom field slot does not move the project profile click-away anch
   assert.match(detailPage, /<div v-if="activeNodeFieldsSlot\.length" ref="profileContainer" class="node-tab-profile"/)
   assert.match(detailPage, /<div v-if="activeNodeLegacyCustomFields\.length" class="node-tab-profile workflow-legacy-custom-fields"/)
   assert.doesNotMatch(detailPage, /activeNodeLegacyCustomFields\.length" ref="profileContainer"/)
+})
+
+test('requirement workflow exposes the node-specific workbench and editable demo entry', () => {
+  const registry = fs.readFileSync(new URL('../../../components/workflow/workflow-component-registry.ts', import.meta.url), 'utf8')
+  assert.match(registry, /REQUIREMENT_NODE_WORKBENCH:\s*'requirement-node-workbench'/)
+  assert.match(source, /getRequirementNodeWorkbenchComponent/)
+  assert.match(source, /RequirementWorkbenchDemo/)
+  assert.match(source, /requirementWorkbenchDemoOpen/)
 })

@@ -1,4 +1,4 @@
-import type { WorkflowFieldDefinition, WorkflowNodeDefinition, WorkflowNodeDefinitionV2, WorkflowProjectFieldDefinition } from '../../../types/workflow'
+import type { WorkflowComponentConfig, WorkflowFieldDefinition, WorkflowNodeDefinition, WorkflowNodeDefinitionV2, WorkflowProjectFieldDefinition } from '../../../types/workflow'
 
 export const FIXED_NODE_BLOCKS: readonly ('owner' | 'schedule' | 'task-board')[]
 export type WorkflowProcessSource = 'project' | 'requirement' | 'topic' | 'story'
@@ -24,5 +24,5 @@ export function addWorkflowField(node: WorkflowNodeDefinitionV2, options?: Parti
 export function removeWorkflowField(node: WorkflowNodeDefinitionV2, fieldKey: string): WorkflowNodeDefinitionV2
 export function moveWorkflowField(node: WorkflowNodeDefinitionV2, fieldKey: string, toIndex: number): WorkflowNodeDefinitionV2
 export function moveWorkflowContentItem(node: WorkflowNodeDefinitionV2, contentItem: string, toIndex: number): WorkflowNodeDefinitionV2
-export function addWorkflowComponent(node: WorkflowNodeDefinitionV2, componentKey: string): WorkflowNodeDefinitionV2
+export function addWorkflowComponent(node: WorkflowNodeDefinitionV2, componentKey: string, config?: WorkflowComponentConfig): WorkflowNodeDefinitionV2
 export function removeWorkflowComponent(node: WorkflowNodeDefinitionV2, componentKey: string): WorkflowNodeDefinitionV2

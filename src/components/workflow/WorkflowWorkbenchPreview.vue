@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { isRequirementClarificationNode, isRequirementIntegrationNode, isRequirementSchedulingNode } from './requirement-node-workbench.mjs'
 
 type PreviewBlockKind = 'table' | 'split' | 'form' | 'board'
 
@@ -25,10 +26,29 @@ interface PreviewLayout {
 
 const props = defineProps<{
   componentKey: string
+  componentConfig?: unknown
 }>()
 
 const { t } = useI18n()
 const isRequirementScope = computed(() => props.componentKey === 'requirement-scope')
+const isRequirementNodeWorkbench = computed(() => props.componentKey === 'requirement-node-workbench')
+const componentConfigRecord = computed<Record<string, unknown>>(() => props.componentConfig && typeof props.componentConfig === 'object'
+  ? props.componentConfig as Record<string, unknown>
+  : {})
+const requirementNodeWorkbenchName = computed(() => typeof componentConfigRecord.value.nodeName === 'string' ? componentConfigRecord.value.nodeName : '')
+const isRequirementClarification = computed(() => isRequirementClarificationNode(requirementNodeWorkbenchName.value))
+const isRequirementIntegration = computed(() => isRequirementIntegrationNode(requirementNodeWorkbenchName.value))
+const isRequirementScheduling = computed(() => isRequirementSchedulingNode(requirementNodeWorkbenchName.value))
+const isRequirementDevelopment = computed(() => {
+  const isRequirementExecutionPreview = props.componentKey === 'requirement-execution' || props.componentKey === 'requirement-node-workbench'
+  return isRequirementExecutionPreview && requirementNodeWorkbenchName.value.includes('需求开发')
+})
+const isRequirementNodeSpecificPreview = computed(() => isRequirementDevelopment.value
+  || (isRequirementNodeWorkbench.value && (isRequirementClarification.value || isRequirementIntegration.value || isRequirementScheduling.value)))
+const requirementNodeWorkbenchPurpose = computed(() => typeof componentConfigRecord.value.purpose === 'string' ? componentConfigRecord.value.purpose : '')
+const requirementNodeWorkbenchActivities = computed(() => Array.isArray(componentConfigRecord.value.activities)
+  ? componentConfigRecord.value.activities.filter((activity): activity is string => typeof activity === 'string')
+  : [])
 
 const PREVIEW_LAYOUTS: Record<string, PreviewLayout> = {
   'requirement-scope': {
@@ -104,42 +124,20 @@ const PREVIEW_LAYOUTS: Record<string, PreviewLayout> = {
   'requirement-receiving-analysis': {
     titleKey: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.title',
     hintKey: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.hint',
-    metrics: ['validity', 'value', 'decision'],
-    metricKeys: {
-      validity: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.metrics.validity',
-      value: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.metrics.value',
-      decision: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.metrics.decision',
-    },
+    metrics: [],
     blocks: [
       {
-        key: 'filter', kind: 'form', titleKey: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.blocks.filter', hintKey: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.blocks.filterHint',
-        columns: ['validity', 'interpretation', 'filterReasons', 'filterNote'],
-        columnKeys: {
-          validity: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.validity',
-          interpretation: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.interpretation',
-          filterReasons: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.filterReasons',
-          filterNote: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.filterNote',
-        },
-      },
-      {
         key: 'analysis', kind: 'form', titleKey: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.blocks.analysis', hintKey: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.blocks.analysisHint',
-        columns: ['category', 'feasibilityScore', 'roiScore', 'strategicFitScore', 'analysisConclusion'],
+        columns: ['category', 'strategicFitScore'],
         columnKeys: {
           category: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.category',
-          feasibilityScore: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.feasibilityScore',
-          roiScore: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.roiScore',
           strategicFitScore: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.strategicFitScore',
-          analysisConclusion: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.analysisConclusion',
         },
       },
       {
         key: 'decision', kind: 'form', titleKey: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.blocks.decision', hintKey: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.blocks.decisionHint',
-        columns: ['decision', 'supplementNote', 'decisionReason'],
-        columnKeys: {
-          decision: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.decision',
-          supplementNote: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.supplementNote',
-          decisionReason: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.decisionReason',
-        },
+        columns: ['decision'],
+        columnKeys: { decision: 'admin.workflow.workbenchPreview.layouts.requirement-receiving-analysis.columns.decision' },
       },
     ],
   },
@@ -247,7 +245,7 @@ function componentHint(): string {
 
 <template>
   <section class="workflow-workbench-preview" :data-workbench-preview="componentKey" :aria-label="componentLabel()">
-    <header class="workflow-workbench-preview__header">
+    <header v-if="!isRequirementNodeSpecificPreview" class="workflow-workbench-preview__header">
       <div class="workflow-workbench-preview__heading">
         <span>{{ componentLabel() }}</span>
         <strong>{{ isRequirementScope ? $t('detail.requirementScope.scopeTitle') : layoutTitle() }}</strong>
@@ -256,7 +254,7 @@ function componentHint(): string {
       <a-tag color="blue">{{ $t('admin.workflow.workbenchPreview.readOnly') }}</a-tag>
     </header>
 
-    <p v-if="!isRequirementScope" class="workflow-workbench-preview__hint">{{ $t('admin.workflow.workbenchPreview.readOnlyHint') }}</p>
+    <p v-if="!isRequirementScope && !isRequirementNodeSpecificPreview" class="workflow-workbench-preview__hint">{{ $t('admin.workflow.workbenchPreview.readOnlyHint') }}</p>
 
     <template v-if="isRequirementScope">
       <span class="workflow-workbench-preview__actual-count">0 {{ $t('detail.requirementScope.items') }}</span>
@@ -307,8 +305,84 @@ function componentHint(): string {
       </section>
     </template>
 
+    <template v-else-if="isRequirementDevelopment">
+      <section class="workflow-workbench-preview__tree-panel" data-testid="requirement-development-template-preview">
+        <div class="workflow-workbench-preview__tree-context">
+          <span>目标项目 / 目标专题 / 目标故事</span>
+          <strong>关联对象</strong>
+          <small>根据需求排期节点选择的目标对象展示下级开发情况</small>
+        </div>
+        <div class="workflow-workbench-preview__tree-table">
+          <div class="workflow-workbench-preview__tree-head">
+            <span>对象</span>
+            <span>开发进度</span>
+            <span>状态</span>
+            <span>负责人</span>
+          </div>
+          <div class="workflow-workbench-preview__tree-row workflow-workbench-preview__tree-row--root">
+            <strong>目标项目 / 目标专题 / 目标故事</strong>
+            <span>—</span>
+            <span>未开始</span>
+            <span>待分配</span>
+          </div>
+          <div class="workflow-workbench-preview__tree-row workflow-workbench-preview__tree-row--child">
+            <span>└ 专题 / 故事</span>
+            <span>—</span>
+            <span>未开始</span>
+            <span>待分配</span>
+          </div>
+          <div class="workflow-workbench-preview__tree-row workflow-workbench-preview__tree-row--child">
+            <span>└ 故事</span>
+            <span>—</span>
+            <span>未开始</span>
+            <span>待分配</span>
+          </div>
+        </div>
+        <small class="workflow-workbench-preview__tree-hint">实际使用时加载关联项目、专题或故事的真实开发数据。</small>
+      </section>
+    </template>
+
+    <template v-else-if="isRequirementNodeWorkbench && isRequirementClarification">
+      <section class="workflow-workbench-preview__clarification-fields" data-testid="requirement-clarification-template-fields">
+        <div><span>需求背景及目标</span><i>待填写</i></div>
+        <div><span>需求验收标准</span><i>待填写</i></div>
+        <div><span>澄清结论</span><i>请选择</i></div>
+      </section>
+    </template>
+
+    <template v-else-if="isRequirementNodeWorkbench && isRequirementIntegration">
+      <section class="workflow-workbench-preview__clarification-fields" data-testid="requirement-integration-template-fields">
+        <div><span>是否整合需求</span><i>是 / 否</i></div>
+        <div><span>选择需求</span><i>选择“是”后显示，可多选</i></div>
+        <div><span>确认需求规格</span><i>项目 / 专题 / 故事</i></div>
+      </section>
+    </template>
+
+    <template v-else-if="isRequirementNodeWorkbench && isRequirementScheduling">
+      <section class="workflow-workbench-preview__clarification-fields" data-testid="requirement-scheduling-template-fields">
+        <div><span>目标对象</span><i>跟随需求规格显示目标项目 / 目标专题 / 目标故事，并加载对应下拉选项</i></div>
+        <div><span>期望上线时间</span><i>日期范围</i></div>
+      </section>
+    </template>
+
+    <template v-else-if="isRequirementNodeWorkbench">
+      <div class="workflow-workbench-preview__node-workbench">
+        <div class="workflow-workbench-preview__node-workbench-heading">
+          <strong>{{ requirementNodeWorkbenchName || layoutTitle() }}</strong>
+          <span>{{ $t('admin.workflow.workbenchPreview.structureOnly') }}</span>
+        </div>
+        <p v-if="requirementNodeWorkbenchPurpose">{{ requirementNodeWorkbenchPurpose }}</p>
+        <ol>
+          <li v-for="(activity, index) in requirementNodeWorkbenchActivities" :key="`${index}-${activity}`">
+            <span>{{ index + 1 }}</span>
+            <strong>{{ activity }}</strong>
+          </li>
+        </ol>
+      </div>
+    </template>
+
     <template v-else>
-      <div class="workflow-workbench-preview__metrics">
+      <div v-if="layout.metrics.length" class="workflow-workbench-preview__metrics">
         <div v-for="metric in layout.metrics" :key="metric">
           <span>{{ metricText(metric) }}</span>
           <strong>—</strong>
@@ -400,11 +474,22 @@ function componentHint(): string {
 .workflow-workbench-preview__block-heading strong { color: var(--pms-text); font-size: var(--pms-font-size-compact); }
 .workflow-workbench-preview__block-heading p { margin: var(--pms-space-1) 0 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-normal); }
 .workflow-workbench-preview__table { display: grid; gap: 0; overflow-x: auto; border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); }
-.workflow-workbench-preview__table-head, .workflow-workbench-preview__table-row { display: grid; grid-template-columns: repeat(var(--preview-columns, 4), minmax(96px, 1fr)); min-width: max-content; gap: var(--pms-space-2); align-items: center; padding: var(--pms-space-2); }
+.workflow-workbench-preview__table-head, .workflow-workbench-preview__table-row { display: grid; grid-template-columns: repeat(var(--preview-columns, 4), minmax(0, 1fr)); min-width: 0; gap: var(--pms-space-2); align-items: center; padding: var(--pms-space-2); }
 .workflow-workbench-preview__table-head { color: var(--pms-text-muted); background: var(--pms-surface-muted); font-size: var(--pms-font-size-caption); font-weight: 650; }
 .workflow-workbench-preview__table-row { border-top: 1px solid var(--pms-border); }
 .workflow-workbench-preview__table-row i { display: block; height: var(--pms-space-2); background: var(--pms-border); border-radius: var(--pms-radius-sm); }
 .workflow-workbench-preview__table small { padding: var(--pms-space-2); color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
+.workflow-workbench-preview__tree-panel { display: grid; gap: 0; overflow: hidden; background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); }
+.workflow-workbench-preview__tree-context { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--pms-space-2); padding: var(--pms-space-3); color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); }
+.workflow-workbench-preview__tree-context strong { color: var(--pms-text); }
+.workflow-workbench-preview__tree-context small { flex-basis: 100%; color: var(--pms-text-faint); }
+.workflow-workbench-preview__tree-head, .workflow-workbench-preview__tree-row { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr) minmax(0, .72fr) minmax(0, .85fr); gap: var(--pms-space-2); align-items: center; min-width: 0; padding: var(--pms-space-2) var(--pms-space-3); }
+.workflow-workbench-preview__tree-head { color: var(--pms-text-faint); background: var(--pms-surface-muted); border-top: 1px solid var(--pms-border); border-bottom: 1px solid var(--pms-border); font-size: var(--pms-font-size-caption); }
+.workflow-workbench-preview__tree-row { min-height: 34px; color: var(--pms-text-muted); border-bottom: 1px solid var(--pms-border); font-size: var(--pms-font-size-caption); }
+.workflow-workbench-preview__tree-row > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workflow-workbench-preview__tree-row--root { color: var(--pms-text); background: var(--pms-surface); }
+.workflow-workbench-preview__tree-row--child { padding-left: calc(var(--pms-space-3) + var(--pms-space-3)); background: var(--pms-surface-muted); }
+.workflow-workbench-preview__tree-hint { padding: var(--pms-space-2) var(--pms-space-3); color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
 .workflow-workbench-preview__split, .workflow-workbench-preview__board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--pms-space-2); }
 .workflow-workbench-preview__split > div, .workflow-workbench-preview__board > div { display: grid; gap: var(--pms-space-2); min-height: var(--pms-space-8); padding: var(--pms-space-2); background: var(--pms-surface-muted); border: 1px dashed var(--pms-border-strong); border-radius: var(--pms-radius-sm); }
 .workflow-workbench-preview__split strong, .workflow-workbench-preview__board strong { color: var(--pms-text); font-size: var(--pms-font-size-caption); }
@@ -413,6 +498,19 @@ function componentHint(): string {
 .workflow-workbench-preview__form > div { display: grid; gap: var(--pms-space-2); min-width: 0; padding: var(--pms-space-2); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); }
 .workflow-workbench-preview__form span { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); }
 .workflow-workbench-preview__form i { overflow: hidden; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.workflow-workbench-preview__node-workbench { display: grid; gap: var(--pms-space-2); padding: var(--pms-space-3); background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); }
+.workflow-workbench-preview__node-workbench-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--pms-space-2); }
+.workflow-workbench-preview__node-workbench-heading strong { color: var(--pms-text); font-size: var(--pms-font-size-compact); }
+.workflow-workbench-preview__node-workbench-heading span, .workflow-workbench-preview__node-workbench p { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
+.workflow-workbench-preview__node-workbench p { margin: 0; line-height: var(--pms-line-height-normal); }
+.workflow-workbench-preview__node-workbench ol { display: grid; gap: var(--pms-space-2); margin: 0; padding: 0; list-style: none; }
+.workflow-workbench-preview__node-workbench li { display: flex; align-items: center; gap: var(--pms-space-2); min-height: 30px; padding: 0 var(--pms-space-2); background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); }
+.workflow-workbench-preview__node-workbench li > span { display: inline-grid; width: 20px; height: 20px; place-items: center; color: var(--pms-primary); background: var(--pms-primary-soft); border-radius: 50%; font-size: var(--pms-font-size-caption); font-weight: 700; }
+.workflow-workbench-preview__node-workbench li strong { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); }
+.workflow-workbench-preview__clarification-fields { display: grid; gap: var(--pms-space-2); }
+.workflow-workbench-preview__clarification-fields > div { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: var(--pms-space-3); align-items: center; min-height: 34px; padding: 0 var(--pms-space-3); background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: var(--pms-radius-sm); }
+.workflow-workbench-preview__clarification-fields span { color: var(--pms-text-muted); font-size: var(--pms-font-size-caption); }
+.workflow-workbench-preview__clarification-fields i { color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); font-style: normal; }
 @media (max-width: 700px) {
   .workflow-workbench-preview__scope-columns { grid-template-columns: minmax(0, 1fr); }
   .workflow-workbench-preview__requirements-table { overflow-x: auto; }
@@ -420,5 +518,7 @@ function componentHint(): string {
   .workflow-workbench-preview__metrics, .workflow-workbench-preview__form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .workflow-workbench-preview__table { overflow-x: auto; }
   .workflow-workbench-preview__table-head, .workflow-workbench-preview__table-row { min-width: 420px; }
+  .workflow-workbench-preview__tree-table { overflow-x: auto; }
+  .workflow-workbench-preview__tree-head, .workflow-workbench-preview__tree-row { min-width: 420px; }
 }
 </style>

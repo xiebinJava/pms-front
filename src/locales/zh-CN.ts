@@ -1429,12 +1429,12 @@ const zhCN = {
       builtInComponents: '可复用工作台组件', componentsHint: '可将现有业务工作台放入任意节点；完成校验仍由对应业务组件负责。',
       componentLabels: {
         'project-basic-info': '项目基本信息', 'requirement-scope': '需求范围与基线', 'solution-design': '方案设计与评审',
-         'plan-resource-risk': '计划、资源与风险', 'development-control': '专题列表工作台', 'story-list': '故事列表工作台', 'story-split': '故事拆分', 'requirement-execution': '需求交付目标', 'requirement-receiving-analysis': '需求接收与分析', 'business-acceptance': '业务验收与缺陷',
+         'plan-resource-risk': '计划、资源与风险', 'development-control': '专题列表工作台', 'story-list': '故事列表工作台', 'story-split': '故事拆分', 'requirement-execution': '需求交付目标', 'requirement-receiving-analysis': '需求接收与分析', 'requirement-node-workbench': '需求节点工作台', 'business-acceptance': '业务验收与缺陷',
         'release-handover': '发布决策与交接', 'value-review': '价值验证与复盘', 'knowledge-standard': '知识沉淀与改进',
       },
       componentHints: {
         'project-basic-info': '将项目标准字段放入节点详情', 'requirement-scope': '复用需求管理工作台', 'solution-design': '复用方案评审工作台',
-         'plan-resource-risk': '复用迭代计划与风险工作台', 'development-control': '复用专题列表工作台', 'story-list': '仅在专题管理流程中创建和维护故事', 'story-split': '复用故事拆分工作台', 'requirement-execution': '在需求流程中选择一个项目、专题或故事作为交付目标', 'requirement-receiving-analysis': '解释、过滤、分析并决定是否接收需求', 'business-acceptance': '复用业务验收工作台',
+         'plan-resource-risk': '复用迭代计划与风险工作台', 'development-control': '复用专题列表工作台', 'story-list': '仅在专题管理流程中创建和维护故事', 'story-split': '复用故事拆分工作台', 'requirement-execution': '在需求流程中选择一个项目、专题或故事作为交付目标', 'requirement-receiving-analysis': '确认需求分类和战略契合度后，决定是否接收需求', 'requirement-node-workbench': '按当前需求节点展示并执行节点活动', 'business-acceptance': '复用业务验收工作台',
         'release-handover': '复用发布与交接工作台', 'value-review': '复用价值复盘工作台', 'knowledge-standard': '复用知识沉淀工作台',
       },
       projectFieldLabels: { description: '项目描述', priority: '优先级', projectLevel: '项目等级', schedule: '项目排期', businessLine: '业务线', projectManager: '项目经理', projectMembers: '项目成员', followers: '关注人' },
@@ -1459,7 +1459,7 @@ const zhCN = {
            'plan-resource-risk': { metrics: { iterations: '迭代计划', resources: '资源投入', risks: '风险项' }, blocks: { iteration: '迭代计划', resource: '资源投入', risk: '风险清单' }, columns: { iteration: '迭代', schedule: '计划排期', status: '状态', role: '角色', person: '人员', capacity: '投入', risk: '风险', owner: '负责人' } },
            'development-control': { metrics: { topics: '专题', stories: '故事', progress: '项目开发进度', blockedStories: '阻塞故事' }, blocks: { topics: '项目开发树', topicsHint: '项目 → 专题 → 故事' }, columns: { topic: '名称', progress: '进度', storySummary: '故事概览', storyProgress: '故事进度', owner: '负责人', status: '状态' } },
            'story-list': { metrics: { stories: '故事数', inProgress: '进行中', completed: '已完成' }, blocks: { stories: '故事列表' }, columns: { story: '故事名称', owner: '负责人', progress: '进度', status: '状态' } },
-           'requirement-receiving-analysis': { title: '需求接收与分析', hint: '解释、过滤、检视需求，并评估需求价值后决定是否接收。', metrics: { validity: '需求有效性', value: '综合价值', decision: '接收结论' }, blocks: { filter: '一、需求过滤', filterHint: '先判断需求是否有效、是否值得进入后续分析。', analysis: '二、需求分析', analysisHint: '分类、排序，并从可实现性、ROI、战略契合度评估价值。', decision: '三、接收结论', decisionHint: '结论必须与有效性判断一致。' }, columns: { validity: '有效性', interpretation: '需求解释', filterReasons: '过滤原因', filterNote: '其他过滤备注', category: '需求分类', feasibilityScore: '可实现性', roiScore: 'ROI', strategicFitScore: '战略契合度', analysisConclusion: '分析结论', decision: '接收结论', supplementNote: '补充说明', decisionReason: '驳回原因' } },
+           'requirement-receiving-analysis': { title: '需求接收与分析', hint: '确认需求分类和战略契合度后，决定是否接收需求。', metrics: {}, blocks: { analysis: '需求分析', analysisHint: '确认需求分类和战略契合度。', decision: '接收结论', decisionHint: '确认需求是否进入后续流程。' }, columns: { category: '需求分类', strategicFitScore: '战略契合度', decision: '接收结论' } },
            'requirement-execution': { metrics: { target: '执行对象', status: '关联状态', history: '变更记录' }, blocks: { target: '执行对象', history: '变更历史' }, columns: { targetType: '类型', target: '对象', owner: '负责人', status: '状态' } },
            'story-split': { metrics: { stories: '故事数', inProgress: '进行中', completed: '已完成' }, blocks: { stories: '故事列表' }, columns: { story: '故事名称', owner: '负责人', status: '状态' } },
            'business-acceptance': { metrics: { acceptanceItems: '验收项', defects: '缺陷数', passRate: '通过率' }, blocks: { acceptance: '验收清单', defect: '缺陷列表' }, columns: { acceptanceItem: '验收项', owner: '负责人', status: '状态', defect: '缺陷', severity: '严重程度' } },

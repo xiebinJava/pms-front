@@ -1,6 +1,7 @@
 export const WorkflowRuntimeComponentKey = Object.freeze({
   REQUIREMENT_EXECUTION: 'requirement-execution',
   REQUIREMENT_RECEIVING_ANALYSIS: 'requirement-receiving-analysis',
+  REQUIREMENT_NODE_WORKBENCH: 'requirement-node-workbench',
   REQUIREMENT_SCOPE: 'requirement-scope',
   SOLUTION_DESIGN: 'solution-design',
   PLAN_RESOURCE_RISK: 'plan-resource-risk',
@@ -26,7 +27,8 @@ export interface WorkflowRuntimeComponentDefinition {
 
 export const WORKFLOW_RUNTIME_COMPONENTS: readonly WorkflowRuntimeComponentDefinition[] = Object.freeze([
   { key: WorkflowRuntimeComponentKey.REQUIREMENT_EXECUTION, label: '需求交付目标', slotName: 'requirement-execution', processTypeCodes: ['requirement-management'], workbenchTypes: [] },
-  { key: WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS, label: '需求接收与分析', slotName: 'requirement-receiving-analysis', processTypeCodes: ['requirement-management'], workbenchTypes: ['requirement'] },
+  { key: WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS, label: '需求接收与分析', slotName: 'requirement-receiving-analysis', processTypeCodes: ['requirement-management'], workbenchTypes: [] },
+  { key: WorkflowRuntimeComponentKey.REQUIREMENT_NODE_WORKBENCH, label: '需求节点工作台', slotName: 'requirement-node-workbench', processTypeCodes: ['requirement-management'], workbenchTypes: ['requirement'] },
   { key: WorkflowRuntimeComponentKey.REQUIREMENT_SCOPE, label: '需求范围', slotName: 'requirement-scope', workbenchTypes: ['project', 'topic', 'story'] },
   { key: WorkflowRuntimeComponentKey.SOLUTION_DESIGN, label: '方案设计', slotName: 'solution-design', workbenchTypes: ['project', 'topic', 'story'] },
   { key: WorkflowRuntimeComponentKey.PLAN_RESOURCE_RISK, label: '计划、资源与风险', slotName: 'plan-resource-risk', workbenchTypes: ['project', 'topic', 'story'] },

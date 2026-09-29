@@ -13,6 +13,7 @@ import type {
   OrgUnit,
   RequirementReceivingAnalysisConfig,
   RequirementReceivingAnalysisState,
+  RequirementExecutionTargetType,
 } from '/@/types/domain'
 import { buildBusinessLineOptions } from '/@/views/project/detail/workflow'
 import type { BusinessLineOption, PersonOption } from '/@/views/project/detail/workflow'
@@ -23,7 +24,9 @@ import DevelopmentItemTaskBoard from './components/DevelopmentItemTaskBoard.vue'
 import DevelopmentStorySplitComponent from './DevelopmentStorySplitComponent.vue'
 import DevelopmentStoryListComponent from './DevelopmentStoryListComponent.vue'
 import RequirementExecutionComponent from './RequirementExecutionComponent.vue'
+import RequirementDevelopmentTreeComponent from './RequirementDevelopmentTreeComponent.vue'
 import RequirementReceivingAnalysisComponent from './RequirementReceivingAnalysisComponent.vue'
+import RequirementNodeWorkbenchComponent from './RequirementNodeWorkbenchComponent.vue'
 import WorkflowNodeShell from '/@/components/workflow/WorkflowNodeShell.vue'
 import WorkflowRuntimeComponentHost from '/@/components/workflow/WorkflowRuntimeComponentHost.vue'
 import SourceRequirementList from '/@/components/development/SourceRequirementList.vue'
@@ -46,11 +49,45 @@ const loadError = ref(false)
 const savingNode = ref(false)
 const nodeFormDirty = ref(false)
 const completingNode = ref(false)
+const autoCompletedDevelopmentNodeKey = ref('')
 const rollingBack = ref(false)
 const rollbackModalOpen = ref(false)
 const rollbackReason = ref('')
 const selectedNodeId = ref<number>()
 const selectedNode = computed(() => detail.value?.nodes.find((node) => node.id === selectedNodeId.value))
+const requirementTargetSpecification = computed<RequirementExecutionTargetType | undefined>(() => {
+  if (props.itemType !== 'requirement' || !detail.value || !selectedNode.value) return undefined
+  const orderedNodes = [...detail.value.nodes].sort((left, right) => left.sort - right.sort)
+  const currentIndex = orderedNodes.findIndex((node) => node.id === selectedNode.value?.id)
+  const previousNode = currentIndex > 0 ? orderedNodes[currentIndex - 1] : undefined
+  const components = previousNode?.fieldValues?.__components
+  const state = components && typeof components === 'object' && !Array.isArray(components)
+    ? (components as Record<string, unknown>)['requirement-node-workbench']
+    : undefined
+  const specification = state && typeof state === 'object' && !Array.isArray(state)
+    ? (state as Record<string, unknown>).requirementSpecification
+    : undefined
+  return specification === 'PROJECT' || specification === 'TOPIC' || specification === 'STORY' ? specification : undefined
+})
+const requirementDevelopmentTarget = computed<{ targetType: RequirementExecutionTargetType; targetId: number } | undefined>(() => {
+  if (props.itemType !== 'requirement' || !detail.value || !selectedNode.value) return undefined
+  const orderedNodes = [...detail.value.nodes].sort((left, right) => left.sort - right.sort)
+  const currentIndex = orderedNodes.findIndex((node) => node.id === selectedNode.value?.id)
+  for (let index = currentIndex - 1; index >= 0; index -= 1) {
+    const components = orderedNodes[index]?.fieldValues?.__components
+    const workbenchState = components && typeof components === 'object' && !Array.isArray(components)
+      ? (components as Record<string, unknown>)['requirement-node-workbench']
+      : undefined
+    if (!workbenchState || typeof workbenchState !== 'object' || Array.isArray(workbenchState)) continue
+    const state = workbenchState as Record<string, unknown>
+    const targetType = state.targetType
+    const targetId = Number(state.targetId)
+    if ((targetType === 'PROJECT' || targetType === 'TOPIC' || targetType === 'STORY') && Number.isFinite(targetId)) {
+      return { targetType, targetId }
+    }
+  }
+  return undefined
+})
 const selectedNodeEditable = computed(() => selectedNode.value != null
   && !isNodeReadOnly(selectedNode.value.status) && !detail.value?.terminalStatus)
 const requirementTargetWritable = computed(() => props.itemType !== 'requirement' || userStore.can('requirement:write'))
@@ -295,6 +332,40 @@ function confirmCompleteNode() {
   })
 }
 
+async function autoCompleteDevelopmentNode() {
+  const node = selectedNode.value
+  const currentDetail = detail.value
+  const target = requirementDevelopmentTarget.value
+  if (props.itemType !== 'requirement'
+    || !currentDetail
+    || !node
+    || node.status !== 1
+    || currentDetail.terminalStatus
+    || !String(node.name || '').includes('需求开发')
+    || !target
+    || !requirementTargetWritable.value
+    || completingNode.value) return
+
+  const completionKey = `${currentDetail.id}:${node.id}:${target.targetType}:${target.targetId}`
+  if (autoCompletedDevelopmentNodeKey.value === completionKey) return
+  if (!(await saveNode())) return
+  if (selectedNode.value?.id !== node.id || selectedNode.value.status !== 1) return
+
+  autoCompletedDevelopmentNodeKey.value = completionKey
+  completingNode.value = true
+  try {
+    detail.value = await completeDevelopmentItemNode(props.itemType, currentDetail.id, node.id)
+    const next = detail.value.nodes.find((item) => item.status === 1) || node
+    setSelectedNode(next)
+    message.success(t('developmentDetail.nodeCompleted'))
+  } catch (error) {
+    autoCompletedDevelopmentNodeKey.value = ''
+    message.error(errorMessage(error, t('developmentDetail.completeFailed')))
+  } finally {
+    completingNode.value = false
+  }
+}
+
 function confirmRollbackNode() {
   const node = selectedNode.value
   if (!detail.value || !node || node.status !== 2) return
@@ -353,21 +424,19 @@ const receivingAnalysisState = computed(() => {
 })
 
 const receivingAnalysisConfig = computed<RequirementReceivingAnalysisConfig>(() => {
-  const config = selectedNode.value?.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]
   return {
-    showFilter: true,
+    showFilter: false,
     showAnalysis: true,
     showDecision: true,
     requireCategory: true,
-    showFeasibilityScore: true,
-    requireFeasibilityScore: true,
-    showRoiScore: true,
-    requireRoiScore: true,
+    showFeasibilityScore: false,
+    requireFeasibilityScore: false,
+    showRoiScore: false,
+    requireRoiScore: false,
     showStrategicFitScore: true,
     requireStrategicFitScore: true,
-    requireAnalysisConclusion: true,
+    requireAnalysisConclusion: false,
     allowReject: true,
-    ...(config || {}) as Partial<RequirementReceivingAnalysisConfig>,
   }
 })
 
@@ -568,7 +637,14 @@ onBeforeUnmount(() => {
                   v-else-if="props.itemType === 'requirement' && componentKey === WorkflowRuntimeComponentKey.REQUIREMENT_EXECUTION"
                   :component-key="componentKey"
                 >
+                  <RequirementDevelopmentTreeComponent
+                    v-if="String(selectedNode.name || '').includes('需求开发')"
+                    :target-type="requirementDevelopmentTarget?.targetType"
+                    :target-id="requirementDevelopmentTarget?.targetId"
+                    @all-completed="autoCompleteDevelopmentNode"
+                  />
                   <RequirementExecutionComponent
+                    v-else
                     :item-id="detail.id"
                     :target="detail.executionTarget"
                     :target-history="detail.executionTargetHistory"
@@ -593,6 +669,28 @@ onBeforeUnmount(() => {
                     :can-write="requirementTargetWritable && selectedNode.status !== 2"
                     :can-manage="requirementTargetManageable"
                     @updated="onReceivingAnalysisUpdated"
+                  />
+                </WorkflowRuntimeComponentHost>
+                <WorkflowRuntimeComponentHost
+                  v-else-if="props.itemType === 'requirement' && componentKey === WorkflowRuntimeComponentKey.REQUIREMENT_NODE_WORKBENCH"
+                  :component-key="componentKey"
+                >
+                  <RequirementDevelopmentTreeComponent
+                    v-if="String(selectedNode.name || '').includes('需求开发')"
+                    :target-type="requirementDevelopmentTarget?.targetType"
+                    :target-id="requirementDevelopmentTarget?.targetId"
+                    @all-completed="autoCompleteDevelopmentNode"
+                  />
+                  <RequirementNodeWorkbenchComponent
+                    v-else
+                    :node="selectedNode"
+                    :component-config="selectedNode.componentConfigs?.[componentKey]"
+                    :model-value="nodeForm.fieldValues"
+                    :current-requirement-id="detail.id"
+                    :target-specification="requirementTargetSpecification"
+                    :disabled="!selectedNodeEditable || savingNode"
+                    @update:model-value="onNodeFieldValuesChange"
+                    @commit="saveNode"
                   />
                 </WorkflowRuntimeComponentHost>
                 <WorkflowRuntimeComponentHost v-else :component-key="componentKey" />

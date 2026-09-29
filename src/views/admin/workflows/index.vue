@@ -29,6 +29,8 @@ import {
 import type { ProjectType, WorkflowContentOrderItem, WorkflowFieldBinding, WorkflowFieldDefinition, WorkflowFieldType, WorkflowNodeDefinitionV2, WorkflowProjectNodeOption, WorkflowTemplateDefinitionV2, WorkflowTemplateSummary, WorkflowTemplateVersionSummary } from '/@/types/workflow'
 import { isWorkflowFieldFullWidth } from '/@/utils/workflow-field-layout.mjs'
 import WorkflowWorkbenchPreview from '/@/components/workflow/WorkflowWorkbenchPreview.vue'
+import { createRequirementNodeWorkbenchConfig, getRequirementNodeWorkbenchComponent } from '/@/components/workflow/requirement-node-workbench.mjs'
+import RequirementWorkbenchDemo from '/@/views/admin/workflows/RequirementWorkbenchDemo.vue'
 import {
   FIXED_NODE_BLOCKS,
   addWorkflowField,
@@ -48,7 +50,6 @@ import {
   setStorySourceTopicNodeKey,
 } from './workflow-template-model.mjs'
 import {
-  DEFAULT_REQUIREMENT_RECEIVING_ANALYSIS_CONFIG,
   PROJECT_FIELD_BINDINGS,
   REQUIREMENT_FIELD_BINDINGS,
   STORY_FIELD_BINDINGS,
@@ -91,6 +92,7 @@ const deleteHoverKey = ref<string>()
 const contentDragItem = ref<WorkflowContentOrderItem>()
 const fieldDragKey = ref<string>()
 const previewOpen = ref(false)
+const requirementWorkbenchDemoOpen = ref(false)
 const versionModalOpen = ref(false)
 const typeModalOpen = ref(false)
 const mobileInspectorOpen = ref(false)
@@ -129,9 +131,18 @@ const orderedWorkflowTypes = computed(() => types.value
     return leftPriority - rightPriority || left.index - right.index
   })
   .map(({ type }) => type))
+const currentNode = computed(() => definition.value.nodes.find((node) => node.key === selectedNodeKey.value))
+const selectedNodeIndex = computed(() => definition.value.nodes.findIndex((node) => node.key === selectedNodeKey.value))
 const availableComponents = computed(() => {
   const source = workflowSource.value
   if (!source) return []
+  if (selectedType.value?.code === 'requirement-management') {
+    const expectedKey = getRequirementNodeWorkbenchComponent(currentNode.value, selectedNodeIndex.value)
+    if (!expectedKey) return []
+    return WORKFLOW_RUNTIME_COMPONENTS
+      .filter((component) => component.key === expectedKey)
+      .map(({ key, workbenchTypes }) => ({ key, workbenchTypes }))
+  }
   return WORKFLOW_RUNTIME_COMPONENTS
     .filter((component) => !component.processTypeCodes?.length || component.processTypeCodes.includes(selectedType.value?.code || ''))
     .filter((component) => component.workbenchTypes.includes(source))
@@ -145,7 +156,6 @@ const workflowEntryStep = computed(() => getWorkflowTemplateEntryStep({
   selectedTemplateId: selectedTemplateId.value,
   creatingTemplate: selectedTemplateId.value == null && dirty.value && definition.value.nodes.length > 0,
 }))
-const currentNode = computed(() => definition.value.nodes.find((node) => node.key === selectedNodeKey.value))
 const selectedField = computed(() => currentNode.value?.fields.find((field) => field.key === selectedFieldKey.value))
 const configuredComponents = computed(() => (currentNode.value?.contentOrder || [])
   .filter((item) => item.startsWith('component:'))
@@ -159,7 +169,6 @@ const availableBoundFields = computed(() => {
       .filter(([, binding]) => !currentNode.value?.fields.some((field) => field.binding === binding.binding))
       .map(([key, binding]) => ({ key, binding, source: groupSource, bindings })))
 })
-const selectedNodeIndex = computed(() => definition.value.nodes.findIndex((node) => node.key === selectedNodeKey.value))
 const publishedVersion = computed(() => selectedTemplateSummary.value?.publishedVersionNo)
 const workflowVersions = computed(() => [...(selectedTemplateSummary.value?.versions || [])]
   .sort((left, right) => right.versionNo - left.versionNo))
@@ -496,24 +505,31 @@ function toggleComponent(componentKey: string, checked: boolean) {
   const node = currentNode.value
   if (!node) return
   const contentItem = `component:${componentKey}` as WorkflowContentOrderItem
-  const next = checked ? addWorkflowComponent(node, componentKey) : removeWorkflowComponent(node, componentKey)
+  const config = componentKey === WorkflowRuntimeComponentKey.REQUIREMENT_NODE_WORKBENCH
+    ? createRequirementNodeWorkbenchConfig(node)
+    : undefined
+  const next = checked ? addWorkflowComponent(node, componentKey, config) : removeWorkflowComponent(node, componentKey)
   if (next.contentOrder.join('|') !== node.contentOrder.join('|') || Boolean(next.componentConfigs) !== Boolean(node.componentConfigs)) {
     replaceCurrentNode(next)
   }
 }
 
-function updateReceivingConfig(key: string, value: boolean) {
+function onNodeNameInput() {
   const node = currentNode.value
-  if (!node || !configuredComponents.value.includes(WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS)) return
-  const current = node.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]
-    || DEFAULT_REQUIREMENT_RECEIVING_ANALYSIS_CONFIG
-  replaceCurrentNode({
-    ...node,
-    componentConfigs: {
-      ...(node.componentConfigs || {}),
-      [WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]: { ...current, [key]: value },
-    },
-  })
+  if (!node) return
+  const genericComponent = WorkflowRuntimeComponentKey.REQUIREMENT_NODE_WORKBENCH
+  if (node.contentOrder.includes(`component:${genericComponent}`)) {
+    const current = node.componentConfigs?.[genericComponent]
+    replaceCurrentNode({
+      ...node,
+      componentConfigs: {
+        ...(node.componentConfigs || {}),
+        [genericComponent]: { ...(current || {}), ...createRequirementNodeWorkbenchConfig(node) },
+      },
+    })
+    return
+  }
+  markDirty()
 }
 
 function addField(type: WorkflowFieldType = 'TEXT', event?: MouseEvent) {
@@ -859,8 +875,20 @@ function openTypeModal() {
 
 function componentLabel(key: string) { return t(`admin.workflow.componentLabels.${key}`) }
 function paletteComponentLabel(key: string) {
+  if (selectedType.value?.code === 'requirement-management'
+    && getRequirementNodeWorkbenchComponent(currentNode.value, selectedNodeIndex.value) === key) {
+    return currentNode.value?.name?.trim() || componentLabel(key)
+  }
   const node = definition.value.nodes.find((candidate) => candidate.contentOrder?.includes(`component:${key}`))
   return node?.name?.trim() || componentLabel(key)
+}
+function componentConfig(componentKey: string) { return currentNode.value?.componentConfigs?.[componentKey] }
+function previewComponentConfig(componentKey: string) {
+  const config = componentConfig(componentKey)
+  return {
+    ...(config && typeof config === 'object' ? config : {}),
+    nodeName: currentNode.value?.name || '',
+  }
 }
 function fieldTypeLabel(type: WorkflowFieldType) { return t(`admin.workflow.fieldTypes.${type}`) }
 function bindingLabel(binding: WorkflowFieldBinding) { return t(`admin.workflow.bindingLabels.${binding}`) }
@@ -906,6 +934,7 @@ onMounted(async () => {
         <div v-if="workflowEntryStep === 'editor'" class="workflow-page-actions">
           <div class="workflow-page-actions__secondary">
             <a-button @click="previewOpen = true" :disabled="!definition.nodes.length"><EyeOutlined /> {{ $t('admin.workflow.preview') }}</a-button>
+            <a-button v-if="selectedType?.code === 'requirement-management'" :disabled="!definition.nodes.length" @click="requirementWorkbenchDemoOpen = true"><EyeOutlined /> 需求流程工作台 Demo</a-button>
           </div>
           <div v-if="canWrite" class="workflow-page-actions__primary">
             <a-button type="primary" :loading="saving" @click="saveDraft"><SaveOutlined /> {{ $t('admin.workflow.saveDraft') }}</a-button>
@@ -1153,7 +1182,7 @@ onMounted(async () => {
                         </div>
                       </section>
                       <section v-else class="designer-content-item designer-workbench-card" :data-content-item="contentItem" :draggable="canWrite" @dragstart="contentDragItem = contentItem" @dragover.prevent @drop.prevent="onContentDrop(contentIndex)" @dragend="contentDragItem = undefined">
-                        <div class="designer-workbench-card__content"><WorkflowWorkbenchPreview class="designer-workbench-preview" :component-key="contentItem.slice('component:'.length)" /></div>
+                        <div class="designer-workbench-card__content"><WorkflowWorkbenchPreview class="designer-workbench-preview" :component-key="contentItem.slice('component:'.length)" :component-config="previewComponentConfig(contentItem.slice('component:'.length))" /></div>
                         <div class="designer-workbench-actions"><a-button size="small" :disabled="!canWrite || contentIndex === 0" :aria-label="$t('admin.workflow.moveUp')" @click="moveContentItem(contentItem, -1)"><ArrowUpOutlined /></a-button><a-button size="small" :disabled="!canWrite || contentIndex === currentNode.contentOrder.length - 1" :aria-label="$t('admin.workflow.moveDown')" @click="moveContentItem(contentItem, 1)"><ArrowDownOutlined /></a-button><a-button size="small" danger :disabled="!canWrite" :aria-label="$t('admin.workflow.removeComponent')" @click="removeContentItem(contentItem)"><DeleteOutlined /></a-button></div>
                       </section>
                     </template>
@@ -1175,22 +1204,14 @@ onMounted(async () => {
                     <a-button v-if="canWrite" block danger class="designer-remove-field" @click="removeField(selectedField.key)"><DeleteOutlined /> {{ $t('admin.workflow.removeField') }}</a-button>
                   </a-form>
                   <a-form v-else layout="vertical" class="designer-property-form">
-                    <a-form-item :label="$t('admin.workflow.nodeName')"><a-input v-model:value="currentNode.name" :disabled="!canWrite" :maxlength="80" @input="markDirty" /></a-form-item>
+                    <a-form-item :label="$t('admin.workflow.nodeName')"><a-input v-model:value="currentNode.name" :disabled="!canWrite" :maxlength="80" @input="onNodeNameInput" /></a-form-item>
                     <a-form-item :label="$t('admin.workflow.nodeKey')"><a-input :value="currentNode.key" disabled /><small>{{ $t('admin.workflow.nodeKeyHint') }}</small></a-form-item>
                     <a-form-item :label="$t('admin.workflow.nodeDescription')"><a-textarea v-model:value="currentNode.description" :disabled="!canWrite" :rows="3" @input="markDirty" /></a-form-item>
                     <a-form-item :label="$t('admin.workflow.deliverables')"><a-textarea v-model:value="currentNode.deliverable" :disabled="!canWrite" :rows="3" @input="markDirty" /></a-form-item>
                     <a-form-item :label="$t('admin.workflow.roles')"><a-textarea v-model:value="currentNode.roles" :disabled="!canWrite" :rows="3" @input="markDirty" /></a-form-item>
                     <section v-if="selectedType?.code === 'requirement-management' && configuredComponents.includes(WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS)" class="designer-component-config" data-testid="requirement-receiving-analysis-config">
-                      <div class="designer-component-config__heading"><strong>需求接收与分析配置</strong><small>控制需求过滤、价值分析和接收结论的展示与完成规则。</small></div>
-                      <a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.showFilter ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('showFilter', checkboxChecked($event))">显示需求过滤</a-checkbox>
-                      <a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.showAnalysis ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('showAnalysis', checkboxChecked($event))">显示需求分析</a-checkbox>
-                      <a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.requireCategory ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('requireCategory', checkboxChecked($event))">需求分类必填</a-checkbox>
-                      <div class="designer-component-config__score"><span>可实现性评分</span><a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.showFeasibilityScore ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('showFeasibilityScore', checkboxChecked($event))">显示</a-checkbox><a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.requireFeasibilityScore ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('requireFeasibilityScore', checkboxChecked($event))">必填</a-checkbox></div>
-                      <div class="designer-component-config__score"><span>ROI评分</span><a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.showRoiScore ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('showRoiScore', checkboxChecked($event))">显示</a-checkbox><a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.requireRoiScore ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('requireRoiScore', checkboxChecked($event))">必填</a-checkbox></div>
-                      <div class="designer-component-config__score"><span>战略契合度评分</span><a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.showStrategicFitScore ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('showStrategicFitScore', checkboxChecked($event))">显示</a-checkbox><a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.requireStrategicFitScore ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('requireStrategicFitScore', checkboxChecked($event))">必填</a-checkbox></div>
-                      <a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.requireAnalysisConclusion ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('requireAnalysisConclusion', checkboxChecked($event))">分析结论必填</a-checkbox>
-                      <a-checkbox :checked="Boolean(currentNode.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]?.allowReject ?? true)" :disabled="!canWrite" @change="updateReceivingConfig('allowReject', checkboxChecked($event))">允许驳回需求</a-checkbox>
-                      <small>接收结论区始终显示，不能关闭；隐藏的评分项不能设置为必填。</small>
+                      <div class="designer-component-config__heading"><strong>需求接收与分析</strong><small>该工作台与需求详情同步，固定保留以下三个下拉单选字段。</small></div>
+                      <div class="designer-component-config__retained-fields"><a-tag color="blue">需求分类</a-tag><a-tag color="blue">战略契合度</a-tag><a-tag color="blue">接收结论</a-tag></div>
                     </section>
                   </a-form>
                 </aside>
@@ -1206,6 +1227,11 @@ onMounted(async () => {
     <a-modal v-model:open="previewOpen" :title="$t('admin.workflow.previewTitle')" width="780px" :footer="null">
       <div class="template-preview-flow"><div v-for="(node, index) in definition.nodes" :key="node.key" class="template-preview-node"><span>{{ String(index + 1).padStart(2, '0') }}</span><strong>{{ node.name }}</strong><small>{{ node.contentOrder.map((item) => contentItemLabel(item)).join(' · ') || $t('admin.workflow.custom') }}</small><div>{{ $t('admin.workflow.fixedBlocksTitle') }}：{{ FIXED_NODE_BLOCKS.map((block) => t(`admin.workflow.fixedBlocks.${block}`)).join('、') }}</div><template v-for="contentItem in node.contentOrder" :key="contentItem"><div v-if="contentItem === 'fields' || contentItem === 'legacy-custom-fields'" class="template-preview-content-item"><b>{{ contentItemLabel(contentItem) }}</b><div v-for="field in fieldsForContentItem(node, contentItem)" :key="field.key" class="preview-field-line">{{ field.label }} · {{ fieldTypeLabel(field.type) }}<b v-if="field.required">*</b></div></div><div v-else class="template-preview-content-item"><b>{{ contentItemLabel(contentItem) }}</b><small>{{ $t(`admin.workflow.componentHints.${contentItem.slice('component:'.length)}`) }}</small></div></template></div></div>
     </a-modal>
+
+    <a-modal v-model:open="requirementWorkbenchDemoOpen" title="需求流程工作台 Demo" width="1160px" :footer="null">
+      <RequirementWorkbenchDemo :nodes="definition.nodes" />
+    </a-modal>
+
 
     <a-modal v-model:open="typeModalOpen" :title="$t('admin.workflow.addProcessType')" :ok-text="$t('common.save')" :cancel-text="$t('common.cancel')" @ok="saveType">
       <a-form layout="vertical"><a-form-item :label="$t('admin.workflow.typeName')" required><a-input v-model:value="typeForm.name" /></a-form-item><a-form-item :label="$t('admin.workflow.typeDescription')"><a-textarea v-model:value="typeForm.description" :rows="2" /></a-form-item></a-form>
@@ -1242,6 +1268,7 @@ onMounted(async () => {
 .designer-component-config__heading { display: grid; gap: var(--pms-space-2); }
 .designer-component-config__heading strong { color: var(--pms-text); }
 .designer-component-config__heading small, .designer-component-config > small { color: var(--pms-text-muted); line-height: 1.5; }
+.designer-component-config__retained-fields { display: flex; flex-wrap: wrap; gap: var(--pms-space-2); }
 .designer-component-config__score { display: flex; align-items: center; gap: var(--pms-space-2); }
 .designer-component-config__score > span { min-width: 92px; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); }
 .workflow-admin-page :deep(.workflow-page-actions) { display: flex; align-items: center; justify-content: flex-end; gap: var(--pms-space-3); flex-wrap: wrap; }

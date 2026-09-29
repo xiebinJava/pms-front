@@ -66,20 +66,51 @@ export function createUniqueWorkflowKey(existingKeys, requestedKey, fallback = '
 
 export function normalizeWorkflowDefinitionForProcessType(definition, processTypeCode) {
   const normalized = normalizeWorkflowDefinition(definition)
+  const processDefinition = processTypeCode === 'requirement-management'
+    ? ensureRequirementReleaseVersionField(normalized)
+    : normalized
   if (processTypeCode === 'topic-management') {
-    const { sourceTopicNodeKey: _storyOnlyBinding, ...topicDefinition } = normalized
+    const { sourceTopicNodeKey: _storyOnlyBinding, ...topicDefinition } = processDefinition
     return topicDefinition
   }
   if (processTypeCode === 'story-management') {
-    const { sourceProjectNodeKey: _projectOnlyBinding, ...storyDefinition } = normalized
+    const { sourceProjectNodeKey: _projectOnlyBinding, ...storyDefinition } = processDefinition
     return storyDefinition
   }
   if (processTypeCode === 'requirement-management') {
-    const { sourceProjectNodeKey: _projectOnlyBinding, sourceTopicNodeKey: _storyOnlyBinding, ...requirementDefinition } = normalized
+    const { sourceProjectNodeKey: _projectOnlyBinding, sourceTopicNodeKey: _storyOnlyBinding, ...requirementDefinition } = processDefinition
     return requirementDefinition
   }
-  const { sourceProjectNodeKey: _projectOnlyBinding, sourceTopicNodeKey: _storyOnlyBinding, ...otherDefinition } = normalized
+  const { sourceProjectNodeKey: _projectOnlyBinding, sourceTopicNodeKey: _storyOnlyBinding, ...otherDefinition } = processDefinition
   return otherDefinition
+}
+
+export function ensureRequirementReleaseVersionField(definition) {
+  if (!definition || !Array.isArray(definition.nodes)) return definition
+  let changed = false
+  const nodes = definition.nodes.map((node) => {
+    if (!String(node?.name || '').includes('需求上线')) return node
+    if ((node.fields || []).some((field) => field.key === 'release-version')) return node
+    const fields = [...(node.fields || []), {
+      key: 'release-version',
+      label: '发布版本',
+      type: 'TEXT',
+      required: true,
+      options: [],
+      visible: true,
+      binding: null,
+      fullWidth: false,
+    }]
+    const contentOrder = [...(node.contentOrder || [])]
+    if (!contentOrder.includes('legacy-custom-fields')) {
+      const fieldsIndex = contentOrder.indexOf('fields')
+      if (fieldsIndex >= 0) contentOrder.splice(fieldsIndex + 1, 0, 'legacy-custom-fields')
+      else contentOrder.push('legacy-custom-fields')
+    }
+    changed = true
+    return { ...node, fields, contentOrder }
+  })
+  return changed ? { ...definition, nodes } : definition
 }
 
 export function setTopicSourceProjectNodeKey(definition, nodeKey) {
@@ -138,13 +169,14 @@ export function moveWorkflowContentItem(node, contentItem, toIndex) {
   return { ...node, contentOrder: moveByKey(node.contentOrder || [], contentItem, toIndex) }
 }
 
-export function addWorkflowComponent(node, componentKey) {
+export function addWorkflowComponent(node, componentKey, config) {
   const contentItem = `component:${componentKey}`
   if ((node.contentOrder || []).includes(contentItem)) return node
   const componentConfigs = { ...(node.componentConfigs || {}) }
   if (componentKey === 'requirement-receiving-analysis' && !componentConfigs[componentKey]) {
     componentConfigs[componentKey] = structuredClone(DEFAULT_REQUIREMENT_RECEIVING_ANALYSIS_CONFIG)
   }
+  if (config && !componentConfigs[componentKey]) componentConfigs[componentKey] = structuredClone(config)
   return {
     ...node,
     contentOrder: [...(node.contentOrder || []), contentItem],
