@@ -4,6 +4,33 @@ export const FIXED_NODE_BLOCKS: readonly ('owner' | 'schedule' | 'task-board')[]
 export type WorkflowProcessSource = 'project' | 'requirement' | 'topic' | 'story'
 export const WORKFLOW_PROCESS_SOURCES: Readonly<Record<string, WorkflowProcessSource>>
 export function getWorkflowSourceForProcessType(processTypeCode?: string): WorkflowProcessSource | undefined
+export const REQUIREMENT_WORKBENCH_PALETTE: ReadonlyArray<{
+  key: string
+  runtimeKey: string
+  processTypeCodes: ReadonlyArray<string>
+  workbenchTypes: ReadonlyArray<WorkflowProcessSource>
+  nodeNameIncludes: ReadonlyArray<string>
+}>
+export function getAvailableWorkflowComponents(options?: {
+  processTypeCode?: string
+  source?: WorkflowProcessSource
+  components?: ReadonlyArray<{
+    key: string
+    processTypeCodes?: ReadonlyArray<string>
+    workbenchTypes?: ReadonlyArray<WorkflowProcessSource>
+    runtimeKey?: string
+    nodeNameIncludes?: ReadonlyArray<string>
+  }>
+  paletteComponents?: ReadonlyArray<{
+    key: string
+    runtimeKey: string
+    processTypeCodes?: ReadonlyArray<string>
+    workbenchTypes?: ReadonlyArray<WorkflowProcessSource>
+    nodeNameIncludes?: ReadonlyArray<string>
+  }>
+  currentNode?: { name?: string }
+  currentNodeIndex?: number
+}): Array<{ key: string; runtimeKey: string; applicable: boolean; workbenchTypes?: ReadonlyArray<WorkflowProcessSource> }>
 export const DEFAULT_PROJECT_BASIC_INFO_FIELDS: WorkflowProjectFieldDefinition[]
 export function getWorkflowTemplateEntryStep(options: {
   typeCount: number
@@ -14,6 +41,7 @@ export function getWorkflowTemplateEntryStep(options: {
 }): 'empty-types' | 'select-type' | 'empty-templates' | 'select-template' | 'editor'
 export function buildProjectTypeCreatePayload(form?: { name?: string | null; description?: string | null }, sort?: number): { name: string; description: string; sort: number }
 export function normalizeWorkflowDefinitionForProcessType(definition: WorkflowTemplateDefinition | null | undefined, processTypeCode?: string): WorkflowTemplateDefinitionV2
+export function ensureRequirementNodeWorkbenchConfigs(definition: WorkflowTemplateDefinitionV2): WorkflowTemplateDefinitionV2
 export function setTopicSourceProjectNodeKey(definition: WorkflowTemplateDefinitionV2, nodeKey: string): WorkflowTemplateDefinitionV2
 export function setStorySourceTopicNodeKey(definition: WorkflowTemplateDefinitionV2, nodeKey: string): WorkflowTemplateDefinitionV2
 export function moveWorkflowNode<T extends WorkflowNodeDefinition | WorkflowNodeDefinitionV2>(nodes: T[], nodeKey: string, toIndex: number): T[]

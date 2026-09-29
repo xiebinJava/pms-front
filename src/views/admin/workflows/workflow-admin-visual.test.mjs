@@ -46,11 +46,13 @@ test('topic templates select a backend project-node binding and explain runtime 
   assert.match(registry, /processTypeCodes:\s*\['topic-management'\]/)
 })
 
-test('workflow palette only exposes story list workbench for topic templates', () => {
+test('workflow palette exposes workbench components for the selected template source', () => {
   assert.match(source, /const workflowSource = computed<WorkflowSource \| undefined>\(\(\) => getWorkflowSourceForProcessType\(selectedType\.value\?\.code\)\)/)
   assert.match(source, /const availableComponents = computed\(\(\) => \{/)
-  assert.match(source, /component\.processTypeCodes\?\.[\s\S]*?includes\(selectedType\.value\?\.code \|\| ''\)/)
-  assert.match(source, /component\.workbenchTypes\.includes\(source\)/)
+  assert.match(source, /getAvailableWorkflowComponents\(/)
+  assert.match(source, /processTypeCode: selectedType\.value\?\.code/)
+  assert.match(source, /source: workflowSource/)
+  assert.match(source, /components: WORKFLOW_RUNTIME_COMPONENTS/)
   assert.match(template, /v-for="component in availableComponents"/)
 })
 
@@ -59,19 +61,22 @@ test('workflow palette labels each workbench with the matching node name from th
   assert.match(template, /<strong>\{\{ paletteComponentLabel\(component\.key\) \}\}<\/strong>/)
 })
 
-test('workflow palette exposes requirement execution only for requirement templates', () => {
+test('workflow palette exposes requirement workbench components only for requirement templates', () => {
   const registry = fs.readFileSync(new URL('../../../components/workflow/workflow-component-registry.ts', import.meta.url), 'utf8')
   const model = fs.readFileSync(new URL('./workflow-template-model.mjs', import.meta.url), 'utf8')
   assert.match(registry, /REQUIREMENT_EXECUTION/)
+  assert.match(registry, /REQUIREMENT_RECEIVING_ANALYSIS/)
+  assert.match(registry, /REQUIREMENT_NODE_WORKBENCH/)
   assert.match(registry, /processTypeCodes:\s*\['requirement-management'\]/)
-  assert.match(source, /component\.processTypeCodes\?\.[\s\S]*?includes\(selectedType\.value\?\.code \|\| ''\)/)
-  assert.match(model, /processTypeCode === 'requirement-management'/)
+  assert.match(model, /processTypeCode/)
+  assert.match(model, /component\.processTypeCodes\.includes\(processTypeCode\)/)
 })
 
-test('requirement management keeps receiving and execution as runtime components', () => {
+test('requirement management keeps all requirement workbenches as configurable runtime components', () => {
   const registry = fs.readFileSync(new URL('../../../components/workflow/workflow-component-registry.ts', import.meta.url), 'utf8')
-  assert.match(registry, /key: WorkflowRuntimeComponentKey\.REQUIREMENT_RECEIVING_ANALYSIS,[\s\S]*?workbenchTypes: \[\]/)
-  assert.match(registry, /key: WorkflowRuntimeComponentKey\.REQUIREMENT_EXECUTION,[\s\S]*?workbenchTypes: \[\]/)
+  assert.match(registry, /key: WorkflowRuntimeComponentKey\.REQUIREMENT_RECEIVING_ANALYSIS,[\s\S]*?workbenchTypes: \['requirement'\]/)
+  assert.match(registry, /key: WorkflowRuntimeComponentKey\.REQUIREMENT_EXECUTION,[\s\S]*?workbenchTypes: \['requirement'\]/)
+  assert.match(registry, /key: WorkflowRuntimeComponentKey\.REQUIREMENT_NODE_WORKBENCH,[\s\S]*?workbenchTypes: \['requirement'\]/)
   assert.match(registry, /key: WorkflowRuntimeComponentKey\.REQUIREMENT_SCOPE,[\s\S]*?workbenchTypes: \['project', 'topic', 'story'\]/)
   assert.match(registry, /key: WorkflowRuntimeComponentKey\.SOLUTION_DESIGN,[\s\S]*?workbenchTypes: \['project', 'topic', 'story'\]/)
 })
@@ -248,7 +253,7 @@ test('workflow editor normalizes legacy definitions before editing and persists 
 
 test('content editor uses v2 contentOrder and model helpers rather than legacy component arrays', () => {
   assert.match(source, /addWorkflowField,[\s\S]*moveWorkflowContentItem,[\s\S]*moveWorkflowField,[\s\S]*removeWorkflowField/)
-  assert.match(source, /function toggleComponent\(componentKey: string, checked: boolean\)[\s\S]*?component:\$\{componentKey\}/)
+  assert.match(source, /function toggleComponent\(componentKey: string, checked: boolean\)[\s\S]*?const runtimeKey = paletteComponent\?\.runtimeKey \|\| componentKey/)
   assert.match(source, /function moveContentItem\(contentItem: WorkflowContentOrderItem, delta: number\)[\s\S]*?moveWorkflowContentItem/)
   assert.doesNotMatch(source, /node\.components/)
   assert.doesNotMatch(source, /projectBasicInfoFields/)
@@ -412,8 +417,19 @@ test('field component palette uses semantic icon components instead of typed gly
   assert.match(source, /CalendarOutlined/)
   assert.match(template, /class="field-type-symbol"><component :is="fieldTypeIcon\(type\)"\s*\/><\/span>/)
   assert.match(template, /class="field-type-symbol"><component :is="fieldTypeIcon\(binding\.type\)"\s*\/><\/span>/)
-  assert.match(template, /<CheckOutlined v-if="configuredComponents\.includes\(component\.key\)" \/>/)
+  assert.match(template, /<CheckOutlined v-if="isPaletteComponentAdded\(component\)" \/>/)
   assert.doesNotMatch(source, /function fieldTypeSymbol\(/)
+})
+
+test('workflow admin can solidify the selected process type default into a local source file', () => {
+  const api = fs.readFileSync(new URL('../../../api/admin-workflow.ts', import.meta.url), 'utf8')
+  assert.match(api, /solidifyWorkflowSystemDefault\(projectTypeId: number\)/)
+  assert.match(api, /default-template\/system-default/)
+  assert.match(source, /solidifyWorkflowSystemDefault\(typeId\)/)
+  assert.match(template, /solidifySystemDefault/)
+  assert.match(template, /selectedTemplateSummary\?\.defaultTemplate/)
+  assert.match(zhLocale, /systemDefaultSolidified/)
+  assert.match(enLocale, /systemDefaultSolidified/)
 })
 
 test('mobile field selection opens a dismissible inspector sheet and keeps it out of document flow', () => {
@@ -475,7 +491,8 @@ test('legacy custom field slot does not move the project profile click-away anch
 test('requirement workflow exposes the node-specific workbench and editable demo entry', () => {
   const registry = fs.readFileSync(new URL('../../../components/workflow/workflow-component-registry.ts', import.meta.url), 'utf8')
   assert.match(registry, /REQUIREMENT_NODE_WORKBENCH:\s*'requirement-node-workbench'/)
-  assert.match(source, /getRequirementNodeWorkbenchComponent/)
+  assert.match(source, /getAvailableWorkflowComponents/)
+  assert.match(source, /createRequirementNodeWorkbenchConfig/)
   assert.match(source, /RequirementWorkbenchDemo/)
   assert.match(source, /requirementWorkbenchDemoOpen/)
 })

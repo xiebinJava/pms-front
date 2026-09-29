@@ -1402,7 +1402,7 @@ const zhCN = {
     workflow: {
       configTitle: '流程模板配置', currentTemplate: '当前模板', fieldCount: '{count} 个表单字段',
       fieldComponents: '字段组件', addFieldHint: '点击添加到节点表单', bindingFields: '绑定字段', boundData: '绑定已有数据', boundDataHint: '当前流程类型仅展示对应业务对象的数据字段', fieldSource: '数据来源', fieldSourceAll: '全部字段', fieldSourceProject: '项目字段', fieldSourceRequirement: '需求字段', fieldSourceTopic: '专题字段', fieldSourceStory: '故事字段', unknownWorkflowSource: '当前流程类型', noAvailableBoundData: '暂无可添加的{source}', projectFields: '项目字段', projectFieldsHint: '绑定已有项目数据', noAvailableProjectFields: '项目字段已全部添加', requirementFields: '需求字段', requirementFieldsHint: '绑定需求创建时填写的数据', noAvailableRequirementFields: '需求字段已全部添加', topicFields: '专题字段', topicFieldsHint: '绑定已有专题数据', noAvailableTopicFields: '专题字段已全部添加', storyFields: '故事字段', storyFieldsHint: '绑定已有故事数据', noAvailableStoryFields: '故事字段已全部添加',
-      workbenchComponents: '业务工作台', workbenchComponentsHint: '将现有业务能力配置到此节点', workbenchSource: '工作台来源', workbenchSourceAll: '全部工作台', workbenchSourceRequirement: '需求工作台', workbenchSourceProject: '项目工作台', workbenchSourceTopic: '专题工作台', workbenchSourceStory: '故事工作台', added: '已添加', add: '添加',
+      workbenchComponents: '业务工作台', workbenchComponentsHint: '将现有业务能力配置到此节点', workbenchSource: '工作台来源', workbenchSourceAll: '全部工作台', workbenchSourceRequirement: '需求工作台', workbenchSourceProject: '项目工作台', workbenchSourceTopic: '专题工作台', workbenchSourceStory: '故事工作台', added: '已添加', add: '添加', notApplicable: '当前节点不适用',
       nodeSettings: '节点设置', nodeProperties: '节点属性', fieldProperties: '字段属性', closeInspector: '关闭属性面板', nodeCanvasAria: '节点详情可视化画布', nodeDetailCanvas: '节点详情画布',
       dragFieldsHint: '拖动字段可调整顺序', individualFieldHint: '每个输入项都可独立配置', hidden: '已隐藏', nodeField: '节点字段', unnamedField: '未命名字段', optionPlaceholder: '选项',
       fieldTypeHints: { TEXT: '名称、编号等', TEXTAREA: '描述、说明等', NUMBER: '数量、金额等', RADIO: '互斥选项', SINGLE_SELECT: '单项选择', MULTI_SELECT: '可选多个值', PERSON: '单人选择', PERSON_MULTI: '多人选择', DATE: '单个日期', DATE_RANGE: '开始与结束', ATTACHMENT: '上传文件' },
@@ -1429,12 +1429,12 @@ const zhCN = {
       builtInComponents: '可复用工作台组件', componentsHint: '可将现有业务工作台放入任意节点；完成校验仍由对应业务组件负责。',
       componentLabels: {
         'project-basic-info': '项目基本信息', 'requirement-scope': '需求范围与基线', 'solution-design': '方案设计与评审',
-         'plan-resource-risk': '计划、资源与风险', 'development-control': '专题列表工作台', 'story-list': '故事列表工作台', 'story-split': '故事拆分', 'requirement-execution': '需求交付目标', 'requirement-receiving-analysis': '需求接收与分析', 'requirement-node-workbench': '需求节点工作台', 'business-acceptance': '业务验收与缺陷',
+         'plan-resource-risk': '计划、资源与风险', 'development-control': '专题列表工作台', 'story-list': '故事列表工作台', 'story-split': '故事拆分', 'requirement-execution': '需求开发工作台', 'requirement-receiving-analysis': '需求接收工作台', 'requirement-node-workbench': '需求节点工作台', 'requirement-clarification-workbench': '需求澄清工作台', 'requirement-integration-workbench': '需求整合工作台', 'requirement-scheduling-workbench': '需求排期工作台', 'requirement-acceptance-workbench': '需求验收工作台', 'requirement-release-workbench': '需求上线工作台', 'business-acceptance': '业务验收与缺陷',
         'release-handover': '发布决策与交接', 'value-review': '价值验证与复盘', 'knowledge-standard': '知识沉淀与改进',
       },
       componentHints: {
         'project-basic-info': '将项目标准字段放入节点详情', 'requirement-scope': '复用需求管理工作台', 'solution-design': '复用方案评审工作台',
-         'plan-resource-risk': '复用迭代计划与风险工作台', 'development-control': '复用专题列表工作台', 'story-list': '仅在专题管理流程中创建和维护故事', 'story-split': '复用故事拆分工作台', 'requirement-execution': '在需求流程中选择一个项目、专题或故事作为交付目标', 'requirement-receiving-analysis': '确认需求分类和战略契合度后，决定是否接收需求', 'requirement-node-workbench': '按当前需求节点展示并执行节点活动', 'business-acceptance': '复用业务验收工作台',
+         'plan-resource-risk': '复用迭代计划与风险工作台', 'development-control': '复用专题列表工作台', 'story-list': '仅在专题管理流程中创建和维护故事', 'story-split': '复用故事拆分工作台', 'requirement-execution': '绑定需求开发阶段的目标项目、专题或故事', 'requirement-receiving-analysis': '确认需求分类和战略契合度后，决定是否接收需求', 'requirement-node-workbench': '按当前需求节点展示并执行节点活动', 'requirement-clarification-workbench': '补充背景、边界、验收标准并记录澄清结论', 'requirement-integration-workbench': '合并重复需求、处理关联关系并确认需求基线', 'requirement-scheduling-workbench': '选择目标对象、安排计划时间并确认依赖风险', 'requirement-acceptance-workbench': '对照验收标准确认交付结果并记录遗留问题', 'requirement-release-workbench': '完成发布前检查、上线交接和上线结果记录', 'business-acceptance': '复用业务验收工作台',
         'release-handover': '复用发布与交接工作台', 'value-review': '复用价值复盘工作台', 'knowledge-standard': '复用知识沉淀工作台',
       },
       projectFieldLabels: { description: '项目描述', priority: '优先级', projectLevel: '项目等级', schedule: '项目排期', businessLine: '业务线', projectManager: '项目经理', projectMembers: '项目成员', followers: '关注人' },
@@ -1469,7 +1469,7 @@ const zhCN = {
          },
        },
       chooseTypeFirst: '请先选择项目类型', chooseOrCreate: '请选择模板或新建流程', completeBeforeSave: '请填写模板名称并至少配置一个节点',
-      loadFailed: '流程模板加载失败', saveFailed: '草稿保存失败', draftSaved: '草稿已保存', saveChangesRemain: '当前草稿已保存，但还有新改动尚未保存。请再次点击保存后再发布。', saveChangesBeforePublish: '仍有未保存的改动，请先保存后再发布。', publishFailed: '模板发布失败', published: '模板已发布', publishedRefreshFailed: '模板已发布，但列表刷新失败；请切换模板或重新进入页面查看最新状态。',
+      loadFailed: '流程模板加载失败', saveFailed: '草稿保存失败', draftSaved: '草稿已保存', saveChangesRemain: '当前草稿已保存，但还有新改动尚未保存。请再次点击保存后再发布。', saveChangesBeforePublish: '仍有未保存的改动，请先保存后再发布。', publishFailed: '模板发布失败', published: '模板已发布', publishedRefreshFailed: '模板已发布，但列表刷新失败；请切换模板或重新进入页面查看最新状态。', solidifySystemDefault: '固化默认版本', systemDefaultSolidified: '已将默认版本 v{version} 固化到 {fileName}', systemDefaultSolidifyFailed: '系统默认模板固化失败',
       publishBeforeDefault: '请先发布模板，再设置为默认', defaultFailed: '默认模板更新失败', defaultUpdated: '默认模板已更新', defaultUpdatedRefreshFailed: '默认模板已更新，但列表刷新失败；请重新进入页面查看最新状态。',
       discardTitle: '放弃未保存的更改？', discardContent: '切换后将丢失当前未保存的编辑。', discard: '放弃更改',
       typeNameRequired: '请输入类型名称',

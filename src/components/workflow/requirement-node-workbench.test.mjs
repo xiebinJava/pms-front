@@ -35,6 +35,12 @@ test('keeps requirement release workbench aligned with the restored publish vers
   assert.equal(blueprint.display, undefined)
 })
 
+test('provides publishable activities for the requirement scheduling workbench', () => {
+  const blueprint = getRequirementNodeWorkbenchBlueprint({ key: 'schedule', name: '需求排期' })
+  assert.ok(blueprint.activities.length > 0)
+  assert.ok(blueprint.activities.every((activity) => typeof activity === 'string' && activity.trim()))
+})
+
 test('falls back safely for a custom requirement node without borrowing another node blueprint', () => {
   const blueprint = getRequirementNodeWorkbenchBlueprint({ key: 'custom', name: '自定义需求节点' })
   assert.equal(blueprint.purpose, '补充当前节点的关键活动和完成结果。')

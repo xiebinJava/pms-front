@@ -7,7 +7,7 @@ import { useI18n } from 'vue-i18n'
 import {
   PlusOutlined, EyeOutlined, SaveOutlined, SendOutlined, ArrowUpOutlined, ArrowDownOutlined, DeleteOutlined,
   CloseOutlined, FileTextOutlined, AlignLeftOutlined, FieldNumberOutlined, CheckCircleOutlined, DownOutlined,
-  UnorderedListOutlined, UserOutlined, TeamOutlined, CalendarOutlined, SwapOutlined, PaperClipOutlined, CheckOutlined, InfoCircleOutlined,
+  UnorderedListOutlined, UserOutlined, TeamOutlined, CalendarOutlined, SwapOutlined, PaperClipOutlined, CheckOutlined, InfoCircleOutlined, CodeOutlined,
 } from '@ant-design/icons-vue'
 import PmsPageHeader from '/@/components/PmsPageHeader.vue'
 import { useUserStore } from '/@/store/user'
@@ -25,19 +25,23 @@ import {
   publishWorkflowTemplate,
   saveWorkflowTemplateDraft,
   setWorkflowDefault,
+  solidifyWorkflowSystemDefault,
 } from '/@/api/admin-workflow'
 import type { ProjectType, WorkflowContentOrderItem, WorkflowFieldBinding, WorkflowFieldDefinition, WorkflowFieldType, WorkflowNodeDefinitionV2, WorkflowProjectNodeOption, WorkflowTemplateDefinitionV2, WorkflowTemplateSummary, WorkflowTemplateVersionSummary } from '/@/types/workflow'
 import { isWorkflowFieldFullWidth } from '/@/utils/workflow-field-layout.mjs'
 import WorkflowWorkbenchPreview from '/@/components/workflow/WorkflowWorkbenchPreview.vue'
-import { createRequirementNodeWorkbenchConfig, getRequirementNodeWorkbenchComponent } from '/@/components/workflow/requirement-node-workbench.mjs'
+import { createRequirementNodeWorkbenchConfig } from '/@/components/workflow/requirement-node-workbench.mjs'
 import RequirementWorkbenchDemo from '/@/views/admin/workflows/RequirementWorkbenchDemo.vue'
 import {
   FIXED_NODE_BLOCKS,
   addWorkflowField,
   buildProjectTypeCreatePayload,
   createWorkflowNode,
+  getAvailableWorkflowComponents,
+  REQUIREMENT_WORKBENCH_PALETTE,
   getWorkflowSourceForProcessType,
   getWorkflowTemplateEntryStep,
+  ensureRequirementNodeWorkbenchConfigs,
   normalizeWorkflowDefinitionForProcessType,
   moveWorkflowContentItem,
   moveWorkflowField,
@@ -61,6 +65,7 @@ const userStore = useUserStore()
 const canWrite = computed(() => userStore.can('admin:workflow:write'))
 const loading = ref(false)
 const saving = ref(false)
+const solidifying = ref(false)
 const types = ref<ProjectType[]>([])
 const templates = ref<WorkflowTemplateSummary[]>([])
 const workflowProjectNodeOptions = ref<WorkflowProjectNodeOption[]>([])
@@ -134,19 +139,14 @@ const orderedWorkflowTypes = computed(() => types.value
 const currentNode = computed(() => definition.value.nodes.find((node) => node.key === selectedNodeKey.value))
 const selectedNodeIndex = computed(() => definition.value.nodes.findIndex((node) => node.key === selectedNodeKey.value))
 const availableComponents = computed(() => {
-  const source = workflowSource.value
-  if (!source) return []
-  if (selectedType.value?.code === 'requirement-management') {
-    const expectedKey = getRequirementNodeWorkbenchComponent(currentNode.value, selectedNodeIndex.value)
-    if (!expectedKey) return []
-    return WORKFLOW_RUNTIME_COMPONENTS
-      .filter((component) => component.key === expectedKey)
-      .map(({ key, workbenchTypes }) => ({ key, workbenchTypes }))
-  }
-  return WORKFLOW_RUNTIME_COMPONENTS
-    .filter((component) => !component.processTypeCodes?.length || component.processTypeCodes.includes(selectedType.value?.code || ''))
-    .filter((component) => component.workbenchTypes.includes(source))
-    .map(({ key, workbenchTypes }) => ({ key, workbenchTypes }))
+  return getAvailableWorkflowComponents({
+    processTypeCode: selectedType.value?.code,
+    source: workflowSource.value,
+    components: WORKFLOW_RUNTIME_COMPONENTS,
+    paletteComponents: REQUIREMENT_WORKBENCH_PALETTE,
+    currentNode: currentNode.value,
+    currentNodeIndex: selectedNodeIndex.value,
+  })
 })
 const selectedTemplateSummary = computed(() => templates.value.find((template) => template.id === selectedTemplateId.value))
 const workflowEntryStep = computed(() => getWorkflowTemplateEntryStep({
@@ -232,7 +232,18 @@ function defaultVersionLabel(template: WorkflowTemplateSummary): string {
 function contentItemLabel(contentItem: WorkflowContentOrderItem): string {
   if (contentItem === 'fields') return t('admin.workflow.fieldsSection')
   if (contentItem === 'legacy-custom-fields') return t('admin.workflow.legacyCustomFieldsSection')
-  return componentLabel(contentItem.slice('component:'.length))
+  const componentKey = contentItem.slice('component:'.length)
+  const requirementWorkbenchRuntimeKeys = new Set<string>([
+    WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS,
+    WorkflowRuntimeComponentKey.REQUIREMENT_EXECUTION,
+    WorkflowRuntimeComponentKey.REQUIREMENT_NODE_WORKBENCH,
+  ])
+  if (selectedType.value?.code === 'requirement-management'
+    && requirementWorkbenchRuntimeKeys.has(componentKey)
+    && currentNode.value?.name?.trim()) {
+    return `${currentNode.value.name.trim()}工作台`
+  }
+  return componentLabel(componentKey)
 }
 
 function fieldsForContentItem(node: WorkflowNodeDefinitionV2, contentItem: WorkflowContentOrderItem, includeHidden = false): WorkflowFieldDefinition[] {
@@ -358,9 +369,11 @@ async function selectTemplate(id: number) {
     templateName.value = template.name
     templateDescription.value = template.description || ''
     definition.value = normalizeWorkflowDefinitionForProcessType(template.definition, selectedType.value?.code)
+    const normalizedDefinition = definition.value
     selectedNodeKey.value = definition.value.nodes[0]?.key || ''
     selectedFieldKey.value = firstFieldKey(definition.value.nodes[0])
-    dirty.value = false
+    dirty.value = JSON.stringify(normalizedDefinition) !== JSON.stringify(template.definition)
+    if (dirty.value) templateEditSequence += 1
   } catch (error) {
     if (requestSequence === templateDetailRequestSequence) message.error((error as Error).message || t('admin.workflow.loadFailed'))
   } finally {
@@ -504,14 +517,25 @@ function onDrop(targetIndex: number) {
 function toggleComponent(componentKey: string, checked: boolean) {
   const node = currentNode.value
   if (!node) return
-  const contentItem = `component:${componentKey}` as WorkflowContentOrderItem
-  const config = componentKey === WorkflowRuntimeComponentKey.REQUIREMENT_NODE_WORKBENCH
+  const paletteComponent = availableComponents.value.find((component) => component.key === componentKey)
+  if (paletteComponent && !paletteComponent.applicable) return
+  const runtimeKey = paletteComponent?.runtimeKey || componentKey
+  const contentItem = `component:${runtimeKey}` as WorkflowContentOrderItem
+  const config = runtimeKey === WorkflowRuntimeComponentKey.REQUIREMENT_NODE_WORKBENCH
     ? createRequirementNodeWorkbenchConfig(node)
     : undefined
-  const next = checked ? addWorkflowComponent(node, componentKey, config) : removeWorkflowComponent(node, componentKey)
+  const next = checked ? addWorkflowComponent(node, runtimeKey, config) : removeWorkflowComponent(node, runtimeKey)
   if (next.contentOrder.join('|') !== node.contentOrder.join('|') || Boolean(next.componentConfigs) !== Boolean(node.componentConfigs)) {
     replaceCurrentNode(next)
   }
+}
+
+function paletteComponentRuntimeKey(component: { key: string; runtimeKey?: string }) {
+  return component.runtimeKey || component.key
+}
+
+function isPaletteComponentAdded(component: { key: string; runtimeKey?: string; applicable?: boolean }) {
+  return Boolean(component.applicable && configuredComponents.value.includes(paletteComponentRuntimeKey(component)))
 }
 
 function onNodeNameInput() {
@@ -652,12 +676,21 @@ function updateFieldWidth(field: WorkflowFieldDefinition, fullWidth: boolean) {
   markDirty()
 }
 
+function prepareDefinitionForWrite() {
+  if (selectedType.value?.code !== 'requirement-management') return
+  const repaired = ensureRequirementNodeWorkbenchConfigs(definition.value)
+  if (repaired === definition.value) return
+  definition.value = repaired
+  markDirty()
+}
+
 async function saveDraft(): Promise<boolean> {
   if (saving.value || loading.value) return false
   if (!selectedTypeId.value || !templateName.value.trim() || !definition.value.nodes.length) {
     message.warning(t('admin.workflow.completeBeforeSave'))
     return false
   }
+  prepareDefinitionForWrite()
   const editRevision = templateEditSequence
   const typeId = selectedTypeId.value
   const previousTemplateId = selectedTemplateId.value
@@ -694,6 +727,7 @@ async function saveDraft(): Promise<boolean> {
 
 async function publish() {
   if (!canWrite.value || saving.value || loading.value) return
+  prepareDefinitionForWrite()
   if (dirty.value && !(await saveDraft())) return
   if (dirty.value) { message.warning(t('admin.workflow.saveChangesBeforePublish')); return }
   if (!selectedTemplateId.value) return
@@ -746,6 +780,22 @@ async function setAsDefault() {
     }
   } catch (error) { message.error((error as Error).message || t('admin.workflow.defaultFailed')) }
   finally { saving.value = false }
+}
+
+async function solidifySystemDefault() {
+  if (saving.value || loading.value || solidifying.value) return
+  const typeId = selectedTypeId.value
+  if (!typeId || !selectedTemplateSummary.value?.defaultTemplate) return
+  solidifying.value = true
+  try {
+    const result = await solidifyWorkflowSystemDefault(typeId)
+    message.success(t('admin.workflow.systemDefaultSolidified', {
+      version: result.versionNo,
+      fileName: result.fileName,
+    }))
+  } catch (error) {
+    message.error((error as Error).message || t('admin.workflow.systemDefaultSolidifyFailed'))
+  } finally { solidifying.value = false }
 }
 
 function confirmAction(title: string, content: string, okText: string, danger = false): Promise<boolean> {
@@ -875,10 +925,7 @@ function openTypeModal() {
 
 function componentLabel(key: string) { return t(`admin.workflow.componentLabels.${key}`) }
 function paletteComponentLabel(key: string) {
-  if (selectedType.value?.code === 'requirement-management'
-    && getRequirementNodeWorkbenchComponent(currentNode.value, selectedNodeIndex.value) === key) {
-    return currentNode.value?.name?.trim() || componentLabel(key)
-  }
+  if (selectedType.value?.code === 'requirement-management') return componentLabel(key)
   const node = definition.value.nodes.find((candidate) => candidate.contentOrder?.includes(`component:${key}`))
   return node?.name?.trim() || componentLabel(key)
 }
@@ -1032,6 +1079,7 @@ onMounted(async () => {
                     <div class="template-selector__heading-actions">
                       <a-button v-if="canWrite && selectedTemplateId" size="small" data-testid="workflow-version-manager" @click="versionModalOpen = true">{{ $t('admin.workflow.versionManager') }}</a-button>
                       <a-button v-if="canWrite && selectedTemplateSummary?.publishedVersionId && selectedTemplateSummary.defaultTemplateVersionId !== selectedTemplateSummary.publishedVersionId" class="template-selector__default-action" size="small" :disabled="dirty" @click="setAsDefault">{{ $t('admin.workflow.setDefault') }}</a-button>
+                      <a-button v-if="canWrite && selectedTemplateSummary?.defaultTemplate" class="template-selector__default-action" size="small" :loading="solidifying" :disabled="saving || loading" @click="solidifySystemDefault"><CodeOutlined /> {{ $t('admin.workflow.solidifySystemDefault') }}</a-button>
                       <a-button v-if="canWrite && selectedTemplateSummary && selectedTemplateSummary.code !== 'current-process' && !selectedTemplateSummary.defaultTemplate" size="small" danger data-testid="archive-workflow-template" @click="archiveSelectedTemplate">{{ $t('admin.workflow.archiveTemplate') }}</a-button>
                     </div>
                   </div>
@@ -1144,7 +1192,7 @@ onMounted(async () => {
                       <a-tag v-if="workflowSource" color="blue">{{ workbenchSourceLabel(workflowSource) }}</a-tag>
                       <small>{{ $t('admin.workflow.workbenchComponentsHint') }}</small>
                     </div>
-                    <button v-for="component in availableComponents" :key="component.key" type="button" class="designer-palette-item designer-palette-item--compact" :data-testid="`add-workflow-component-${component.key}`" :class="{ 'is-added': configuredComponents.includes(component.key) }" :aria-pressed="configuredComponents.includes(component.key)" :disabled="!canWrite" @click="toggleComponent(component.key, !configuredComponents.includes(component.key))"><span class="field-type-symbol"><CheckOutlined v-if="configuredComponents.includes(component.key)" /><PlusOutlined v-else /></span><span class="designer-palette-item__copy"><strong>{{ paletteComponentLabel(component.key) }}</strong><small>{{ $t(`admin.workflow.componentHints.${component.key}`) }}</small></span><span class="palette-state">{{ configuredComponents.includes(component.key) ? $t('admin.workflow.added') : $t('admin.workflow.add') }}</span></button>
+                    <button v-for="component in availableComponents" :key="component.key" type="button" class="designer-palette-item designer-palette-item--compact" :data-testid="`add-workflow-component-${component.key}`" :class="{ 'is-added': isPaletteComponentAdded(component), 'is-unavailable': !component.applicable }" :aria-pressed="isPaletteComponentAdded(component)" :disabled="!canWrite || !component.applicable" @click="toggleComponent(component.key, !isPaletteComponentAdded(component))"><span class="field-type-symbol"><CheckOutlined v-if="isPaletteComponentAdded(component)" /><PlusOutlined v-else /></span><span class="designer-palette-item__copy"><strong>{{ paletteComponentLabel(component.key) }}</strong><small>{{ $t(`admin.workflow.componentHints.${component.key}`) }}</small></span><span class="palette-state">{{ isPaletteComponentAdded(component) ? $t('admin.workflow.added') : component.applicable ? $t('admin.workflow.add') : $t('admin.workflow.notApplicable') }}</span></button>
                   </div>
                 </aside>
 

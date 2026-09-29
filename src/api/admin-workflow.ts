@@ -11,6 +11,13 @@ import type {
   WorkflowTemplateSummary,
 } from '/@/types/workflow'
 
+export interface WorkflowSystemDefaultResult {
+  processTypeCode: string
+  templateCode: string
+  versionNo: number
+  fileName: string
+}
+
 export function getWorkflowTemplateOptions(): Promise<WorkflowTemplateOptions> {
   return http.get('/workflow-templates/options')
 }
@@ -63,6 +70,10 @@ export function publishWorkflowTemplate(id: number): Promise<WorkflowTemplate> {
 
 export function setWorkflowDefault(projectTypeId: number, templateVersionId: number): Promise<ProjectType> {
   return http.put(`/admin/workflow-config/project-types/${projectTypeId}/default-template`, { templateVersionId })
+}
+
+export function solidifyWorkflowSystemDefault(projectTypeId: number): Promise<WorkflowSystemDefaultResult> {
+  return http.post(`/admin/workflow-config/project-types/${projectTypeId}/default-template/system-default`)
 }
 
 export function archiveWorkflowTemplateVersion(templateId: number, versionId: number): Promise<WorkflowTemplateSummary> {

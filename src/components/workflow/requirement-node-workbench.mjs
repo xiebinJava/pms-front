@@ -21,7 +21,7 @@ const BLUEPRINTS = Object.freeze([
   {
     matches: ['需求排期'],
     purpose: '确认目标对象和计划时间，形成可执行的交付安排。',
-    activities: [],
+    activities: ['确认目标对象', '安排计划时间', '确认依赖与风险', '形成需求排期'],
   },
   {
     matches: ['需求开发'],

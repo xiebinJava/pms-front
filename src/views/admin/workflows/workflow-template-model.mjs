@@ -1,4 +1,8 @@
 import { DEFAULT_REQUIREMENT_RECEIVING_ANALYSIS_CONFIG, normalizeWorkflowDefinition } from './workflow-template-schema.mjs'
+import {
+  createRequirementNodeWorkbenchConfig,
+  REQUIREMENT_NODE_WORKBENCH_COMPONENT,
+} from '../../../components/workflow/requirement-node-workbench.mjs'
 
 export const FIXED_NODE_BLOCKS = Object.freeze(['owner', 'schedule', 'task-board'])
 
@@ -12,6 +16,79 @@ export const WORKFLOW_PROCESS_SOURCES = Object.freeze({
 
 export function getWorkflowSourceForProcessType(processTypeCode) {
   return WORKFLOW_PROCESS_SOURCES[String(processTypeCode || '')]
+}
+
+export const REQUIREMENT_WORKBENCH_PALETTE = Object.freeze([
+  {
+    key: 'requirement-receiving-analysis',
+    runtimeKey: 'requirement-receiving-analysis',
+    processTypeCodes: ['requirement-management'],
+    workbenchTypes: ['requirement'],
+    nodeNameIncludes: ['需求接收'],
+  },
+  {
+    key: 'requirement-clarification-workbench',
+    runtimeKey: 'requirement-node-workbench',
+    processTypeCodes: ['requirement-management'],
+    workbenchTypes: ['requirement'],
+    nodeNameIncludes: ['需求澄清'],
+  },
+  {
+    key: 'requirement-integration-workbench',
+    runtimeKey: 'requirement-node-workbench',
+    processTypeCodes: ['requirement-management'],
+    workbenchTypes: ['requirement'],
+    nodeNameIncludes: ['需求整合'],
+  },
+  {
+    key: 'requirement-scheduling-workbench',
+    runtimeKey: 'requirement-node-workbench',
+    processTypeCodes: ['requirement-management'],
+    workbenchTypes: ['requirement'],
+    nodeNameIncludes: ['需求排期'],
+  },
+  {
+    key: 'requirement-execution',
+    runtimeKey: 'requirement-execution',
+    processTypeCodes: ['requirement-management'],
+    workbenchTypes: ['requirement'],
+    nodeNameIncludes: ['需求开发'],
+  },
+  {
+    key: 'requirement-acceptance-workbench',
+    runtimeKey: 'requirement-node-workbench',
+    processTypeCodes: ['requirement-management'],
+    workbenchTypes: ['requirement'],
+    nodeNameIncludes: ['需求验收'],
+  },
+  {
+    key: 'requirement-release-workbench',
+    runtimeKey: 'requirement-node-workbench',
+    processTypeCodes: ['requirement-management'],
+    workbenchTypes: ['requirement'],
+    nodeNameIncludes: ['需求上线'],
+  },
+])
+
+export function getAvailableWorkflowComponents({ processTypeCode, source, components = [], paletteComponents = [], currentNode, currentNodeIndex = -1 } = {}) {
+  if (!processTypeCode || !source || !Array.isArray(components)) return []
+  const runtimeKeys = new Set(components.map((component) => component.key))
+  const candidates = source === 'requirement' && Array.isArray(paletteComponents) && paletteComponents.length
+    ? paletteComponents
+    : components
+  return candidates
+    .filter((component) => !component.processTypeCodes?.length || component.processTypeCodes.includes(processTypeCode))
+    .filter((component) => component.workbenchTypes?.includes(source))
+    .filter((component) => runtimeKeys.has(component.runtimeKey || component.key))
+    .map(({ key, runtimeKey = key, workbenchTypes, nodeNameIncludes }) => ({
+      key,
+      runtimeKey,
+      workbenchTypes,
+      applicable: source !== 'requirement'
+        ? true
+        : currentNodeIndex > 0 && Array.isArray(nodeNameIncludes)
+          && nodeNameIncludes.some((match) => String(currentNode?.name || '').includes(match)),
+    }))
 }
 
 export const DEFAULT_PROJECT_BASIC_INFO_FIELDS = Object.freeze([
@@ -67,7 +144,7 @@ export function createUniqueWorkflowKey(existingKeys, requestedKey, fallback = '
 export function normalizeWorkflowDefinitionForProcessType(definition, processTypeCode) {
   const normalized = normalizeWorkflowDefinition(definition)
   const processDefinition = processTypeCode === 'requirement-management'
-    ? ensureRequirementReleaseVersionField(normalized)
+    ? ensureRequirementNodeWorkbenchConfigs(ensureRequirementReleaseVersionField(normalized))
     : normalized
   if (processTypeCode === 'topic-management') {
     const { sourceTopicNodeKey: _storyOnlyBinding, ...topicDefinition } = processDefinition
@@ -83,6 +160,41 @@ export function normalizeWorkflowDefinitionForProcessType(definition, processTyp
   }
   const { sourceProjectNodeKey: _projectOnlyBinding, sourceTopicNodeKey: _storyOnlyBinding, ...otherDefinition } = processDefinition
   return otherDefinition
+}
+
+export function ensureRequirementNodeWorkbenchConfigs(definition) {
+  if (!definition || !Array.isArray(definition.nodes)) return definition
+  let changed = false
+  const componentItem = `component:${REQUIREMENT_NODE_WORKBENCH_COMPONENT}`
+  const nodes = definition.nodes.map((node) => {
+    if (!Array.isArray(node.contentOrder) || !node.contentOrder.includes(componentItem)) return node
+    const current = node.componentConfigs?.[REQUIREMENT_NODE_WORKBENCH_COMPONENT]
+    const activities = Array.isArray(current?.activities) ? current.activities : []
+    const validActivities = activities.length > 0
+      && activities.every((activity) => typeof activity === 'string' && activity.trim())
+    if (validActivities && current?.nodeKey === node.key) return node
+
+    changed = true
+    const defaults = createRequirementNodeWorkbenchConfig(node)
+    const repaired = {
+      ...defaults,
+      ...(current || {}),
+      nodeKey: defaults.nodeKey,
+      nodeName: defaults.nodeName,
+      purpose: typeof current?.purpose === 'string' && current.purpose.trim()
+        ? current.purpose
+        : defaults.purpose,
+      activities: validActivities ? current.activities : defaults.activities,
+    }
+    return {
+      ...node,
+      componentConfigs: {
+        ...(node.componentConfigs || {}),
+        [REQUIREMENT_NODE_WORKBENCH_COMPONENT]: repaired,
+      },
+    }
+  })
+  return changed ? { ...definition, nodes } : definition
 }
 
 export function ensureRequirementReleaseVersionField(definition) {
