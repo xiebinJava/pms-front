@@ -9,7 +9,50 @@ import {
   removeWorkflowComponent,
 } from './workflow-template-model.mjs'
 
-test('lists the seven requirement workbench entries and maps them to runtime components', () => {
+test('dedicated topic design review workbench is isolated and only applicable on its node', () => {
+  const components = [{ key: 'topic-design-review', workbenchTypes: ['topic'], processTypeCodes: ['topic-management'] }]
+  const options = (source, code, name) => getAvailableWorkflowComponents({ source, processTypeCode: code, components, currentNode: { name } })
+  assert.equal(options('topic', 'topic-management', '方案设计与评审')[0].applicable, true)
+  assert.equal(options('topic', 'topic-management', '需求调研')[0].applicable, false)
+  for (const [source, code] of [['project', 'general'], ['requirement', 'requirement-management'], ['story', 'story-management']])
+    assert.deepEqual(options(source, code, '方案设计与评审'), [])
+})
+
+test('topic palette excludes project and retired story split workbenches while retaining story list and saved bindings', () => {
+  const keys = ['requirement-scope', 'solution-design', 'plan-resource-risk', 'development-control', 'business-acceptance', 'release-handover', 'value-review', 'knowledge-standard', 'story-split', 'story-list']
+  const components = keys.map((key) => ({ key, workbenchTypes: ['project', 'topic'] }))
+  const currentNode = { name: '需求调研', contentOrder: ['component:solution-design'] }
+  assert.deepEqual(getAvailableWorkflowComponents({ processTypeCode: 'topic-management', source: 'topic', components, currentNode }).map((item) => item.key), ['story-list'])
+  assert.deepEqual(currentNode.contentOrder, ['component:solution-design'])
+  assert.deepEqual(getAvailableWorkflowComponents({ processTypeCode: 'story-management', source: 'story', components, currentNode }), [])
+})
+
+test('project nodes only allow their corresponding workbench without changing existing bindings', () => {
+  const pairs = [
+    ['需求澄清与范围基线', 'requirement-scope'], ['方案设计、评审与决策', 'solution-design'],
+    ['计划、资源与风险基线', 'plan-resource-risk'], ['开发测试与项目控制', 'development-control'],
+    ['业务验收与缺陷闭环', 'business-acceptance'], ['发布决策与运营交接', 'release-handover'],
+    ['价值验证与项目复盘', 'value-review'], ['知识沉淀与标准改进', 'knowledge-standard'],
+  ]
+  const components = pairs.map(([, key]) => ({ key, workbenchTypes: ['project'] }))
+  for (const [name, key] of pairs) {
+    const currentNode = { name, contentOrder: ['component:solution-design'] }
+    const result = getAvailableWorkflowComponents({ processTypeCode: 'general', source: 'project', components, currentNode })
+    assert.deepEqual(result.filter((item) => item.applicable).map((item) => item.key), [key])
+    assert.deepEqual(currentNode.contentOrder, ['component:solution-design'])
+  }
+  assert.ok(getAvailableWorkflowComponents({ processTypeCode: 'general', source: 'project', components, currentNode: { name: '项目立项与启动' } }).every((item) => !item.applicable))
+})
+
+test('renaming a bound project node keeps its workbench marked applicable by identity', () => {
+  const currentNode = { key: 'stable-control', name: '项目控制', contentOrder: ['component:development-control'] }
+  const result = getAvailableWorkflowComponents({ processTypeCode: 'general', source: 'project',
+    components: [{ key: 'development-control', workbenchTypes: ['project'] }], currentNode })
+  assert.equal(result[0].applicable, true)
+  assert.deepEqual(currentNode.contentOrder, ['component:development-control'])
+})
+
+test('lists six requirement workbenches without the redundant release entry', () => {
   const components = [
     { key: 'requirement-execution', processTypeCodes: ['requirement-management'], workbenchTypes: ['requirement'] },
     { key: 'requirement-receiving-analysis', processTypeCodes: ['requirement-management'], workbenchTypes: ['requirement'] },
@@ -31,7 +74,6 @@ test('lists the seven requirement workbench entries and maps them to runtime com
     'requirement-scheduling-workbench',
     'requirement-execution',
     'requirement-acceptance-workbench',
-    'requirement-release-workbench',
   ])
 
   const clarification = getAvailableWorkflowComponents({
@@ -53,7 +95,7 @@ test('lists the seven requirement workbench entries and maps them to runtime com
     currentNode: { key: 'intake', name: '需求录入' },
     currentNodeIndex: 0,
   })
-  assert.equal(entry.length, 7)
+  assert.equal(entry.length, 6)
   assert.ok(entry.every((component) => component.applicable === false))
 })
 

@@ -4,6 +4,27 @@ import test from 'node:test'
 
 const componentSource = fs.readFileSync(new URL('./RequirementNodeWorkbenchComponent.vue', import.meta.url), 'utf8')
 const detailSource = fs.readFileSync(new URL('./DevelopmentItemDetailPage.vue', import.meta.url), 'utf8')
+const previewSource = fs.readFileSync(new URL('../../../components/workflow/WorkflowWorkbenchPreview.vue', import.meta.url), 'utf8')
+
+test('acceptance replaces activities with two autosaving sections and a matching template preview', () => {
+  const runtime = componentSource.split('<template v-else-if="isAcceptance">')[1]?.split('<template v-else>')[0]
+  const preview = previewSource.split('<template v-else-if="isRequirementNodeWorkbench && isRequirementAcceptance">')[1]?.split('<template v-else-if="isRequirementNodeWorkbench">')[0]
+  assert.ok(runtime)
+  assert.ok(preview)
+  for (const source of [runtime, preview]) {
+    assert.match(source, /业务确认结果/)
+    assert.match(source, /记录遗留问题/)
+    assert.doesNotMatch(source, /本节点活动|节点工作台/)
+  }
+  assert.equal((runtime.match(/<a-textarea/g) || []).length, 2)
+  assert.equal((runtime.match(/<a-select/g) || []).length, 1)
+  assert.equal((runtime.match(/@blur="commit"/g) || []).length, 2)
+  assert.match(runtime, /@change="commit"/)
+  assert.match(runtime, /:disabled="disabled"/)
+  assert.match(runtime, /新增问题/)
+  assert.match(runtime, /v-for="\(issue, index\) in acceptance.residualIssues"/)
+  assert.match(runtime, /a-popconfirm/)
+})
 
 test('requirement node workbench renders the persisted node activities and purpose', () => {
   assert.match(componentSource, /componentConfig/)

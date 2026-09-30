@@ -123,6 +123,7 @@ export interface WorkflowTemplate extends WorkflowTemplateSummary {
   draftVersionId?: number
   definition: WorkflowTemplateDefinition
   fixedBlocks: string[]
+  autoBoundTemplateNames?: string[]
 }
 
 export interface WorkflowTemplateOptions {

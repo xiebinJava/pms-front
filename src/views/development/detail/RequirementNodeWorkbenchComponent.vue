@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
+import { normalizeResidualIssues } from './requirement-residual-issues.mjs'
 import { getDevelopmentRequirementPage, getRequirementExecutionTargetOptions } from '/@/api/development-item'
 import type { RequirementExecutionTarget, RequirementExecutionTargetType } from '/@/types/domain'
 import {
@@ -23,6 +24,9 @@ interface RequirementNodeWorkbenchConfig {
 }
 
 interface RequirementNodeWorkbenchState {
+  businessResult?: string
+  businessConfirmation?: string
+  residualIssues?: string | Array<{ id: string; description: string }>
   background?: string
   acceptanceCriteria?: string
   conclusion?: string
@@ -75,6 +79,13 @@ const config = computed<RequirementNodeWorkbenchConfig>(() => ({
 }))
 const displayHint = computed(() => config.value.display?.component === 'requirement-object-tree')
 const isClarification = computed(() => String(props.node?.name || '').includes('需求澄清'))
+const isAcceptance = computed(() => String(props.node?.name || '').includes('需求验收'))
+const acceptance = reactive({ businessResult: undefined as string | undefined, businessConfirmation: '', residualIssues: [] as Array<{ id: string; description: string }> })
+const businessResultOptions = [
+  { value: 'PASSED', label: '通过' },
+  { value: 'CONDITIONAL', label: '有条件通过' },
+  { value: 'REJECTED', label: '不通过' },
+]
 const isIntegration = computed(() => isRequirementIntegrationNode(props.node))
 const isScheduling = computed(() => isRequirementSchedulingNode(props.node))
 const clarification = reactive<RequirementNodeWorkbenchState>({
@@ -217,6 +228,12 @@ watch(() => [props.node?.name, props.modelValue], () => syncClarificationState(p
   immediate: true,
   deep: true,
 })
+watch(() => [props.node?.name, props.modelValue], () => {
+  const state = asRecord(asRecord(asRecord(props.modelValue).__components)[WORKBENCH_COMPONENT_KEY])
+  acceptance.businessResult = businessResultOptions.some((option) => option.value === state.businessResult) ? state.businessResult as string : undefined
+  acceptance.businessConfirmation = typeof state.businessConfirmation === 'string' ? state.businessConfirmation : ''
+  acceptance.residualIssues = normalizeResidualIssues(state.residualIssues)
+}, { immediate: true, deep: true })
 watch(() => [props.node?.name, props.currentRequirementId], () => { void loadRequirementOptions() }, { immediate: true })
 watch(() => props.modelValue, (value) => syncIntegrationState(value), { immediate: true, deep: true })
 watch(() => [props.node?.name, props.currentRequirementId, props.targetSpecification], () => { void loadTargetOptions() }, { immediate: true })
@@ -240,6 +257,29 @@ function updateClarification(field: keyof RequirementNodeWorkbenchState, value: 
 
 function updateBackground(value: string) {
   updateClarification('background', value)
+}
+function updateBusinessResult(value: unknown) { updateClarification('businessResult', value) }
+function updateBusinessConfirmation(value: string) { updateClarification('businessConfirmation', value) }
+function persistResidualIssues() {
+  updateClarification('residualIssues', acceptance.residualIssues.map((issue) => ({ ...issue })))
+}
+function addResidualIssue() {
+  if (props.disabled) return
+  acceptance.residualIssues.push({ id: crypto.randomUUID(), description: '' })
+  persistResidualIssues()
+  commit()
+}
+function updateResidualIssue(id: string, description: string) {
+  const issue = acceptance.residualIssues.find((item) => item.id === id)
+  if (!issue || props.disabled) return
+  issue.description = description
+  persistResidualIssues()
+}
+function removeResidualIssue(id: string) {
+  if (props.disabled) return
+  acceptance.residualIssues = acceptance.residualIssues.filter((item) => item.id !== id)
+  persistResidualIssues()
+  commit()
 }
 
 function updateAcceptanceCriteria(value: string) {
@@ -437,6 +477,33 @@ function commit() {
       </label>
     </section>
 
+    <template v-else-if="isAcceptance">
+      <section class="requirement-node-workbench__acceptance-card" data-testid="requirement-acceptance-business-result">
+        <div class="requirement-node-workbench__section-heading"><strong>业务确认结果</strong></div>
+        <label class="requirement-node-workbench__field">
+          <span>确认结论</span>
+          <a-select :value="acceptance.businessResult" :disabled="disabled" :options="businessResultOptions" placeholder="请选择业务确认结果" @update:value="updateBusinessResult" @change="commit" />
+        </label>
+        <label class="requirement-node-workbench__field">
+          <span>确认说明</span>
+          <a-textarea :value="acceptance.businessConfirmation" :disabled="disabled" :rows="3" placeholder="记录业务确认情况、验收依据或未通过的原因" @update:value="updateBusinessConfirmation" @blur="commit" />
+        </label>
+      </section>
+      <section class="requirement-node-workbench__acceptance-card" data-testid="requirement-acceptance-residual-issues">
+        <div class="requirement-node-workbench__section-heading">
+          <strong>记录遗留问题（{{ acceptance.residualIssues.length }}）</strong>
+          <a-button v-if="!disabled" size="small" @click="addResidualIssue">＋ 新增问题</a-button>
+        </div>
+        <p v-if="!acceptance.residualIssues.length" class="requirement-node-workbench__issue-empty">暂无遗留问题</p>
+        <div v-for="(issue, index) in acceptance.residualIssues" :key="issue.id" class="requirement-node-workbench__issue-row">
+          <span class="requirement-node-workbench__issue-number">{{ index + 1 }}</span>
+          <a-textarea :value="issue.description" :disabled="disabled" :auto-size="{ minRows: 1, maxRows: 6 }" :aria-label="`遗留问题 ${index + 1}`" placeholder="填写问题说明、影响及后续处理安排" @update:value="(value: string) => updateResidualIssue(issue.id, value)" @blur="commit" />
+          <a-popconfirm v-if="!disabled" title="确定删除这条遗留问题？" ok-text="删除" cancel-text="取消" @confirm="removeResidualIssue(issue.id)">
+            <a-button size="small" danger :aria-label="`删除遗留问题 ${index + 1}`">删除</a-button>
+          </a-popconfirm>
+        </div>
+      </section>
+    </template>
     <template v-else>
       <header class="requirement-node-workbench__header pms-section-heading">
         <div>
@@ -469,6 +536,10 @@ function commit() {
 
 <style scoped>
 .requirement-node-workbench { display: grid; gap: var(--pms-space-3); padding-top: 2px; }
+.requirement-node-workbench__acceptance-card { display: grid; gap: var(--pms-space-3); min-width: 0; padding: var(--pms-space-3); background: var(--pms-detail-surface-muted); border: 1px solid var(--pms-detail-border); border-radius: var(--pms-radius-sm); }
+.requirement-node-workbench__issue-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: start; gap: var(--pms-space-2); }
+.requirement-node-workbench__issue-number { display: grid; place-items: center; height: 24px; border-radius: 50%; color: var(--pms-primary); background: var(--pms-primary-soft); font-size: var(--pms-font-size-caption); }
+.requirement-node-workbench__issue-empty { margin: 0; padding: var(--pms-space-3); text-align: center; color: var(--pms-text-faint); }
 .requirement-node-workbench__clarification, .requirement-node-workbench__integration, .requirement-node-workbench__scheduling { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--pms-space-3); padding: var(--pms-space-3); background: var(--pms-detail-surface-muted); border: 1px solid var(--pms-detail-border); border-radius: var(--pms-radius-sm); }
 .requirement-node-workbench__field { display: grid; gap: var(--pms-space-2); min-width: 0; }
 .requirement-node-workbench__field--wide { grid-column: 1 / -1; }

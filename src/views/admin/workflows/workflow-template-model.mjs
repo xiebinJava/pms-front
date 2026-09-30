@@ -61,14 +61,18 @@ export const REQUIREMENT_WORKBENCH_PALETTE = Object.freeze([
     workbenchTypes: ['requirement'],
     nodeNameIncludes: ['需求验收'],
   },
-  {
-    key: 'requirement-release-workbench',
-    runtimeKey: 'requirement-node-workbench',
-    processTypeCodes: ['requirement-management'],
-    workbenchTypes: ['requirement'],
-    nodeNameIncludes: ['需求上线'],
-  },
 ])
+
+const PROJECT_WORKBENCH_NODES = Object.freeze({
+  'requirement-scope': ['需求澄清'],
+  'solution-design': ['方案设计'],
+  'plan-resource-risk': ['计划、资源与风险', '计划资源与风险'],
+  'development-control': ['开发测试'],
+  'business-acceptance': ['业务验收'],
+  'release-handover': ['发布决策'],
+  'value-review': ['价值验证'],
+  'knowledge-standard': ['知识沉淀'],
+})
 
 export function getAvailableWorkflowComponents({ processTypeCode, source, components = [], paletteComponents = [], currentNode, currentNodeIndex = -1 } = {}) {
   if (!processTypeCode || !source || !Array.isArray(components)) return []
@@ -79,12 +83,25 @@ export function getAvailableWorkflowComponents({ processTypeCode, source, compon
   return candidates
     .filter((component) => !component.processTypeCodes?.length || component.processTypeCodes.includes(processTypeCode))
     .filter((component) => component.workbenchTypes?.includes(source))
+    // Keep legacy implementations registered without exposing cross-type
+    // workbenches for new bindings. Dedicated story workbenches come later.
+    .filter((component) => {
+      const key = component.runtimeKey || component.key
+      // Retired from new bindings; keep the runtime registration for historical snapshots.
+      if (key === 'story-split') return false
+      if (Object.hasOwn(PROJECT_WORKBENCH_NODES, key)) return source === 'project'
+      if (key === 'story-list' || key === 'topic-research' || key === 'topic-design-review') return source === 'topic'
+      return source === 'requirement' && ['requirement-execution', 'requirement-receiving-analysis', 'requirement-node-workbench'].includes(key)
+    })
     .filter((component) => runtimeKeys.has(component.runtimeKey || component.key))
     .map(({ key, runtimeKey = key, workbenchTypes, nodeNameIncludes }) => ({
       key,
       runtimeKey,
       workbenchTypes,
-      applicable: source !== 'requirement'
+      applicable: key === 'topic-design-review' ? String(currentNode?.name || '').includes('方案设计与评审') : key === 'topic-research' ? String(currentNode?.name || '').includes('需求调研') : source === 'project'
+        ? (key === 'development-control' && (currentNode?.contentOrder || []).includes(`component:${runtimeKey}`))
+          || (PROJECT_WORKBENCH_NODES[key] || []).some((match) => String(currentNode?.name || '').includes(match))
+        : source !== 'requirement'
         ? true
         : currentNodeIndex > 0 && Array.isArray(nodeNameIncludes)
           && nodeNameIncludes.some((match) => String(currentNode?.name || '').includes(match)),

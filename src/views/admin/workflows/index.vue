@@ -28,11 +28,10 @@ import {
   solidifyWorkflowSystemDefault,
   getWorkflowSystemDefaultAvailability,
 } from '/@/api/admin-workflow'
-import type { ProjectType, WorkflowContentOrderItem, WorkflowFieldBinding, WorkflowFieldDefinition, WorkflowFieldType, WorkflowNodeDefinitionV2, WorkflowProjectNodeOption, WorkflowTemplateDefinitionV2, WorkflowTemplateSummary, WorkflowTemplateVersionSummary } from '/@/types/workflow'
+import type { ProjectType, WorkflowContentOrderItem, WorkflowFieldBinding, WorkflowFieldDefinition, WorkflowFieldType, WorkflowNodeDefinitionV2, WorkflowProjectNodeOption, WorkflowTemplate, WorkflowTemplateDefinitionV2, WorkflowTemplateSummary, WorkflowTemplateVersionSummary } from '/@/types/workflow'
 import { isWorkflowFieldFullWidth } from '/@/utils/workflow-field-layout.mjs'
 import WorkflowWorkbenchPreview from '/@/components/workflow/WorkflowWorkbenchPreview.vue'
 import { createRequirementNodeWorkbenchConfig } from '/@/components/workflow/requirement-node-workbench.mjs'
-import RequirementWorkbenchDemo from '/@/views/admin/workflows/RequirementWorkbenchDemo.vue'
 import {
   FIXED_NODE_BLOCKS,
   addWorkflowField,
@@ -99,7 +98,6 @@ const deleteHoverKey = ref<string>()
 const contentDragItem = ref<WorkflowContentOrderItem>()
 const fieldDragKey = ref<string>()
 const previewOpen = ref(false)
-const requirementWorkbenchDemoOpen = ref(false)
 const versionModalOpen = ref(false)
 const typeModalOpen = ref(false)
 const mobileInspectorOpen = ref(false)
@@ -185,12 +183,15 @@ watch(selectedTypeId, (typeId) => {
 })
 
 function loadWorkflowProjectNodeOptions(): Promise<void> {
-  if (workflowProjectNodeOptions.value.length) return Promise.resolve()
   if (workflowProjectNodeOptionsRequest) return workflowProjectNodeOptionsRequest
+  workflowProjectNodeOptions.value = []
   workflowProjectNodeOptionsLoading.value = true
   workflowProjectNodeOptionsRequest = getWorkflowProjectNodeOptions()
     .then((options) => { workflowProjectNodeOptions.value = Array.isArray(options) ? options : [] })
-    .catch((error) => { message.error((error as Error).message || t('admin.workflow.topicSourceProjectNodeLoadFailed')) })
+    .catch((error) => {
+      workflowProjectNodeOptions.value = []
+      message.error((error as Error).message || t('admin.workflow.topicSourceProjectNodeLoadFailed'))
+    })
     .finally(() => {
       workflowProjectNodeOptionsLoading.value = false
       workflowProjectNodeOptionsRequest = undefined
@@ -199,12 +200,15 @@ function loadWorkflowProjectNodeOptions(): Promise<void> {
 }
 
 function loadWorkflowTopicNodeOptions(): Promise<void> {
-  if (workflowTopicNodeOptions.value.length) return Promise.resolve()
   if (workflowTopicNodeOptionsRequest) return workflowTopicNodeOptionsRequest
+  workflowTopicNodeOptions.value = []
   workflowTopicNodeOptionsLoading.value = true
   workflowTopicNodeOptionsRequest = getWorkflowTopicNodeOptions()
     .then((options) => { workflowTopicNodeOptions.value = Array.isArray(options) ? options : [] })
-    .catch((error) => { message.error((error as Error).message || t('admin.workflow.storySourceTopicNodeLoadFailed')) })
+    .catch((error) => {
+      workflowTopicNodeOptions.value = []
+      message.error((error as Error).message || t('admin.workflow.storySourceTopicNodeLoadFailed'))
+    })
     .finally(() => {
       workflowTopicNodeOptionsLoading.value = false
       workflowTopicNodeOptionsRequest = undefined
@@ -686,6 +690,12 @@ function prepareDefinitionForWrite() {
   markDirty()
 }
 
+function notifyAutoBoundTemplates(template: WorkflowTemplate) {
+  if (template.autoBoundTemplateNames?.length) {
+    message.info(t('admin.workflow.autoMountDraftCreated', { names: template.autoBoundTemplateNames.join('、') }), 8)
+  }
+}
+
 async function saveDraft(): Promise<boolean> {
   if (saving.value || loading.value) return false
   if (!selectedTypeId.value || !templateName.value.trim() || !definition.value.nodes.length) {
@@ -720,6 +730,7 @@ async function saveDraft(): Promise<boolean> {
     }
     if (dirty.value) message.warning(t('admin.workflow.saveChangesRemain'))
     else message.success(t('admin.workflow.draftSaved'))
+    notifyAutoBoundTemplates(saved)
     return true
   } catch (error) {
     message.error((error as Error).message || t('admin.workflow.saveFailed'))
@@ -740,6 +751,7 @@ async function publish() {
     const published = await publishWorkflowTemplate(templateId)
     upsertTemplateSummary(published)
     message.success(t('admin.workflow.published'))
+    notifyAutoBoundTemplates(published)
     try {
       const requestSequence = ++templateListRequestSequence
       const refreshedTemplates = typeId ? await listWorkflowTemplates(typeId) : []
@@ -993,7 +1005,6 @@ onMounted(async () => {
         <div v-if="workflowEntryStep === 'editor'" class="workflow-page-actions">
           <div class="workflow-page-actions__secondary">
             <a-button @click="previewOpen = true" :disabled="!definition.nodes.length"><EyeOutlined /> {{ $t('admin.workflow.preview') }}</a-button>
-            <a-button v-if="selectedType?.code === 'requirement-management'" :disabled="!definition.nodes.length" @click="requirementWorkbenchDemoOpen = true"><EyeOutlined /> 需求流程工作台 Demo</a-button>
           </div>
           <div v-if="canWrite" class="workflow-page-actions__primary">
             <a-button type="primary" :loading="saving" @click="saveDraft"><SaveOutlined /> {{ $t('admin.workflow.saveDraft') }}</a-button>
@@ -1112,12 +1123,13 @@ onMounted(async () => {
                     :value="definition.sourceProjectNodeKey"
                     :options="workflowProjectNodeOptions.map((option) => ({ value: option.key, label: option.name }))"
                     :loading="workflowProjectNodeOptionsLoading"
-                    :disabled="!canWrite || workflowProjectNodeOptionsLoading || !workflowProjectNodeOptions.length"
+                    :disabled="!canWrite"
                     :placeholder="$t('admin.workflow.topicSourceProjectNodeKeyPlaceholder')"
                     :aria-label="$t('admin.workflow.topicSourceProjectNodeKey')"
                     show-search
                     option-filter-prop="label"
                     @change="updateTopicSourceProjectNodeKey"
+                    @dropdown-visible-change="(open: boolean) => { if (open) void loadWorkflowProjectNodeOptions() }"
                   />
                   <small v-if="!workflowProjectNodeOptionsLoading && !workflowProjectNodeOptions.length">
                     {{ $t('admin.workflow.topicSourceProjectNodeKeyNoOptions') }}
@@ -1134,12 +1146,13 @@ onMounted(async () => {
                     :value="definition.sourceTopicNodeKey"
                     :options="workflowTopicNodeOptions.map((option) => ({ value: option.key, label: option.name }))"
                     :loading="workflowTopicNodeOptionsLoading"
-                    :disabled="!canWrite || workflowTopicNodeOptionsLoading || !workflowTopicNodeOptions.length"
+                    :disabled="!canWrite"
                     :placeholder="$t('admin.workflow.storySourceTopicNodeKeyPlaceholder')"
                     :aria-label="$t('admin.workflow.storySourceTopicNodeKey')"
                     show-search
                     option-filter-prop="label"
                     @change="updateStorySourceTopicNodeKey"
+                    @dropdown-visible-change="(open: boolean) => { if (open) void loadWorkflowTopicNodeOptions() }"
                   />
                   <small v-if="!workflowTopicNodeOptionsLoading && !workflowTopicNodeOptions.length">
                     {{ $t('admin.workflow.storySourceTopicNodeKeyNoOptions') }}
@@ -1288,9 +1301,6 @@ onMounted(async () => {
       <div class="template-preview-flow"><div v-for="(node, index) in definition.nodes" :key="node.key" class="template-preview-node"><span>{{ String(index + 1).padStart(2, '0') }}</span><strong>{{ node.name }}</strong><small>{{ node.contentOrder.map((item) => contentItemLabel(item)).join(' · ') || $t('admin.workflow.custom') }}</small><div>{{ $t('admin.workflow.fixedBlocksTitle') }}：{{ FIXED_NODE_BLOCKS.map((block) => t(`admin.workflow.fixedBlocks.${block}`)).join('、') }}</div><template v-for="contentItem in node.contentOrder" :key="contentItem"><div v-if="contentItem === 'fields' || contentItem === 'legacy-custom-fields'" class="template-preview-content-item"><b>{{ contentItemLabel(contentItem) }}</b><div v-for="field in fieldsForContentItem(node, contentItem)" :key="field.key" class="preview-field-line">{{ field.label }} · {{ fieldTypeLabel(field.type) }}<b v-if="field.required">*</b></div></div><div v-else class="template-preview-content-item"><b>{{ contentItemLabel(contentItem) }}</b><small>{{ $t(`admin.workflow.componentHints.${contentItem.slice('component:'.length)}`) }}</small></div></template></div></div>
     </a-modal>
 
-    <a-modal v-model:open="requirementWorkbenchDemoOpen" title="需求流程工作台 Demo" width="1160px" :footer="null">
-      <RequirementWorkbenchDemo :nodes="definition.nodes" />
-    </a-modal>
 
 
     <a-modal v-model:open="typeModalOpen" :title="$t('admin.workflow.addProcessType')" :ok-text="$t('common.save')" :cancel-text="$t('common.cancel')" @ok="saveType">

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import TopicResearchWorkbench from '/@/views/development/detail/TopicResearchWorkbench.vue'
+import TopicDesignReviewWorkbench from '/@/views/development/detail/TopicDesignReviewWorkbench.vue'
 import { useI18n } from 'vue-i18n'
 import { isRequirementClarificationNode, isRequirementIntegrationNode, isRequirementSchedulingNode } from './requirement-node-workbench.mjs'
 
@@ -37,6 +39,7 @@ const componentConfigRecord = computed<Record<string, unknown>>(() => props.comp
   : {})
 const requirementNodeWorkbenchName = computed(() => typeof componentConfigRecord.value.nodeName === 'string' ? componentConfigRecord.value.nodeName : '')
 const isRequirementClarification = computed(() => isRequirementClarificationNode(requirementNodeWorkbenchName.value))
+const isRequirementAcceptance = computed(() => requirementNodeWorkbenchName.value.includes('需求验收'))
 const isRequirementIntegration = computed(() => isRequirementIntegrationNode(requirementNodeWorkbenchName.value))
 const isRequirementScheduling = computed(() => isRequirementSchedulingNode(requirementNodeWorkbenchName.value))
 const isRequirementDevelopment = computed(() => {
@@ -44,7 +47,7 @@ const isRequirementDevelopment = computed(() => {
   return isRequirementExecutionPreview && requirementNodeWorkbenchName.value.includes('需求开发')
 })
 const isRequirementNodeSpecificPreview = computed(() => isRequirementDevelopment.value
-  || (isRequirementNodeWorkbench.value && (isRequirementClarification.value || isRequirementIntegration.value || isRequirementScheduling.value)))
+  || (isRequirementNodeWorkbench.value && (isRequirementAcceptance.value || isRequirementClarification.value || isRequirementIntegration.value || isRequirementScheduling.value)))
 const requirementNodeWorkbenchPurpose = computed(() => typeof componentConfigRecord.value.purpose === 'string' ? componentConfigRecord.value.purpose : '')
 const requirementNodeWorkbenchActivities = computed(() => Array.isArray(componentConfigRecord.value.activities)
   ? componentConfigRecord.value.activities.filter((activity): activity is string => typeof activity === 'string')
@@ -245,7 +248,7 @@ function componentHint(): string {
 
 <template>
   <section class="workflow-workbench-preview" :data-workbench-preview="componentKey" :aria-label="componentLabel()">
-    <header v-if="!isRequirementNodeSpecificPreview" class="workflow-workbench-preview__header">
+    <header v-if="!isRequirementNodeSpecificPreview && !['topic-research', 'topic-design-review'].includes(componentKey)" class="workflow-workbench-preview__header">
       <div class="workflow-workbench-preview__heading">
         <span>{{ componentLabel() }}</span>
         <strong>{{ isRequirementScope ? $t('detail.requirementScope.scopeTitle') : layoutTitle() }}</strong>
@@ -254,9 +257,11 @@ function componentHint(): string {
       <a-tag color="blue">{{ $t('admin.workflow.workbenchPreview.readOnly') }}</a-tag>
     </header>
 
-    <p v-if="!isRequirementScope && !isRequirementNodeSpecificPreview" class="workflow-workbench-preview__hint">{{ $t('admin.workflow.workbenchPreview.readOnlyHint') }}</p>
+    <p v-if="!isRequirementScope && !isRequirementNodeSpecificPreview && !['topic-research', 'topic-design-review'].includes(componentKey)" class="workflow-workbench-preview__hint">{{ $t('admin.workflow.workbenchPreview.readOnlyHint') }}</p>
 
-    <template v-if="isRequirementScope">
+    <TopicResearchWorkbench v-if="componentKey === 'topic-research'" preview disabled />
+    <TopicDesignReviewWorkbench v-else-if="componentKey === 'topic-design-review'" preview disabled />
+    <template v-else-if="isRequirementScope">
       <span class="workflow-workbench-preview__actual-count">0 {{ $t('detail.requirementScope.items') }}</span>
 
       <section class="workflow-workbench-preview__actual-block">
@@ -365,6 +370,15 @@ function componentHint(): string {
       </section>
     </template>
 
+    <template v-else-if="isRequirementNodeWorkbench && isRequirementAcceptance">
+      <section class="workflow-workbench-preview__clarification-fields" data-testid="requirement-acceptance-template-fields">
+        <strong>业务确认结果</strong>
+        <div><span>确认结论</span><i>通过 / 有条件通过 / 不通过（单选）</i></div>
+        <div><span>确认说明</span><i>记录业务确认情况、验收依据或未通过的原因</i></div>
+        <strong>记录遗留问题</strong>
+        <div><span>遗留问题清单</span><i>逐条填写问题说明，支持新增、删除；失焦自动保存</i></div>
+      </section>
+    </template>
     <template v-else-if="isRequirementNodeWorkbench">
       <div class="workflow-workbench-preview__node-workbench">
         <div class="workflow-workbench-preview__node-workbench-heading">

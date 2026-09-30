@@ -500,6 +500,7 @@ export interface DevelopmentItemWorkflowNode {
   status: 0 | 1 | 2
   ownerId?: number
   ownerName?: string
+  reviewerNames?: Record<string, string>
   startDate?: string
   endDate?: string
   version: number

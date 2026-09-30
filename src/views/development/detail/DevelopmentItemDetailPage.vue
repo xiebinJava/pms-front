@@ -27,6 +27,8 @@ import RequirementExecutionComponent from './RequirementExecutionComponent.vue'
 import RequirementDevelopmentTreeComponent from './RequirementDevelopmentTreeComponent.vue'
 import RequirementReceivingAnalysisComponent from './RequirementReceivingAnalysisComponent.vue'
 import RequirementNodeWorkbenchComponent from './RequirementNodeWorkbenchComponent.vue'
+import TopicResearchWorkbench from './TopicResearchWorkbench.vue'
+import TopicDesignReviewWorkbench from './TopicDesignReviewWorkbench.vue'
 import WorkflowNodeShell from '/@/components/workflow/WorkflowNodeShell.vue'
 import WorkflowRuntimeComponentHost from '/@/components/workflow/WorkflowRuntimeComponentHost.vue'
 import SourceRequirementList from '/@/components/development/SourceRequirementList.vue'
@@ -89,7 +91,7 @@ const requirementDevelopmentTarget = computed<{ targetType: RequirementExecution
   return undefined
 })
 const selectedNodeEditable = computed(() => selectedNode.value != null
-  && !isNodeReadOnly(selectedNode.value.status) && !detail.value?.terminalStatus)
+  && !isNodeReadOnly(selectedNode.value.status) && !detail.value?.terminalStatus && !completingNode.value)
 const requirementTargetWritable = computed(() => props.itemType !== 'requirement' || userStore.can('requirement:write'))
 const requirementTargetManageable = computed(() => props.itemType !== 'requirement' || userStore.can('requirement:manage'))
 const activeNode = computed(() => detail.value?.nodes.find((node) => node.status === 1))
@@ -144,6 +146,7 @@ function collectDetailPeople(workflow: DevelopmentItemWorkflowDetail): PersonOpt
   add(workflow.ownerId, workflow.ownerName)
   workflow.nodes.forEach((node) => {
     add(node.ownerId, node.ownerName)
+    Object.entries(node.reviewerNames || {}).forEach(([id, label]) => add(Number(id), label))
     addTasks(node.tasks || [])
   })
   return Array.from(options.values())
@@ -307,6 +310,14 @@ function saveNode(): Promise<boolean> {
   return request
 }
 
+async function saveAllNodeEdits(): Promise<boolean> {
+  while (activeNodeSave || nodeFormDirty.value) {
+    const pending = activeNodeSave || saveNode()
+    if (!(await pending)) return false
+  }
+  return true
+}
+
 function confirmCompleteNode() {
   const node = selectedNode.value
   if (!detail.value || !node || node.status !== 1) return
@@ -316,9 +327,11 @@ function confirmCompleteNode() {
     okText: t('developmentDetail.completeNodeAction'),
     cancelText: t('common.cancel'),
     onOk: async () => {
-      if (!(await saveNode())) return
+      if (selectedNode.value?.id !== node.id || completingNode.value) return
       completingNode.value = true
       try {
+        if (!(await saveAllNodeEdits())) return
+        if (selectedNode.value?.id !== node.id || selectedNode.value.status !== 1) return
         detail.value = await completeDevelopmentItemNode(props.itemType, detail.value!.id, node.id)
         const next = detail.value.nodes.find((item) => item.status === 1) || node
         setSelectedNode(next)
@@ -550,7 +563,7 @@ onBeforeUnmount(() => {
                       <a-tag :color="selectedNode.status === 2 ? 'green' : selectedNode.status === 1 ? 'blue' : 'default'">{{ t(`developmentDetail.nodeStatus.${selectedNode.status === 2 ? 'completed' : selectedNode.status === 1 ? 'active' : 'locked'}`) }}</a-tag>
                     </div>
                     <p v-if="selectedNode.description" class="node-detail-title__description">{{ selectedNode.description }}</p>
-                    <p v-if="selectedNode.deliverable" class="development-item-detail__deliverable"><InfoCircleOutlined />{{ t('developmentDetail.deliverable') }}：{{ selectedNode.deliverable }}</p>
+                    <p v-if="selectedNode.deliverable && !(props.itemType === 'topic' && selectedNode.runtimeComponents?.some(key => key === WorkflowRuntimeComponentKey.TOPIC_RESEARCH || key === WorkflowRuntimeComponentKey.TOPIC_DESIGN_REVIEW))" class="development-item-detail__deliverable"><InfoCircleOutlined />{{ t('developmentDetail.deliverable') }}：{{ selectedNode.deliverable }}</p>
                   </div>
                 </div>
                 <div class="node-detail-actions">
@@ -670,6 +683,20 @@ onBeforeUnmount(() => {
                     :can-manage="requirementTargetManageable"
                     @updated="onReceivingAnalysisUpdated"
                   />
+                </WorkflowRuntimeComponentHost>
+                <WorkflowRuntimeComponentHost
+                  v-else-if="props.itemType === 'topic' && componentKey === WorkflowRuntimeComponentKey.TOPIC_DESIGN_REVIEW"
+                  :component-key="componentKey"
+                >
+                  <TopicDesignReviewWorkbench :key="selectedNode.id" :model-value="nodeForm.fieldValues" :disabled="!selectedNodeEditable" :person-options="members"
+                    @update:model-value="onNodeFieldValuesChange" @commit="saveNode" />
+                </WorkflowRuntimeComponentHost>
+                <WorkflowRuntimeComponentHost
+                  v-else-if="props.itemType === 'topic' && componentKey === WorkflowRuntimeComponentKey.TOPIC_RESEARCH"
+                  :component-key="componentKey"
+                >
+                  <TopicResearchWorkbench :key="selectedNode.id" :model-value="nodeForm.fieldValues" :disabled="!selectedNodeEditable"
+                    @update:model-value="onNodeFieldValuesChange" @commit="saveNode" />
                 </WorkflowRuntimeComponentHost>
                 <WorkflowRuntimeComponentHost
                   v-else-if="props.itemType === 'requirement' && componentKey === WorkflowRuntimeComponentKey.REQUIREMENT_NODE_WORKBENCH"

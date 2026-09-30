@@ -1,4 +1,6 @@
 export const WorkflowRuntimeComponentKey = Object.freeze({
+  TOPIC_RESEARCH: 'topic-research',
+  TOPIC_DESIGN_REVIEW: 'topic-design-review',
   REQUIREMENT_EXECUTION: 'requirement-execution',
   REQUIREMENT_RECEIVING_ANALYSIS: 'requirement-receiving-analysis',
   REQUIREMENT_NODE_WORKBENCH: 'requirement-node-workbench',
@@ -26,6 +28,8 @@ export interface WorkflowRuntimeComponentDefinition {
 }
 
 export const WORKFLOW_RUNTIME_COMPONENTS: readonly WorkflowRuntimeComponentDefinition[] = Object.freeze([
+  { key: WorkflowRuntimeComponentKey.TOPIC_RESEARCH, label: '需求调研工作台', slotName: 'topic-research', processTypeCodes: ['topic-management'], workbenchTypes: ['topic'] },
+  { key: WorkflowRuntimeComponentKey.TOPIC_DESIGN_REVIEW, label: '方案设计与评审工作台', slotName: 'topic-design-review', processTypeCodes: ['topic-management'], workbenchTypes: ['topic'] },
   { key: WorkflowRuntimeComponentKey.REQUIREMENT_EXECUTION, label: '需求交付目标', slotName: 'requirement-execution', processTypeCodes: ['requirement-management'], workbenchTypes: ['requirement'] },
   { key: WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS, label: '需求接收与分析', slotName: 'requirement-receiving-analysis', processTypeCodes: ['requirement-management'], workbenchTypes: ['requirement'] },
   { key: WorkflowRuntimeComponentKey.REQUIREMENT_NODE_WORKBENCH, label: '需求节点工作台', slotName: 'requirement-node-workbench', processTypeCodes: ['requirement-management'], workbenchTypes: ['requirement'] },

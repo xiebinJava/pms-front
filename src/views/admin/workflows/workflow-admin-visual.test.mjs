@@ -19,7 +19,7 @@ test('workflow template typography only uses documented readable type sizes', ()
   assert.ok(sizes.every((size) => /^var\(--pms-font-size-(?:caption|compact|body|nav|section|title|display)\)$/.test(size)), `unexpected font sizes: ${sizes.join(', ')}`)
 })
 
-test('topic templates select a backend project-node binding and explain runtime component injection', () => {
+test('topic templates select a backend project-node binding', () => {
   const api = fs.readFileSync(new URL('../../../api/admin-workflow.ts', import.meta.url), 'utf8')
   const types = fs.readFileSync(new URL('../../../types/workflow.ts', import.meta.url), 'utf8')
   const registry = fs.readFileSync(new URL('../../../components/workflow/workflow-component-registry.ts', import.meta.url), 'utf8')
@@ -39,8 +39,6 @@ test('topic templates select a backend project-node binding and explain runtime 
   assert.match(source, /setTopicSourceProjectNodeKey\(definition\.value,\s*String\(value \|\| ''\)\)/)
   assert.match(zhLocale, /topicSourceProjectNodeKey/)
   assert.match(enLocale, /topicSourceProjectNodeKey/)
-  assert.match(zhLocale, /发布后会在该项目节点自动加入“专题列表工作台”/)
-  assert.match(enLocale, /automatically adds the Topic List Workbench/)
   assert.match(registry, /label:\s*'专题列表工作台'/)
   assert.match(registry, /label:\s*'故事列表工作台'/)
   assert.match(registry, /processTypeCodes:\s*\['topic-management'\]/)
@@ -309,14 +307,8 @@ test('requirement integration preview only exposes the conditional integration f
   assert.match(workbenchPreviewSource, /项目 \/ 专题 \/ 故事/)
 })
 
-test('requirement scheduling demo and preview expose target binding and expected launch range', () => {
-  const demoSource = fs.readFileSync(new URL('./RequirementWorkbenchDemo.vue', import.meta.url), 'utf8')
-  assert.match(demoSource, /name: '需求排期'/)
-  assert.match(demoSource, /目标项目/)
-  assert.match(demoSource, /目标专题/)
-  assert.match(demoSource, /目标故事/)
-  assert.match(demoSource, /期望上线时间/)
-  assert.match(demoSource, /isSchedulingNode/)
+test('requirement scheduling preview exposes target binding and expected launch range', () => {
+  assert.match(workbenchPreviewSource, /期望上线时间/)
   assert.match(workbenchPreviewSource, /isRequirementSchedulingNode/)
   assert.match(workbenchPreviewSource, /requirement-scheduling-template-fields/)
 })
@@ -488,11 +480,11 @@ test('legacy custom field slot does not move the project profile click-away anch
   assert.doesNotMatch(detailPage, /activeNodeLegacyCustomFields\.length" ref="profileContainer"/)
 })
 
-test('requirement workflow exposes the node-specific workbench and editable demo entry', () => {
+test('requirement workflow retains the node-specific workbench without a demo entry', () => {
   const registry = fs.readFileSync(new URL('../../../components/workflow/workflow-component-registry.ts', import.meta.url), 'utf8')
   assert.match(registry, /REQUIREMENT_NODE_WORKBENCH:\s*'requirement-node-workbench'/)
   assert.match(source, /getAvailableWorkflowComponents/)
   assert.match(source, /createRequirementNodeWorkbenchConfig/)
-  assert.match(source, /RequirementWorkbenchDemo/)
-  assert.match(source, /requirementWorkbenchDemoOpen/)
+  assert.doesNotMatch(source, /RequirementWorkbenchDemo|requirementWorkbenchDemoOpen|需求流程工作台 Demo/)
+  assert.equal(fs.existsSync(new URL('./RequirementWorkbenchDemo.vue', import.meta.url)), false)
 })
