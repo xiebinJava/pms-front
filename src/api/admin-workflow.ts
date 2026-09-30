@@ -76,6 +76,10 @@ export function solidifyWorkflowSystemDefault(projectTypeId: number): Promise<Wo
   return http.post(`/admin/workflow-config/project-types/${projectTypeId}/default-template/system-default`)
 }
 
+export function getWorkflowSystemDefaultAvailability(): Promise<boolean> {
+  return http.get('/admin/workflow-config/system-default/availability')
+}
+
 export function archiveWorkflowTemplateVersion(templateId: number, versionId: number): Promise<WorkflowTemplateSummary> {
   return http.post(`/admin/workflow-config/templates/${templateId}/versions/${versionId}/archive`)
 }

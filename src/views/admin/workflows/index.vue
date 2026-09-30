@@ -26,6 +26,7 @@ import {
   saveWorkflowTemplateDraft,
   setWorkflowDefault,
   solidifyWorkflowSystemDefault,
+  getWorkflowSystemDefaultAvailability,
 } from '/@/api/admin-workflow'
 import type { ProjectType, WorkflowContentOrderItem, WorkflowFieldBinding, WorkflowFieldDefinition, WorkflowFieldType, WorkflowNodeDefinitionV2, WorkflowProjectNodeOption, WorkflowTemplateDefinitionV2, WorkflowTemplateSummary, WorkflowTemplateVersionSummary } from '/@/types/workflow'
 import { isWorkflowFieldFullWidth } from '/@/utils/workflow-field-layout.mjs'
@@ -66,6 +67,7 @@ const canWrite = computed(() => userStore.can('admin:workflow:write'))
 const loading = ref(false)
 const saving = ref(false)
 const solidifying = ref(false)
+const systemDefaultWriteAvailable = ref(false)
 const types = ref<ProjectType[]>([])
 const templates = ref<WorkflowTemplateSummary[]>([])
 const workflowProjectNodeOptions = ref<WorkflowProjectNodeOption[]>([])
@@ -783,9 +785,18 @@ async function setAsDefault() {
 }
 
 async function solidifySystemDefault() {
-  if (saving.value || loading.value || solidifying.value) return
+  if (!canWrite.value || !systemDefaultWriteAvailable.value || saving.value || loading.value || solidifying.value) return
+  if (dirty.value) {
+    message.warning(t('admin.workflow.saveChangesBeforePublish'))
+    return
+  }
   const typeId = selectedTypeId.value
   if (!typeId || !selectedTemplateSummary.value?.defaultTemplate) return
+  const versionNo = selectedTemplateSummary.value.publishedVersions?.find(
+    (version) => version.id === selectedTemplateSummary.value?.defaultTemplateVersionId)?.versionNo
+  if (!(await confirmAction(t('admin.workflow.solidifySystemDefault'),
+    `将固化当前默认的已发布版本${versionNo ? ` v${versionNo}` : ''}，覆盖该流程类型的系统默认文件。`,
+    t('admin.workflow.solidifySystemDefault')))) return
   solidifying.value = true
   try {
     const result = await solidifyWorkflowSystemDefault(typeId)
@@ -967,6 +978,7 @@ function checkboxChecked(event: unknown): boolean {
   return Boolean((event as { target?: { checked?: boolean } })?.target?.checked)
 }
 onMounted(async () => {
+  systemDefaultWriteAvailable.value = await getWorkflowSystemDefaultAvailability().catch(() => false)
   loading.value = true
   try { await loadTypes() }
   catch (error) { message.error((error as Error).message || t('admin.workflow.loadFailed')) }
@@ -1079,7 +1091,7 @@ onMounted(async () => {
                     <div class="template-selector__heading-actions">
                       <a-button v-if="canWrite && selectedTemplateId" size="small" data-testid="workflow-version-manager" @click="versionModalOpen = true">{{ $t('admin.workflow.versionManager') }}</a-button>
                       <a-button v-if="canWrite && selectedTemplateSummary?.publishedVersionId && selectedTemplateSummary.defaultTemplateVersionId !== selectedTemplateSummary.publishedVersionId" class="template-selector__default-action" size="small" :disabled="dirty" @click="setAsDefault">{{ $t('admin.workflow.setDefault') }}</a-button>
-                      <a-button v-if="canWrite && selectedTemplateSummary?.defaultTemplate" class="template-selector__default-action" size="small" :loading="solidifying" :disabled="saving || loading" @click="solidifySystemDefault"><CodeOutlined /> {{ $t('admin.workflow.solidifySystemDefault') }}</a-button>
+                      <a-button v-if="canWrite && selectedTemplateSummary?.defaultTemplate && systemDefaultWriteAvailable" class="template-selector__default-action" size="small" :loading="solidifying" :disabled="dirty || saving || loading" @click="solidifySystemDefault"><CodeOutlined /> {{ $t('admin.workflow.solidifySystemDefault') }}</a-button>
                       <a-button v-if="canWrite && selectedTemplateSummary && selectedTemplateSummary.code !== 'current-process' && !selectedTemplateSummary.defaultTemplate" size="small" danger data-testid="archive-workflow-template" @click="archiveSelectedTemplate">{{ $t('admin.workflow.archiveTemplate') }}</a-button>
                     </div>
                   </div>
