@@ -110,6 +110,11 @@ function close() {
   if (!saving.value) emit('update:open', false)
 }
 
+function onScheduleChange(values: [string, string] | null) {
+  form.startDate = values?.[0] || ''
+  form.dueDate = values?.[1] || ''
+}
+
 async function save() {
   if (saving.value) return
   if (!form.title.trim()) {
@@ -180,17 +185,23 @@ async function save() {
       <div class="development-story-edit-modal__grid">
         <a-form-item :label="t('developmentList.storyStatus')"><a-select v-model:value="form.status" :options="statusOptions" /></a-form-item>
         <a-form-item :label="t('developmentList.storyPoints')"><a-input-number v-model:value="form.storyPoints" :min="0" :max="1000" style="width: 100%" /></a-form-item>
-        <a-form-item :label="t('developmentList.storyProgress')"><a-input-number v-model:value="form.progress" :min="0" :max="100" addon-after="%" style="width: 100%" /></a-form-item>
-        <a-form-item :label="t('developmentList.storyStartDate')"><a-input v-model:value="form.startDate" type="date" /></a-form-item>
-        <a-form-item :label="t('developmentList.storyDueDate')"><a-input v-model:value="form.dueDate" type="date" /></a-form-item>
       </div>
-      <a-form-item :label="t('developmentList.storyBlocker')"><a-textarea v-model:value="form.blocker" :maxlength="500" :rows="3" /></a-form-item>
+      <a-form-item :label="t('developmentList.storySchedule')">
+        <a-range-picker
+          :value="[form.startDate || null, form.dueDate || null]"
+          value-format="YYYY-MM-DD"
+          class="development-story-edit-modal__schedule"
+          :placeholder="[t('developmentDetail.startDate'), t('developmentDetail.endDate')]"
+          @change="onScheduleChange"
+        />
+      </a-form-item>
     </a-form>
   </a-modal>
 </template>
 
 <style scoped>
 .development-story-edit-modal__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
+.development-story-edit-modal__schedule { width: 100%; }
 .development-story-edit-modal__empty-note { margin: 8px 0 0; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); line-height: var(--pms-line-height-relaxed); }
 @media (max-width: 640px) { .development-story-edit-modal__grid { grid-template-columns: 1fr; } }
 </style>

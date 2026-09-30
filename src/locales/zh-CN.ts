@@ -598,6 +598,7 @@ const zhCN = {
     storyStatus: '状态',
     storyProgress: '进度',
     storyPoints: '故事点',
+    storySchedule: '故事排期',
     storyStartDate: '开始日期',
     storyDueDate: '截止日期',
     storyBlocker: '阻塞说明',

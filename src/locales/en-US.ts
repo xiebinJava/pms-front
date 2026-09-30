@@ -599,6 +599,7 @@ const enUS: MessageSchema = {
     storyStatus: 'Status',
     storyProgress: 'Progress',
     storyPoints: 'Story points',
+    storySchedule: 'Story schedule',
     storyStartDate: 'Start date',
     storyDueDate: 'Due date',
     storyBlocker: 'Blocker',
