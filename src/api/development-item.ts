@@ -139,6 +139,8 @@ export interface DevelopmentTopicStory {
   dueDate?: string
   blocker?: string
   sort?: number
+  buildVersion?: string | null
+  testStatus?: string | null
 }
 
 export function getDevelopmentTopicPage(params: DevelopmentTopicPageParams): Promise<PageResult<DevelopmentTopicRow>> {

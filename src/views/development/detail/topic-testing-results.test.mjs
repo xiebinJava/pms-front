@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeTopicTesting, mergeTopicTesting, isTestingResultsEnabled, configureTopicTesting } from './topic-testing-results.mjs'
+import { normalizeTopicTesting, mergeTopicTesting, isTestingResultsEnabled, configureTopicTesting, summarizeStoryTesting } from './topic-testing-results.mjs'
 
 test('template configuration enables testing only on the bound story workbench and retains other settings', () => {
   const node = { key: 'develop', contentOrder: ['component:story-list'], componentConfigs: { 'story-list': { legacy: 'keep' }, 'topic-research': { enabled: true } } }
@@ -38,4 +38,17 @@ test('editing testing results keeps unrelated form fields and historical compone
   assert.deepEqual(merged, { legacyField: '旧值', __components: { 'topic-research': { goal: '旧调研' },
     'story-list': { legacyNote: '保留', buildVersion: '', testStatus: 'FAILED', reportUrl: '', residualIssues: [] } } })
   assert.deepEqual(values.__components['story-list'], { legacyNote: '保留' })
+})
+
+test('story testing summary counts each status and unknown records', () => {
+  const summary = summarizeStoryTesting([
+    { testStatus: 'PASSED' }, { testStatus: 'PASSED' }, { testStatus: 'FAILED' },
+    { testStatus: 'IN_PROGRESS' }, { testStatus: 'NOT_STARTED' }, { testStatus: null }, {},
+  ])
+  assert.deepEqual(summary, { total: 7, passed: 2, failed: 1, testing: 1, notStarted: 1, unknown: 2 })
+})
+
+test('story testing summary handles missing and empty lists', () => {
+  assert.deepEqual(summarizeStoryTesting(undefined), { total: 0, passed: 0, failed: 0, testing: 0, notStarted: 0, unknown: 0 })
+  assert.deepEqual(summarizeStoryTesting([]).total, 0)
 })

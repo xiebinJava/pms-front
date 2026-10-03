@@ -758,6 +758,7 @@ const enUS: MessageSchema = {
       optional: '(optional)', manualCompletion: 'Records do not complete this node automatically', issues: 'Remaining issues', addIssue: 'Add issue', noIssues: 'No remaining issues',
       issueLabel: 'Remaining issue {index}', deleteIssue: 'Delete remaining issue {index}', issuePlaceholder: 'Describe the issue, impact and follow-up',
       statuses: { NOT_STARTED: 'Not started', IN_PROGRESS: 'Testing', PASSED: 'Passed', FAILED: 'Failed' },
+      storySummary: 'Story testing summary', storySummaryUnknown: 'Not recorded',
     },
     storyTesting: {
       title: 'Testing results', buildVersion: 'Build version', status: 'Test status',

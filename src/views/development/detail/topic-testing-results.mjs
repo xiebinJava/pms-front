@@ -24,3 +24,15 @@ export function mergeTopicTesting(values, state) {
   return { ...root, __components: { ...components, 'story-list': { ...record(components['story-list']), ...state,
     residualIssues: state.residualIssues.map(issue => ({ ...issue })) } } }
 }
+export function summarizeStoryTesting(stories) {
+  const counts = { total: 0, passed: 0, failed: 0, testing: 0, notStarted: 0, unknown: 0 }
+  for (const story of Array.isArray(stories) ? stories : []) {
+    counts.total += 1
+    if (story?.testStatus === 'PASSED') counts.passed += 1
+    else if (story?.testStatus === 'FAILED') counts.failed += 1
+    else if (story?.testStatus === 'IN_PROGRESS') counts.testing += 1
+    else if (story?.testStatus === 'NOT_STARTED') counts.notStarted += 1
+    else counts.unknown += 1
+  }
+  return counts
+}

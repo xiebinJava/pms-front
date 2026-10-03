@@ -757,6 +757,7 @@ const zhCN = {
       optional: '（选填）', manualCompletion: '记录不会自动完成节点', issues: '记录遗留问题', addIssue: '新增问题', noIssues: '暂无遗留问题',
       issueLabel: '遗留问题 {index}', deleteIssue: '删除遗留问题 {index}', issuePlaceholder: '填写问题说明、影响及后续处理安排',
       statuses: { NOT_STARTED: '未开始', IN_PROGRESS: '测试中', PASSED: '测试通过', FAILED: '测试不通过' },
+      storySummary: '故事测试汇总', storySummaryUnknown: '未记录',
     },
     storyTesting: {
       title: '测试结果', buildVersion: '构建版本', status: '测试状态',

@@ -178,7 +178,7 @@ watch(() => [props.topicId, props.nodeId], () => { void load() })
     </a-spin>
 
     <TopicTestingResultsWorkbench v-if="testingResultsEnabled" :model-value="modelValue" :disabled="!canEdit" :preview="preview"
-      @update:model-value="emit('update:modelValue', $event)" @commit="emit('commit')" />
+      :stories="stories" @update:model-value="emit('update:modelValue', $event)" @commit="emit('commit')" />
 
     <DevelopmentStoryEditModal
       v-model:open="editorOpen"

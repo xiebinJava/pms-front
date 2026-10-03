@@ -2,14 +2,16 @@
 import { computed, reactive, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons-vue'
-import { normalizeTopicTesting, mergeTopicTesting } from './topic-testing-results.mjs'
+import { normalizeTopicTesting, mergeTopicTesting, summarizeStoryTesting } from './topic-testing-results.mjs'
 
-const props = defineProps<{ modelValue?: Record<string, unknown>; disabled?: boolean; preview?: boolean }>()
+const props = defineProps<{ modelValue?: Record<string, unknown>; disabled?: boolean; preview?: boolean; stories?: Array<{ testStatus?: string | null }> }>()
 const emit = defineEmits<{ 'update:modelValue': [value: Record<string, unknown>]; commit: [] }>()
 const { t } = useI18n()
 const state = reactive(normalizeTopicTesting(props.modelValue))
 const testingStatusId = useId()
 const readOnly = computed(() => props.disabled || props.preview)
+const hasStories = computed(() => Array.isArray(props.stories))
+const storySummary = computed(() => summarizeStoryTesting(props.stories))
 const statusOptions = computed(() => ['NOT_STARTED', 'IN_PROGRESS', 'PASSED', 'FAILED'].map(value => ({
   value, label: t(`developmentDetail.topicTesting.statuses.${value}`),
 })))
@@ -63,6 +65,18 @@ function removeIssue(id: string) {
         <a-textarea v-model:value="issue.description" :aria-label="t('developmentDetail.topicTesting.issueLabel', { index: index + 1 })"
           :disabled="readOnly" :maxlength="2000" :auto-size="{ minRows: 1, maxRows: 5 }" :placeholder="t('developmentDetail.topicTesting.issuePlaceholder')" @change="update" @blur="commit" />
         <a-button v-if="!readOnly" :aria-label="t('developmentDetail.topicTesting.deleteIssue', { index: index + 1 })" @click="removeIssue(issue.id)"><DeleteOutlined /></a-button>
+      </div>
+    </div>
+    <div v-if="hasStories" class="topic-testing-results__card">
+      <div class="topic-testing-results__heading">
+        <h4>{{ t('developmentDetail.topicTesting.storySummary') }}（{{ storySummary.total }}）</h4>
+      </div>
+      <div class="topic-testing-results__grid">
+        <div class="topic-testing-results__field"><span>{{ t('developmentDetail.topicTesting.statuses.PASSED') }}</span><strong>{{ storySummary.passed }}</strong></div>
+        <div class="topic-testing-results__field"><span>{{ t('developmentDetail.topicTesting.statuses.FAILED') }}</span><strong>{{ storySummary.failed }}</strong></div>
+        <div class="topic-testing-results__field"><span>{{ t('developmentDetail.topicTesting.statuses.IN_PROGRESS') }}</span><strong>{{ storySummary.testing }}</strong></div>
+        <div class="topic-testing-results__field"><span>{{ t('developmentDetail.topicTesting.statuses.NOT_STARTED') }}</span><strong>{{ storySummary.notStarted }}</strong></div>
+        <div class="topic-testing-results__field"><span>{{ t('developmentDetail.topicTesting.storySummaryUnknown') }}</span><strong>{{ storySummary.unknown }}</strong></div>
       </div>
     </div>
   </section>
