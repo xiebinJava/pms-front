@@ -317,7 +317,7 @@ async function chooseDate(page: Page, input: ReturnType<Page['locator']>, value:
       : picker.locator('.ant-picker-header-prev-btn')
     await button.click()
   }
-  await picker.locator('.ant-picker-cell-in-view').filter({ hasText: String(targetDay) }).click()
+  await picker.locator('.ant-picker-cell-in-view').filter({ hasText: new RegExp(`^${targetDay}$`) }).click()
 }
 
 async function loginToLiveProject(page: Page) {
