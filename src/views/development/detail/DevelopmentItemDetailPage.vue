@@ -23,6 +23,7 @@ import DevelopmentItemWorkflowFields from './components/DevelopmentItemWorkflowF
 import DevelopmentItemTaskBoard from './components/DevelopmentItemTaskBoard.vue'
 import DevelopmentStorySplitComponent from './DevelopmentStorySplitComponent.vue'
 import DevelopmentStoryListComponent from './DevelopmentStoryListComponent.vue'
+import { isTestingResultsEnabled } from './topic-testing-results.mjs'
 import RequirementExecutionComponent from './RequirementExecutionComponent.vue'
 import RequirementDevelopmentTreeComponent from './RequirementDevelopmentTreeComponent.vue'
 import RequirementReceivingAnalysisComponent from './RequirementReceivingAnalysisComponent.vue'
@@ -638,7 +639,9 @@ onBeforeUnmount(() => {
                   v-if="props.itemType === 'topic' && componentKey === WorkflowRuntimeComponentKey.STORY_LIST"
                   :component-key="componentKey"
                 >
-                  <DevelopmentStoryListComponent :topic-id="detail.id" :node-id="selectedNode.id" :can-edit="selectedNodeEditable" />
+                  <DevelopmentStoryListComponent :topic-id="detail.id" :node-id="selectedNode.id" :can-edit="selectedNodeEditable"
+                    :testing-results-enabled="isTestingResultsEnabled(selectedNode.componentConfigs?.[componentKey])" :model-value="nodeForm.fieldValues"
+                    @update:model-value="onNodeFieldValuesChange" @commit="saveNode" />
                 </WorkflowRuntimeComponentHost>
                 <WorkflowRuntimeComponentHost
                   v-else-if="props.itemType === 'topic' && componentKey === WorkflowRuntimeComponentKey.STORY_SPLIT"

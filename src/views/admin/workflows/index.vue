@@ -31,6 +31,7 @@ import {
 import type { ProjectType, WorkflowContentOrderItem, WorkflowFieldBinding, WorkflowFieldDefinition, WorkflowFieldType, WorkflowNodeDefinitionV2, WorkflowProjectNodeOption, WorkflowTemplate, WorkflowTemplateDefinitionV2, WorkflowTemplateSummary, WorkflowTemplateVersionSummary } from '/@/types/workflow'
 import { isWorkflowFieldFullWidth } from '/@/utils/workflow-field-layout.mjs'
 import WorkflowWorkbenchPreview from '/@/components/workflow/WorkflowWorkbenchPreview.vue'
+import { configureTopicTesting, isTestingResultsEnabled } from '/@/views/development/detail/topic-testing-results.mjs'
 import { createRequirementNodeWorkbenchConfig } from '/@/components/workflow/requirement-node-workbench.mjs'
 import {
   FIXED_NODE_BLOCKS,
@@ -953,6 +954,11 @@ function paletteComponentLabel(key: string) {
   return node?.name?.trim() || componentLabel(key)
 }
 function componentConfig(componentKey: string) { return currentNode.value?.componentConfigs?.[componentKey] }
+function setTopicTestingEnabled(enabled: boolean) {
+  if (canWrite.value && currentNode.value && selectedType.value?.code === 'topic-management') {
+    replaceCurrentNode(configureTopicTesting(currentNode.value, enabled))
+  }
+}
 function previewComponentConfig(componentKey: string) {
   const config = componentConfig(componentKey)
   return {
@@ -1282,6 +1288,10 @@ onMounted(async () => {
                     <a-form-item :label="$t('admin.workflow.nodeDescription')"><a-textarea v-model:value="currentNode.description" :disabled="!canWrite" :rows="3" @input="markDirty" /></a-form-item>
                     <a-form-item :label="$t('admin.workflow.deliverables')"><a-textarea v-model:value="currentNode.deliverable" :disabled="!canWrite" :rows="3" @input="markDirty" /></a-form-item>
                     <a-form-item :label="$t('admin.workflow.roles')"><a-textarea v-model:value="currentNode.roles" :disabled="!canWrite" :rows="3" @input="markDirty" /></a-form-item>
+                    <section v-if="selectedType?.code === 'topic-management' && configuredComponents.includes(WorkflowRuntimeComponentKey.STORY_LIST)" class="designer-component-config" data-testid="topic-testing-config">
+                      <div class="designer-component-config__heading"><strong>{{ $t('developmentDetail.topicTesting.title') }}</strong><small>{{ $t('developmentDetail.topicTesting.templateHint') }}</small></div>
+                      <a-checkbox :checked="isTestingResultsEnabled(componentConfig(WorkflowRuntimeComponentKey.STORY_LIST))" :disabled="!canWrite" @change="setTopicTestingEnabled(checkboxChecked($event))">{{ $t('developmentDetail.topicTesting.enableInTemplate') }}</a-checkbox>
+                    </section>
                     <section v-if="selectedType?.code === 'requirement-management' && configuredComponents.includes(WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS)" class="designer-component-config" data-testid="requirement-receiving-analysis-config">
                       <div class="designer-component-config__heading"><strong>需求接收与分析</strong><small>该工作台与需求详情同步，固定保留以下三个下拉单选字段。</small></div>
                       <div class="designer-component-config__retained-fields"><a-tag color="blue">需求分类</a-tag><a-tag color="blue">战略契合度</a-tag><a-tag color="blue">接收结论</a-tag></div>

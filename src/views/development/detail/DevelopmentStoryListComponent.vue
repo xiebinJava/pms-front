@@ -11,8 +11,10 @@ import {
   type DevelopmentTopicStory,
 } from '/@/api/development-item'
 import DevelopmentStoryEditModal from '../DevelopmentStoryEditModal.vue'
+import TopicTestingResultsWorkbench from './TopicTestingResultsWorkbench.vue'
 
-const props = defineProps<{ topicId: number; nodeId: number; canEdit: boolean }>()
+const props = defineProps<{ topicId: number; nodeId: number; canEdit: boolean; preview?: boolean; testingResultsEnabled?: boolean; modelValue?: Record<string, unknown> }>()
+const emit = defineEmits<{ 'update:modelValue': [value: Record<string, unknown>]; commit: [] }>()
 const { t } = useI18n()
 const router = useRouter()
 const stories = ref<DevelopmentTopicStory[]>([])
@@ -87,6 +89,7 @@ function storyRow(story: DevelopmentTopicStory): DevelopmentStoryRow {
 }
 
 async function load() {
+  if (props.preview) return
   loading.value = true
   try {
     stories.value = await getDevelopmentTopicStories(props.topicId)
@@ -121,11 +124,11 @@ watch(() => [props.topicId, props.nodeId], () => { void load() })
   <section class="development-story-list-component pms-runtime-component">
     <div class="development-story-list-component__header pms-section-heading">
       <div>
-        <h3>{{ t('developmentDetail.storyListTitle') }}</h3>
+        <h3>{{ t(testingResultsEnabled ? 'developmentDetail.topicTesting.storyTitle' : 'developmentDetail.storyListTitle') }}</h3>
         <p>{{ t('developmentDetail.storyListHint') }}</p>
       </div>
       <div class="development-story-list-component__actions">
-        <a-button size="small" @click="load"><ReloadOutlined />{{ t('common.refresh') }}</a-button>
+        <a-button size="small" :disabled="preview" @click="load"><ReloadOutlined />{{ t('common.refresh') }}</a-button>
         <a-button v-if="canEdit" type="primary" size="small" @click="openCreate"><PlusOutlined />{{ t('developmentDetail.storyListCreate') }}</a-button>
       </div>
     </div>
@@ -173,6 +176,9 @@ watch(() => [props.topicId, props.nodeId], () => { void load() })
         </article>
       </div>
     </a-spin>
+
+    <TopicTestingResultsWorkbench v-if="testingResultsEnabled" :model-value="modelValue" :disabled="!canEdit" :preview="preview"
+      @update:model-value="emit('update:modelValue', $event)" @commit="emit('commit')" />
 
     <DevelopmentStoryEditModal
       v-model:open="editorOpen"
