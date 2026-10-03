@@ -120,10 +120,10 @@
 ### Task 4: Verify runtime binding compatibility for topic and story data
 
 **Files:**
-- Modify if needed: `/Users/fs/Desktop/Project/pms-backend/src/main/java/com/brad/pms/workflow/WorkflowTemplateDefinitionValidator.java`
-- Modify if needed: `/Users/fs/Desktop/Project/pms-backend/src/main/java/com/brad/pms/service/DevelopmentItemWorkflowService.java`
-- Modify if needed: `/Users/fs/Desktop/Project/pms-backend/src/test/java/com/brad/pms/workflow/WorkflowTemplateDefinitionValidatorTest.java`
-- Modify if needed: `/Users/fs/Desktop/Project/pms-backend/src/test/java/com/brad/pms/service/DevelopmentItemWorkflowServiceFieldTest.java`
+- Modify if needed: `pms-backend/src/main/java/com/brad/pms/workflow/WorkflowTemplateDefinitionValidator.java`
+- Modify if needed: `pms-backend/src/main/java/com/brad/pms/service/DevelopmentItemWorkflowService.java`
+- Modify if needed: `pms-backend/src/test/java/com/brad/pms/workflow/WorkflowTemplateDefinitionValidatorTest.java`
+- Modify if needed: `pms-backend/src/test/java/com/brad/pms/service/DevelopmentItemWorkflowServiceFieldTest.java`
 
 **Interfaces:**
 - Consumes the binding keys defined in Task 1.
@@ -154,7 +154,7 @@
 
 - [ ] **Step 1: Run the complete frontend test suite**
 
-  Run `pnpm test` in `/Users/fs/Desktop/Project/pms-front`; expected: zero failures.
+  Run `pnpm test` in the frontend repo; expected: zero failures.
 
 - [ ] **Step 2: Build the frontend**
 
