@@ -23,6 +23,8 @@ import DevelopmentItemWorkflowFields from './components/DevelopmentItemWorkflowF
 import DevelopmentItemTaskBoard from './components/DevelopmentItemTaskBoard.vue'
 import DevelopmentStorySplitComponent from './DevelopmentStorySplitComponent.vue'
 import DevelopmentStoryListComponent from './DevelopmentStoryListComponent.vue'
+import StoryNodeWorkbenchComponent from './StoryNodeWorkbenchComponent.vue'
+import StoryTestingResultsWorkbench from './StoryTestingResultsWorkbench.vue'
 import { isTestingResultsEnabled } from './topic-testing-results.mjs'
 import RequirementExecutionComponent from './RequirementExecutionComponent.vue'
 import RequirementDevelopmentTreeComponent from './RequirementDevelopmentTreeComponent.vue'
@@ -722,6 +724,30 @@ onBeforeUnmount(() => {
                     :model-value="nodeForm.fieldValues"
                     :current-requirement-id="detail.id"
                     :target-specification="requirementTargetSpecification"
+                    :disabled="!selectedNodeEditable || savingNode"
+                    @update:model-value="onNodeFieldValuesChange"
+                    @commit="saveNode"
+                  />
+                </WorkflowRuntimeComponentHost>
+                <WorkflowRuntimeComponentHost
+                  v-else-if="props.itemType === 'story' && componentKey === WorkflowRuntimeComponentKey.STORY_NODE_WORKBENCH"
+                  :component-key="componentKey"
+                >
+                  <StoryNodeWorkbenchComponent
+                    :node="selectedNode"
+                    :component-config="selectedNode.componentConfigs?.[componentKey]"
+                    :model-value="nodeForm.fieldValues"
+                    :disabled="!selectedNodeEditable || savingNode"
+                    @update:model-value="onNodeFieldValuesChange"
+                    @commit="saveNode"
+                  />
+                </WorkflowRuntimeComponentHost>
+                <WorkflowRuntimeComponentHost
+                  v-else-if="props.itemType === 'story' && componentKey === WorkflowRuntimeComponentKey.STORY_TESTING"
+                  :component-key="componentKey"
+                >
+                  <StoryTestingResultsWorkbench
+                    :model-value="nodeForm.fieldValues"
                     :disabled="!selectedNodeEditable || savingNode"
                     @update:model-value="onNodeFieldValuesChange"
                     @commit="saveNode"

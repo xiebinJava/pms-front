@@ -64,7 +64,7 @@ test('template designer previews the story workbench with the testing toggle sta
   assert.match(preview, /:testing-results-enabled="isTestingResultsEnabled\(componentConfig\)"/)
   assert.match(preview, /:can-edit="false"/)
   assert.match(preview, /preview/)
-  assert.match(preview, /\[.topic-research., .topic-design-review., .story-list.\].includes\(componentKey\)/)
+  assert.match(preview, /\[.topic-research., .topic-design-review., .story-list., .story-node-workbench., .story-testing.\].includes\(componentKey\)/)
 })
 
 test('template designer exposes the testing toggle only for topic story-list nodes', () => {

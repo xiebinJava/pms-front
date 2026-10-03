@@ -44,6 +44,38 @@ function nodeName(node) {
   return String(node?.name || node?.nodeName || '')
 }
 
+function record(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+}
+
+export const STORY_WORKBENCH_FIELDS = Object.freeze({
+  writing: [{ key: 'acceptanceCriteria', type: 'textarea' }, { key: 'background', type: 'textarea' }],
+  iteration: [{ key: 'iterationName', type: 'text' }, { key: 'meetingNote', type: 'textarea' }, { key: 'dependencies', type: 'textarea' }],
+  development: [{ key: 'implementationNote', type: 'textarea' }, { key: 'selfTestResult', type: 'textarea' }, { key: 'codeLink', type: 'text' }],
+  acceptance: [{ key: 'acceptanceConclusion', type: 'textarea' }, { key: 'acceptanceNote', type: 'textarea' }],
+  release: [{ key: 'releaseVersion', type: 'text' }, { key: 'releaseWindow', type: 'text' }, { key: 'releaseNote', type: 'textarea' }],
+  launch: [{ key: 'launchDate', type: 'date' }, { key: 'launchVerification', type: 'textarea' }, { key: 'retrospective', type: 'textarea' }],
+})
+
+export function normalizeStoryWorkbenchState(values, variant) {
+  const state = record(record(record(values).__components)[STORY_NODE_WORKBENCH_COMPONENT])
+  const result = {}
+  for (const field of STORY_WORKBENCH_FIELDS[variant] || []) {
+    result[field.key] = typeof state[field.key] === 'string' ? state[field.key] : ''
+  }
+  return result
+}
+
+export function mergeStoryWorkbenchState(values, variant, state) {
+  const root = record(values)
+  const components = record(root.__components)
+  const next = { ...record(components[STORY_NODE_WORKBENCH_COMPONENT]) }
+  for (const field of STORY_WORKBENCH_FIELDS[variant] || []) {
+    next[field.key] = state[field.key] ?? ''
+  }
+  return { ...root, __components: { ...components, [STORY_NODE_WORKBENCH_COMPONENT]: next } }
+}
+
 export function getStoryWorkbenchVariant(node) {
   const name = nodeName(node)
   const blueprint = BLUEPRINTS.find((candidate) => candidate.matches.some((match) => name.includes(match)))

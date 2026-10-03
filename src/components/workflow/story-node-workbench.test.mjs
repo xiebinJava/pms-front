@@ -7,6 +7,9 @@ import {
   STORY_WORKBENCH_PALETTE,
   STORY_NODE_WORKBENCH_COMPONENT,
   STORY_TESTING_COMPONENT,
+  normalizeStoryWorkbenchState,
+  mergeStoryWorkbenchState,
+  STORY_WORKBENCH_FIELDS,
 } from './story-node-workbench.mjs'
 
 test('maps every story node name to its workbench variant', () => {
@@ -54,4 +57,16 @@ test('story palette exposes seven dedicated entries over two runtime components'
     assert.deepEqual(entry.processTypeCodes, ['story-management'])
     assert.deepEqual(entry.workbenchTypes, ['story'])
   }
+})
+
+test('story workbench state normalizes and merges per variant without sharing objects', () => {
+  const values = { __components: { 'story-node-workbench': { acceptanceCriteria: '标准', legacy: 'keep' }, 'story-testing': { buildVersion: '1' } } }
+  const state = normalizeStoryWorkbenchState(values, 'writing')
+  assert.deepEqual(state, { acceptanceCriteria: '标准', background: '' })
+  state.acceptanceCriteria = '已修改'
+  const merged = mergeStoryWorkbenchState(values, 'writing', state)
+  assert.deepEqual(merged.__components['story-node-workbench'], { acceptanceCriteria: '已修改', background: '', legacy: 'keep' })
+  assert.deepEqual(merged.__components['story-testing'], { buildVersion: '1' })
+  assert.equal(values.__components['story-node-workbench'].acceptanceCriteria, '标准')
+  assert.deepEqual(Object.keys(STORY_WORKBENCH_FIELDS).sort(), ['acceptance', 'development', 'iteration', 'launch', 'release', 'writing'])
 })

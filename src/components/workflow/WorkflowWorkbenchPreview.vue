@@ -3,6 +3,8 @@ import { computed } from 'vue'
 import TopicResearchWorkbench from '/@/views/development/detail/TopicResearchWorkbench.vue'
 import TopicDesignReviewWorkbench from '/@/views/development/detail/TopicDesignReviewWorkbench.vue'
 import DevelopmentStoryListComponent from '/@/views/development/detail/DevelopmentStoryListComponent.vue'
+import StoryNodeWorkbenchComponent from '/@/views/development/detail/StoryNodeWorkbenchComponent.vue'
+import StoryTestingResultsWorkbench from '/@/views/development/detail/StoryTestingResultsWorkbench.vue'
 import { isTestingResultsEnabled } from '/@/views/development/detail/topic-testing-results.mjs'
 import { useI18n } from 'vue-i18n'
 import { isRequirementClarificationNode, isRequirementIntegrationNode, isRequirementSchedulingNode } from './requirement-node-workbench.mjs'
@@ -250,7 +252,7 @@ function componentHint(): string {
 
 <template>
   <section class="workflow-workbench-preview" :data-workbench-preview="componentKey" :aria-label="componentLabel()">
-    <header v-if="!isRequirementNodeSpecificPreview && !['topic-research', 'topic-design-review', 'story-list'].includes(componentKey)" class="workflow-workbench-preview__header">
+    <header v-if="!isRequirementNodeSpecificPreview && !['topic-research', 'topic-design-review', 'story-list', 'story-node-workbench', 'story-testing'].includes(componentKey)" class="workflow-workbench-preview__header">
       <div class="workflow-workbench-preview__heading">
         <span>{{ componentLabel() }}</span>
         <strong>{{ isRequirementScope ? $t('detail.requirementScope.scopeTitle') : layoutTitle() }}</strong>
@@ -259,12 +261,15 @@ function componentHint(): string {
       <a-tag color="blue">{{ $t('admin.workflow.workbenchPreview.readOnly') }}</a-tag>
     </header>
 
-    <p v-if="!isRequirementScope && !isRequirementNodeSpecificPreview && !['topic-research', 'topic-design-review', 'story-list'].includes(componentKey)" class="workflow-workbench-preview__hint">{{ $t('admin.workflow.workbenchPreview.readOnlyHint') }}</p>
+    <p v-if="!isRequirementScope && !isRequirementNodeSpecificPreview && !['topic-research', 'topic-design-review', 'story-list', 'story-node-workbench', 'story-testing'].includes(componentKey)" class="workflow-workbench-preview__hint">{{ $t('admin.workflow.workbenchPreview.readOnlyHint') }}</p>
 
     <TopicResearchWorkbench v-if="componentKey === 'topic-research'" preview disabled />
     <TopicDesignReviewWorkbench v-else-if="componentKey === 'topic-design-review'" preview disabled />
     <DevelopmentStoryListComponent v-else-if="componentKey === 'story-list'" :topic-id="0" :node-id="0" :can-edit="false" preview
       :testing-results-enabled="isTestingResultsEnabled(componentConfig)" />
+    <StoryNodeWorkbenchComponent v-else-if="componentKey === 'story-node-workbench'" :node="{ name: String(componentConfigRecord.nodeName || '') }"
+      :component-config="componentConfig" :model-value="{}" preview />
+    <StoryTestingResultsWorkbench v-else-if="componentKey === 'story-testing'" :model-value="{}" preview />
     <template v-else-if="isRequirementScope">
       <span class="workflow-workbench-preview__actual-count">0 {{ $t('detail.requirementScope.items') }}</span>
 
