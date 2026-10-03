@@ -66,7 +66,7 @@ function nodeFixture(definition) {
   }]
 }
 
-async function installApi(page, { definition = v2Definition(), onProjectUpdate, onNodeFields, onComplete, onUnmatched, legacy = false, user = admin, projectTypes = [{ id: 1, code: 'PRODUCT', name: '产品项目', sort: 0, defaultTemplateName: '旧版九阶段' }], memberIds = [1], followerIds = [] } = {}) {
+async function installApi(page, { definition = v2Definition(), onProjectUpdate, onNodeFields, onComplete, onUnmatched, legacy = false, user = admin, projectTypes = [{ id: 1, code: 'general', name: '产品项目', sort: 0, defaultTemplateName: '旧版九阶段' }], memberIds = [1], followerIds = [] } = {}) {
   const project = projectFixture(definition)
   const nodes = nodeFixture(definition)
   const allPeople = [
@@ -90,6 +90,7 @@ async function installApi(page, { definition = v2Definition(), onProjectUpdate, 
     if (path === '/auth/refresh') return json({ accessToken: 'fixture-token', user })
     if (path === '/auth/me') return json(user)
     if (path === '/admin/workflow-config/project-types') return json(projectTypes)
+    if (path === '/admin/workflow-config/system-default/availability') return json(false)
     if (path === '/admin/workflow-config/templates') {
       const projectTypeId = Number(url.searchParams.get('projectTypeId'))
       return json(projectTypeId === 2
@@ -454,7 +455,7 @@ test.describe('workflow field builder browser regression', () => {
   test('read-only workflow users can inspect and switch project types without edit actions', async ({ page }) => {
     const viewer = { ...admin, systemRole: 2, permissionCodes: ['admin:workflow:read'] }
     const projectTypes = [
-      { id: 1, code: 'PRODUCT', name: '产品项目', sort: 0, defaultTemplateName: '旧版九阶段' },
+      { id: 1, code: 'general', name: '产品项目', sort: 0, defaultTemplateName: '旧版九阶段' },
       { id: 2, code: 'RESEARCH', name: '研发项目', sort: 1, defaultTemplateName: '研发流程' },
     ]
     await installApi(page, { user: viewer, projectTypes })
@@ -467,8 +468,9 @@ test.describe('workflow field builder browser regression', () => {
 
   test('mobile users can reorder fields and sections and select cards with the keyboard', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
+    page.on('console', m => { if (m.text().includes('DEBUG-AVAIL')) console.log('PAGE:', m.text()) })
     const definition = v2Definition()
-    definition.nodes.push({ key: 'design', name: '方案设计', description: '', deliverable: '', roles: '', fields: [], contentOrder: [] })
+    definition.nodes.push({ key: 'design', name: '方案设计', description: '', deliverable: '', roles: '', fields: [{ key: 'design-notes', label: '设计说明', type: 'TEXT', required: false, visible: true, options: [], binding: null }], contentOrder: ['fields'] })
     await installApi(page, { definition })
     await gotoWorkflowEditor(page)
     const nextNodeSelector = page.getByRole('button', { name: '方案设计', exact: true })
@@ -491,10 +493,12 @@ test.describe('workflow field builder browser regression', () => {
     await page.getByTestId('move-workflow-field-custom-radio-up').click()
     await expect(page.getByTestId('designer-field-card').first()).toHaveAttribute('data-field-key', 'custom-radio')
 
-    await page.getByTestId('add-workflow-component-requirement-scope').click()
+    await nextNodeSelector.focus()
+    await nextNodeSelector.press('Space')
+    await page.getByTestId('add-workflow-component-solution-design').click()
     await page.getByTestId('move-workflow-section-down-fields').press('Space')
-    await expect(page.locator('.designer-content-item').first()).toHaveAttribute('data-content-item', 'component:requirement-scope')
-    await fieldSelector.click()
+    await expect(page.locator('.designer-content-item').first()).toHaveAttribute('data-content-item', 'component:solution-design')
+    await page.getByRole('button', { name: '设计说明，单行文本' }).click()
     await expect(page.getByTestId('designer-inspector')).toBeVisible()
   })
 
@@ -556,7 +560,7 @@ test.describe('workflow field builder browser regression', () => {
   })
 
   test('can promote the latest published version when an older version of the same template is default', async ({ page }) => {
-    const type = { id: 1, code: 'PRODUCT', name: '产品项目', status: 1, sort: 0, defaultTemplateVersionId: 88 }
+    const type = { id: 1, code: 'general', name: '产品项目', status: 1, sort: 0, defaultTemplateVersionId: 88 }
     let defaultVersionId = 88
     let submittedDefault
     const summary = () => ({
@@ -616,7 +620,7 @@ test.describe('workflow field builder browser regression', () => {
   })
 
   test('shows the active saved draft separately from the latest published version', async ({ page }) => {
-    const type = { id: 1, code: 'PRODUCT', name: '产品项目', status: 1, sort: 0, defaultTemplateVersionId: 93 }
+    const type = { id: 1, code: 'general', name: '产品项目', status: 1, sort: 0, defaultTemplateVersionId: 93 }
     const summary = {
       id: 31,
       code: 'PRODUCT-LEGACY',
