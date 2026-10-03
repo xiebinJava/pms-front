@@ -14,6 +14,8 @@ export const WorkflowRuntimeComponentKey = Object.freeze({
   KNOWLEDGE_STANDARD: 'knowledge-standard',
   STORY_SPLIT: 'story-split',
   STORY_LIST: 'story-list',
+  STORY_NODE_WORKBENCH: 'story-node-workbench',
+  STORY_TESTING: 'story-testing',
 } as const)
 
 export type WorkflowRuntimeComponentKey = typeof WorkflowRuntimeComponentKey[keyof typeof WorkflowRuntimeComponentKey]
@@ -43,6 +45,8 @@ export const WORKFLOW_RUNTIME_COMPONENTS: readonly WorkflowRuntimeComponentDefin
   { key: WorkflowRuntimeComponentKey.KNOWLEDGE_STANDARD, label: '知识与规范', slotName: 'knowledge-standard', workbenchTypes: ['project', 'topic', 'story'] },
   { key: WorkflowRuntimeComponentKey.STORY_SPLIT, label: '故事拆分', slotName: 'story-split', workbenchTypes: ['topic', 'story'] },
   { key: WorkflowRuntimeComponentKey.STORY_LIST, label: '故事列表工作台', slotName: 'story-list', processTypeCodes: ['topic-management'], workbenchTypes: ['topic', 'story'] },
+  { key: WorkflowRuntimeComponentKey.STORY_NODE_WORKBENCH, label: '故事节点工作台', slotName: 'story-node-workbench', processTypeCodes: ['story-management'], workbenchTypes: ['story'] },
+  { key: WorkflowRuntimeComponentKey.STORY_TESTING, label: '故事测试工作台', slotName: 'story-testing', processTypeCodes: ['story-management'], workbenchTypes: ['story'] },
 ])
 
 const componentDefinitions = new Map<string, WorkflowRuntimeComponentDefinition>(

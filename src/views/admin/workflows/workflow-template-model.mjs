@@ -77,7 +77,7 @@ const PROJECT_WORKBENCH_NODES = Object.freeze({
 export function getAvailableWorkflowComponents({ processTypeCode, source, components = [], paletteComponents = [], currentNode, currentNodeIndex = -1 } = {}) {
   if (!processTypeCode || !source || !Array.isArray(components)) return []
   const runtimeKeys = new Set(components.map((component) => component.key))
-  const candidates = source === 'requirement' && Array.isArray(paletteComponents) && paletteComponents.length
+  const candidates = (source === 'requirement' || source === 'story') && Array.isArray(paletteComponents) && paletteComponents.length
     ? paletteComponents
     : components
   return candidates
@@ -91,6 +91,7 @@ export function getAvailableWorkflowComponents({ processTypeCode, source, compon
       if (key === 'story-split') return false
       if (Object.hasOwn(PROJECT_WORKBENCH_NODES, key)) return source === 'project'
       if (key === 'story-list' || key === 'topic-research' || key === 'topic-design-review') return source === 'topic'
+      if (source === 'story') return key === 'story-node-workbench' || key === 'story-testing'
       return source === 'requirement' && ['requirement-execution', 'requirement-receiving-analysis', 'requirement-node-workbench'].includes(key)
     })
     .filter((component) => runtimeKeys.has(component.runtimeKey || component.key))
@@ -101,6 +102,9 @@ export function getAvailableWorkflowComponents({ processTypeCode, source, compon
       applicable: key === 'topic-design-review' ? String(currentNode?.name || '').includes('方案设计与评审') : key === 'topic-research' ? String(currentNode?.name || '').includes('需求调研') : source === 'project'
         ? (key === 'development-control' && (currentNode?.contentOrder || []).includes(`component:${runtimeKey}`))
           || (PROJECT_WORKBENCH_NODES[key] || []).some((match) => String(currentNode?.name || '').includes(match))
+        : source === 'story'
+        ? Array.isArray(nodeNameIncludes)
+          && nodeNameIncludes.some((match) => String(currentNode?.name || '').includes(match))
         : source !== 'requirement'
         ? true
         : currentNodeIndex > 0 && Array.isArray(nodeNameIncludes)

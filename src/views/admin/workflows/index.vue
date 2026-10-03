@@ -33,6 +33,7 @@ import { isWorkflowFieldFullWidth } from '/@/utils/workflow-field-layout.mjs'
 import WorkflowWorkbenchPreview from '/@/components/workflow/WorkflowWorkbenchPreview.vue'
 import { configureTopicTesting, isTestingResultsEnabled } from '/@/views/development/detail/topic-testing-results.mjs'
 import { createRequirementNodeWorkbenchConfig } from '/@/components/workflow/requirement-node-workbench.mjs'
+import { createStoryNodeWorkbenchConfig, STORY_WORKBENCH_PALETTE } from '/@/components/workflow/story-node-workbench.mjs'
 import {
   FIXED_NODE_BLOCKS,
   addWorkflowField,
@@ -144,7 +145,7 @@ const availableComponents = computed(() => {
     processTypeCode: selectedType.value?.code,
     source: workflowSource.value,
     components: WORKFLOW_RUNTIME_COMPONENTS,
-    paletteComponents: REQUIREMENT_WORKBENCH_PALETTE,
+    paletteComponents: workflowSource.value === 'story' ? STORY_WORKBENCH_PALETTE : REQUIREMENT_WORKBENCH_PALETTE,
     currentNode: currentNode.value,
     currentNodeIndex: selectedNodeIndex.value,
   })
@@ -530,7 +531,11 @@ function toggleComponent(componentKey: string, checked: boolean) {
   const contentItem = `component:${runtimeKey}` as WorkflowContentOrderItem
   const config = runtimeKey === WorkflowRuntimeComponentKey.REQUIREMENT_NODE_WORKBENCH
     ? createRequirementNodeWorkbenchConfig(node)
-    : undefined
+    : runtimeKey === WorkflowRuntimeComponentKey.STORY_NODE_WORKBENCH
+      ? (createStoryNodeWorkbenchConfig(node) ?? undefined)
+      : runtimeKey === WorkflowRuntimeComponentKey.STORY_TESTING
+        ? { testingResultsEnabled: true }
+        : undefined
   const next = checked ? addWorkflowComponent(node, runtimeKey, config) : removeWorkflowComponent(node, runtimeKey)
   if (next.contentOrder.join('|') !== node.contentOrder.join('|') || Boolean(next.componentConfigs) !== Boolean(node.componentConfigs)) {
     replaceCurrentNode(next)

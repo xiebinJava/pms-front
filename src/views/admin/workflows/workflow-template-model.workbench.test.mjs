@@ -8,6 +8,7 @@ import {
   REQUIREMENT_WORKBENCH_PALETTE,
   removeWorkflowComponent,
 } from './workflow-template-model.mjs'
+import { STORY_WORKBENCH_PALETTE } from '../../../components/workflow/story-node-workbench.mjs'
 
 test('dedicated topic design review workbench is isolated and only applicable on its node', () => {
   const components = [{ key: 'topic-design-review', workbenchTypes: ['topic'], processTypeCodes: ['topic-management'] }]
@@ -192,4 +193,43 @@ test('persists a node workbench config through component binding and removal', (
   const removed = removeWorkflowComponent(configured, 'requirement-node-workbench')
   assert.deepEqual(removed.contentOrder, [])
   assert.equal(removed.componentConfigs, undefined)
+})
+
+test('story palette marks only the current node entry applicable', () => {
+  const components = [{ key: 'story-node-workbench' }, { key: 'story-testing' }]
+  const options = (name) => getAvailableWorkflowComponents({
+    processTypeCode: 'story-management',
+    source: 'story',
+    components,
+    paletteComponents: STORY_WORKBENCH_PALETTE,
+    currentNode: { name },
+  })
+  const applicable = (name) => options(name).filter((entry) => entry.applicable).map((entry) => entry.key)
+  assert.deepEqual(applicable('故事写卡'), ['story-writing-workbench'])
+  assert.deepEqual(applicable('迭代计划会'), ['story-iteration-workbench'])
+  assert.deepEqual(applicable('开发中'), ['story-development-workbench'])
+  assert.deepEqual(applicable('测试中'), ['story-testing-workbench'])
+  assert.deepEqual(applicable('验收中'), ['story-acceptance-workbench'])
+  assert.deepEqual(applicable('待发布'), ['story-release-workbench'])
+  assert.deepEqual(applicable('已上线'), ['story-launch-workbench'])
+  assert.deepEqual(applicable('自定义节点'), [])
+  assert.equal(options('测试中').length, STORY_WORKBENCH_PALETTE.length)
+})
+
+test('story palette excludes unrelated runtime workbenches and the retired story split', () => {
+  const components = [
+    { key: 'story-node-workbench' },
+    { key: 'story-testing' },
+    { key: 'solution-design' },
+    { key: 'story-split' },
+    { key: 'requirement-node-workbench' },
+  ]
+  const result = getAvailableWorkflowComponents({
+    processTypeCode: 'story-management',
+    source: 'story',
+    components,
+    paletteComponents: STORY_WORKBENCH_PALETTE,
+    currentNode: { name: '开发中' },
+  })
+  assert.deepEqual([...new Set(result.map((entry) => entry.runtimeKey))].sort(), ['story-node-workbench', 'story-testing'])
 })
