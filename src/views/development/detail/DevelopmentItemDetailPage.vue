@@ -51,6 +51,7 @@ const loading = ref(false)
 const loadError = ref(false)
 const savingNode = ref(false)
 const nodeFormDirty = ref(false)
+const nodeFormVersion = ref(0)
 const completingNode = ref(false)
 const autoCompletedDevelopmentNodeKey = ref('')
 const rollingBack = ref(false)
@@ -125,6 +126,7 @@ function onScheduleChange(_dates: unknown, dateStrings: string[]) {
 
 function setSelectedNode(node?: DevelopmentItemWorkflowNode) {
   selectedNodeId.value = node?.id
+  nodeFormVersion.value = node?.version ?? 0
   nodeForm.ownerId = node?.ownerId
   nodeForm.startDate = node?.startDate || ''
   nodeForm.endDate = node?.endDate || ''
@@ -278,7 +280,7 @@ function saveNode(): Promise<boolean> {
     startDate: nodeForm.startDate || undefined,
     endDate: nodeForm.endDate || undefined,
     fieldValues: { ...nodeForm.fieldValues },
-    version: node.version,
+    version: nodeFormVersion.value,
   }
   savingNode.value = true
   let request: Promise<boolean> = Promise.resolve(false)
@@ -288,6 +290,8 @@ function saveNode(): Promise<boolean> {
       if (detail.value?.id !== requestItemId || props.itemType !== requestItemType) return true
       detail.value = updated
       const savedNode = updated.nodes.find((item) => item.id === requestNodeId)
+      // Advance only after our own successful save, never from a task/detail refresh.
+      if (savedNode && selectedNodeId.value === requestNodeId) nodeFormVersion.value = savedNode.version
       if (savedNode && selectedNodeId.value === requestNodeId && nodeFormEditRevision === editRevision) {
         setSelectedNode(savedNode)
       } else if (nodeFormEditRevision === editRevision) {
