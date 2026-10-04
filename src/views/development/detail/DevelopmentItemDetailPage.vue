@@ -734,6 +734,7 @@ onBeforeUnmount(() => {
                   :component-key="componentKey"
                 >
                   <StoryNodeWorkbenchComponent
+                    :key="selectedNode.id"
                     :node="selectedNode"
                     :component-config="selectedNode.componentConfigs?.[componentKey]"
                     :model-value="nodeForm.fieldValues"
@@ -747,6 +748,7 @@ onBeforeUnmount(() => {
                   :component-key="componentKey"
                 >
                   <StoryTestingResultsWorkbench
+                    :key="selectedNode.id"
                     :model-value="nodeForm.fieldValues"
                     :disabled="!selectedNodeEditable || savingNode"
                     @update:model-value="onNodeFieldValuesChange"
