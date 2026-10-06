@@ -44,17 +44,20 @@ test('story node workbench saves structured fields, keeps server history and nev
   const workbench = page.locator('.story-node-workbench')
   await expect(workbench).toBeVisible()
   await expect(workbench).toHaveAttribute('data-variant', 'development')
-  await expect(workbench.getByText('确认实现方案')).toBeVisible()
-  await expect(workbench.getByText('完成开发并自测')).toBeVisible()
 
-  const implementation = workbench.getByPlaceholder('填写实现方案要点')
-  await implementation.fill('新实现方案'); await implementation.blur()
-  await expect.poll(() => saves.at(-1)?.fieldValues?.__components?.['story-node-workbench']?.implementationNote).toBe('新实现方案')
+  await workbench.getByRole('button', { name: '新增用例' }).click()
+  const caseRow = workbench.locator('.story-node-workbench__case-row').first()
+  await caseRow.locator('input.ant-input').nth(0).fill('回归用例'); await caseRow.locator('input.ant-input').nth(0).blur()
+  const expected = caseRow.locator('input.ant-input').nth(1)
+  await expected.fill('回归成功'); await expected.blur()
+  await expect.poll(() => saves.at(-1)?.fieldValues?.__components?.['story-node-workbench']?.testCases?.[0]?.name).toBe('回归用例')
+  await expect.poll(() => saves.at(-1)?.fieldValues?.__components?.['story-node-workbench']?.testCases?.[0]?.expectedResult).toBe('回归成功')
+  await expect.poll(() => saves.at(-1)?.fieldValues?.__components?.['story-node-workbench']?.testCases?.[0]?.priority).toBe('NORMAL')
   expect(saves.at(-1).fieldValues.__components['story-node-workbench'].background).toBe('旧背景')
   expect(completions).toBe(0)
 
   await page.reload()
-  await expect(workbench.getByPlaceholder('填写实现方案要点')).toHaveValue('新实现方案')
+  await expect(workbench.locator('.story-node-workbench__case-row').first().locator('input.ant-input').nth(0)).toHaveValue('回归用例')
 })
 
 test('story testing workbench saves results and recovers after reload', async ({ page }) => {
@@ -82,17 +85,18 @@ test('story testing workbench saves results and recovers after reload', async ({
   await expect(workbench).toBeVisible()
   await expect(workbench.getByRole('heading', { name: '测试结果', exact: true })).toBeVisible()
 
-  const buildVersion = workbench.getByPlaceholder('填写本次测试的构建版本')
-  await buildVersion.fill('1.2.3'); await buildVersion.blur()
-  await expect.poll(() => saves.at(-1)?.fieldValues?.__components?.['story-testing']?.buildVersion).toBe('1.2.3')
+  const reportUrl = workbench.getByPlaceholder('请输入 http 或 https 文档链接')
+  await reportUrl.fill('https://doc.example.com/report'); await reportUrl.blur()
+  await expect.poll(() => saves.at(-1)?.fieldValues?.__components?.['story-testing']?.reportUrl).toBe('https://doc.example.com/report')
 
-  await workbench.locator('.ant-select').click()
-  await page.locator('.ant-select-dropdown:visible').getByText('测试不通过', { exact: true }).click()
-  await expect.poll(() => saves.at(-1)?.fieldValues?.__components?.['story-testing']?.testStatus).toBe('FAILED')
+  await workbench.getByRole('button', { name: '新增缺陷' }).click()
+  const description = workbench.getByPlaceholder('填写问题说明、影响及后续处理安排')
+  await description.fill('布局错位'); await description.blur()
+  await expect.poll(() => saves.at(-1)?.fieldValues?.__components?.['story-testing']?.residualIssues?.[0]?.description).toBe('布局错位')
   expect(saves.at(-1).fieldValues.__components['story-testing'].legacyNote).toBe('服务端历史')
 
   await page.reload()
-  await expect(workbench.getByPlaceholder('填写本次测试的构建版本')).toHaveValue('1.2.3')
+  await expect(workbench.getByPlaceholder('请输入 http 或 https 文档链接')).toHaveValue('https://doc.example.com/report')
 })
 
 test('a story node without configured workbenches renders nothing extra', async ({ page }) => {

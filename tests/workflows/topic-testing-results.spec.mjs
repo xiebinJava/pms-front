@@ -45,23 +45,16 @@ test('testing results workbench saves whitelisted fields, keeps server history a
   await expect(workbench.getByRole('heading', { name: '测试结果', exact: true })).toBeVisible()
   await expect(workbench.getByText('记录不会自动完成节点')).toBeVisible()
 
-  const buildVersion = workbench.getByPlaceholder('填写本次测试的构建版本')
-  await buildVersion.fill('1.2.3'); await buildVersion.blur()
-  await expect.poll(() => saves.at(-1)?.fieldValues?.__components?.['story-list']?.buildVersion).toBe('1.2.3')
-
-  await workbench.locator('.ant-select').click()
-  await page.locator('.ant-select-dropdown:visible').getByText('测试不通过', { exact: true }).click()
-  await expect.poll(() => saves.at(-1)?.fieldValues?.__components?.['story-list']?.testStatus).toBe('FAILED')
-
   const reportUrl = workbench.getByPlaceholder('请输入 http 或 https 文档链接')
   await reportUrl.fill('https://docs.example.com/test'); await reportUrl.blur()
   await expect.poll(() => saves.at(-1)?.fieldValues?.__components?.['story-list']?.reportUrl).toBe('https://docs.example.com/test')
 
-  await workbench.getByRole('button', { name: '新增问题' }).click()
+  await workbench.getByRole('button', { name: '新增缺陷' }).click()
   const issue = workbench.getByPlaceholder('填写问题说明、影响及后续处理安排')
   await issue.fill('页面兼容问题'); await issue.blur()
   await expect.poll(() => saves.at(-1)?.fieldValues?.__components?.['story-list']?.residualIssues).toEqual([
     expect.objectContaining({ id: expect.any(String), description: '页面兼容问题' })])
+  await expect.poll(() => saves.at(-1)?.fieldValues?.__components?.['story-list']?.residualIssues?.[0]?.level).toBe('MEDIUM')
 
   const saved = saves.at(-1).fieldValues.__components['story-list']
   expect(saved.legacyNote).toBe('服务端历史')
@@ -70,12 +63,10 @@ test('testing results workbench saves whitelisted fields, keeps server history a
 
   await page.reload()
   await expect(workbench).toBeVisible()
-  await expect(buildVersion).toHaveValue('1.2.3')
   await expect(reportUrl).toHaveValue('https://docs.example.com/test')
-  await expect(workbench.locator('.topic-testing-results__issue')).toHaveCount(1)
   await expect(workbench.getByPlaceholder('填写问题说明、影响及后续处理安排')).toHaveValue('页面兼容问题')
 
-  await workbench.getByRole('button', { name: '删除遗留问题 1' }).click()
+  await workbench.getByRole('button', { name: '删除缺陷 1' }).click()
   await expect.poll(() => saves.at(-1)?.fieldValues?.__components?.['story-list']?.residualIssues).toEqual([])
 
   await page.waitForTimeout(350)
@@ -104,7 +95,7 @@ test('old template without the flag never renders the testing workbench', async 
 })
 
 test('completed nodes render the testing workbench read-only', async ({ page }) => {
-  const node = testingNode({ status: 2, fieldValues: { __components: { 'story-list': { buildVersion: '2.0.0', testStatus: 'PASSED' } } } })
+  const node = testingNode({ status: 2, fieldValues: { __components: { 'story-list': { reportUrl: 'https://docs.example.com/test', residualIssues: [{ id: 'issue-1', description: '问题' }] } } } })
   const detail = detailFor(node)
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname.replace('/api', '')
@@ -118,8 +109,8 @@ test('completed nodes render the testing workbench read-only', async ({ page }) 
   await page.goto('/development/topics/11')
   const workbench = page.locator('.topic-testing-results')
   await expect(workbench).toBeVisible()
-  await expect(workbench.getByPlaceholder('填写本次测试的构建版本')).toHaveValue('2.0.0')
-  await expect(workbench.getByPlaceholder('填写本次测试的构建版本')).toBeDisabled()
+  await expect(workbench.getByPlaceholder('请输入 http 或 https 文档链接')).toHaveValue('https://docs.example.com/test')
   await expect(workbench.getByPlaceholder('请输入 http 或 https 文档链接')).toBeDisabled()
-  await expect(workbench.getByRole('button', { name: '新增问题' })).toHaveCount(0)
+  await expect(workbench.getByPlaceholder('填写问题说明、影响及后续处理安排')).toBeDisabled()
+  await expect(workbench.getByRole('button', { name: '新增缺陷' })).toHaveCount(0)
 })

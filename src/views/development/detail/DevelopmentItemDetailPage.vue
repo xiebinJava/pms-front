@@ -24,6 +24,7 @@ import DevelopmentItemTaskBoard from './components/DevelopmentItemTaskBoard.vue'
 import DevelopmentStorySplitComponent from './DevelopmentStorySplitComponent.vue'
 import DevelopmentStoryListComponent from './DevelopmentStoryListComponent.vue'
 import StoryNodeWorkbenchComponent from './StoryNodeWorkbenchComponent.vue'
+import { rebaseStoryWritingAcknowledgement } from '/@/components/workflow/story-node-workbench.mjs'
 import StoryTestingResultsWorkbench from './StoryTestingResultsWorkbench.vue'
 import { isTestingResultsEnabled } from './topic-testing-results.mjs'
 import RequirementExecutionComponent from './RequirementExecutionComponent.vue'
@@ -195,7 +196,7 @@ function onNodeFieldsFocusOut() {
 
 async function onWorkflowNodeSelect(nodeId: number) {
   if (nodeId === selectedNodeId.value) return
-  if (!(await saveNode())) return
+  if (!(await saveAllNodeEdits())) return
   setSelectedNode(detail.value?.nodes.find((node) => node.id === nodeId))
 }
 
@@ -296,6 +297,8 @@ function saveNode(): Promise<boolean> {
       if (savedNode && selectedNodeId.value === requestNodeId) nodeFormVersion.value = savedNode.version
       if (savedNode && selectedNodeId.value === requestNodeId && nodeFormEditRevision === editRevision) {
         setSelectedNode(savedNode)
+      } else if (savedNode && selectedNodeId.value === requestNodeId && requestItemType === 'story') {
+        nodeForm.fieldValues = rebaseStoryWritingAcknowledgement(nodeForm.fieldValues, payload.fieldValues, updated)
       } else if (nodeFormEditRevision === editRevision) {
         nodeFormDirty.value = false
       }
@@ -735,10 +738,11 @@ onBeforeUnmount(() => {
                 >
                   <StoryNodeWorkbenchComponent
                     :key="selectedNode.id"
+                    :story="detail"
                     :node="selectedNode"
                     :component-config="selectedNode.componentConfigs?.[componentKey]"
                     :model-value="nodeForm.fieldValues"
-                    :disabled="!selectedNodeEditable || savingNode"
+                    :disabled="!selectedNodeEditable"
                     @update:model-value="onNodeFieldValuesChange"
                     @commit="saveNode"
                   />
@@ -749,8 +753,9 @@ onBeforeUnmount(() => {
                 >
                   <StoryTestingResultsWorkbench
                     :key="selectedNode.id"
+                    :story="detail"
                     :model-value="nodeForm.fieldValues"
-                    :disabled="!selectedNodeEditable || savingNode"
+                    :disabled="!selectedNodeEditable"
                     @update:model-value="onNodeFieldValuesChange"
                     @commit="saveNode"
                   />

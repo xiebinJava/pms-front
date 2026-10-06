@@ -77,10 +77,18 @@ test('requirement flows through project, topic, story, and iteration plan', asyn
 
     const plans = await api(`/projects/${projectId}/iteration-plans`) as Array<{ id: number; name: string }>
     expect(plans.length).toBeGreaterThan(0)
-    const plan = plans[0]!
-    const planDetail = await api(`/iteration-plans/${plan.id}`) as { plan: { id: number; name: string; projectId: number }; stories: Array<{ id: number }> }
-    expect(planDetail.plan.projectId).toBe(projectId)
-    expect(planDetail.stories.some((item) => item.id === storyId)).toBe(true)
+    const planDetail = await (async () => {
+      for (const candidate of plans) {
+        const detail = await api(`/iteration-plans/${candidate.id}`) as { plan: { id: number; name: string; projectId: number }; stories: Array<{ id: number }> }
+        if (detail.stories.some((item) => item.id === storyId)) return detail
+      }
+      return null
+    })()
+    expect(planDetail).toBeTruthy()
+    expect(planDetail!.plan.id).toBeGreaterThan(0)
+    expect(planDetail!.plan.projectId).toBe(projectId)
+    expect(planDetail!.stories.some((item) => item.id === storyId)).toBe(true)
+    const plan = planDetail!.plan
 
     const title = `E2E闭环验证-${Date.now()}`
     const createdRequirement = await api('/development/requirements', {
@@ -120,6 +128,10 @@ test('requirement flows through project, topic, story, and iteration plan', asyn
     await expect(page.getByRole('heading', { name: topic.title })).toBeVisible()
     await navigateInApp('/development/stories')
     await expect(page.getByRole('heading', { name: '故事管理' })).toBeVisible()
+    const storySearch = page.locator('input[placeholder="搜索故事、专题、项目或节点"]')
+    await storySearch.first().fill(story.title)
+    await page.getByRole('button', { name: '查询' }).click()
+    await page.waitForTimeout(600)
     await expect(page.getByText(story.title, { exact: true }).first()).toBeVisible()
     await navigateInApp(`/development/stories/${storyId}`)
     await expect(page.getByRole('heading', { name: story.title })).toBeVisible()

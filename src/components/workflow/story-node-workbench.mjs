@@ -52,8 +52,8 @@ export const STORY_WORKBENCH_FIELDS = Object.freeze({
   writing: [{ key: 'acceptanceCriteria', type: 'textarea' }, { key: 'background', type: 'textarea' }],
   iteration: [{ key: 'iterationName', type: 'text' }, { key: 'meetingNote', type: 'textarea' }, { key: 'dependencies', type: 'textarea' }],
   development: [{ key: 'implementationNote', type: 'textarea' }, { key: 'selfTestResult', type: 'textarea' }, { key: 'codeLink', type: 'text' }],
-  acceptance: [{ key: 'acceptanceConclusion', type: 'textarea' }, { key: 'acceptanceNote', type: 'textarea' }],
-  release: [{ key: 'releaseVersion', type: 'text' }, { key: 'releaseWindow', type: 'text' }, { key: 'releaseNote', type: 'textarea' }],
+  acceptance: [{ key: 'acceptanceConclusion', type: 'select' }, { key: 'acceptanceNote', type: 'textarea' }],
+  release: [],
   launch: [{ key: 'launchDate', type: 'date' }, { key: 'launchVerification', type: 'textarea' }, { key: 'retrospective', type: 'textarea' }],
 })
 
@@ -73,6 +73,122 @@ export function mergeStoryWorkbenchState(values, variant, state) {
   for (const field of STORY_WORKBENCH_FIELDS[variant] || []) {
     next[field.key] = state[field.key] ?? ''
   }
+  return { ...root, __components: { ...components, [STORY_NODE_WORKBENCH_COMPONENT]: next } }
+}
+
+export function normalizeStoryWritingState(values, story = {}) {
+  const state = record(record(record(values).__components)[STORY_NODE_WORKBENCH_COMPONENT])
+  return {
+    title: typeof story.title === 'string' ? story.title : '',
+    topicId: story.topicId == null ? '' : String(story.topicId),
+    descriptionAndAcceptance: typeof state.descriptionAndAcceptance === 'string'
+      ? state.descriptionAndAcceptance
+      : [state.background, state.acceptanceCriteria].filter(value => typeof value === 'string' && value.trim()).join('\n\n'),
+    priority: ['LOW', 'NORMAL', 'HIGH', 'URGENT'].includes(state.priority) ? state.priority : 'NORMAL',
+  }
+}
+
+export function mergeStoryWritingState(values, state, story = {}) {
+  const root = record(values)
+  const components = record(root.__components)
+  return { ...root, __components: { ...components, [STORY_NODE_WORKBENCH_COMPONENT]: {
+    ...record(components[STORY_NODE_WORKBENCH_COMPONENT]),
+    ...state,
+    baseTitle: story.title || '',
+    baseTopicId: story.topicId == null ? '' : String(story.topicId),
+  } } }
+}
+
+export function normalizeStoryIterationState(values, story = {}) {
+  const state = record(record(record(values).__components)[STORY_NODE_WORKBENCH_COMPONENT])
+  const ids = (key) => Array.isArray(state[key]) ? state[key].filter(id => Number.isInteger(id) && id > 0) : []
+  return {
+    iterationPlanId: story.iterationPlanId == null ? '' : String(story.iterationPlanId),
+    developerIds: ids('developerIds'),
+    testerIds: ids('testerIds'),
+  }
+}
+
+export function mergeStoryIterationState(values, state, story = {}) {
+  const root = record(values)
+  const components = record(root.__components)
+  return { ...root, __components: { ...components, [STORY_NODE_WORKBENCH_COMPONENT]: {
+    ...record(components[STORY_NODE_WORKBENCH_COMPONENT]),
+    ...state,
+    baseIterationPlanId: story.iterationPlanId == null ? '' : String(story.iterationPlanId),
+  } } }
+}
+
+export function reconcileStoryIterationIdentity(draft, baseline, story = {}) {
+  const nextPlan = story.iterationPlanId == null ? '' : String(story.iterationPlanId)
+  const oldPlan = baseline.iterationPlanId == null ? '' : String(baseline.iterationPlanId)
+  if (draft.iterationPlanId === oldPlan || draft.iterationPlanId === nextPlan) {
+    draft.iterationPlanId = nextPlan
+    baseline.iterationPlanId = story.iterationPlanId ?? null
+  }
+}
+
+const MERGE_STATUSES = ['NOT_MERGED', 'MERGED']
+
+export function getStoryDevelopmentPeople(nodes = []) {
+  const iteration = nodes.find(node => node.componentConfigs?.[STORY_NODE_WORKBENCH_COMPONENT]?.variant === 'iteration')
+  const state = normalizeStoryIterationState(iteration?.fieldValues)
+  return { developerIds: [...new Set(state.developerIds)], testerIds: [...new Set(state.testerIds)] }
+}
+
+export function normalizeStoryDevelopmentState(values) {
+  const state = record(record(record(values).__components)[STORY_NODE_WORKBENCH_COMPONENT])
+  const testCases = Array.isArray(state.testCases)
+    ? state.testCases
+        .filter(entry => entry && typeof entry.id === 'string' && entry.id && entry.id.length <= 100)
+        .map(entry => ({
+          id: entry.id,
+          name: typeof entry.name === 'string' ? entry.name : '',
+          priority: ['LOW', 'NORMAL', 'HIGH', 'URGENT'].includes(entry.priority) ? entry.priority : 'NORMAL',
+          expectedResult: typeof entry.expectedResult === 'string' ? entry.expectedResult : '',
+        }))
+    : []
+  return {
+    testCases,
+    mergeStatus: MERGE_STATUSES.includes(state.mergeStatus) ? state.mergeStatus : 'NOT_MERGED',
+    deployEnv: typeof state.deployEnv === 'string' ? state.deployEnv : '',
+  }
+}
+
+export function mergeStoryDevelopmentState(values, state) {
+  const root = record(values)
+  const components = record(root.__components)
+  return { ...root, __components: { ...components, [STORY_NODE_WORKBENCH_COMPONENT]: {
+    ...record(components[STORY_NODE_WORKBENCH_COMPONENT]),
+    mergeStatus: state.mergeStatus,
+    deployEnv: state.deployEnv,
+    testCases: state.testCases.map(entry => ({ ...entry })),
+  } } }
+}
+
+export function reconcileStoryWritingIdentity(draft, baseline, story = {}) {
+  const nextTitle = story.title || ''
+  if (draft.title === (baseline.title || '') || draft.title === nextTitle) {
+    draft.title = nextTitle
+    baseline.title = nextTitle
+  }
+  const nextTopic = story.topicId == null ? '' : String(story.topicId)
+  const oldTopic = baseline.topicId == null ? '' : String(baseline.topicId)
+  if (draft.topicId === oldTopic || draft.topicId === nextTopic) {
+    draft.topicId = nextTopic
+    baseline.topicId = story.topicId ?? null
+  }
+}
+
+export function rebaseStoryWritingAcknowledgement(values, sentValues, story = {}) {
+  const root = record(values)
+  const components = record(root.__components)
+  const next = { ...record(components[STORY_NODE_WORKBENCH_COMPONENT]) }
+  const sent = record(record(record(sentValues).__components)[STORY_NODE_WORKBENCH_COMPONENT])
+  if (typeof sent.title === 'string' && sent.title.trim() !== sent.baseTitle
+    && story.title === sent.title.trim()) next.baseTitle = story.title
+  const topic = story.topicId == null ? '' : String(story.topicId)
+  if (typeof sent.topicId === 'string' && sent.topicId !== sent.baseTopicId && topic === sent.topicId) next.baseTopicId = topic
   return { ...root, __components: { ...components, [STORY_NODE_WORKBENCH_COMPONENT]: next } }
 }
 

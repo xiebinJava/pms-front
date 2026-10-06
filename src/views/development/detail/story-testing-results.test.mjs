@@ -18,7 +18,7 @@ test('story testing records recover valid issues without sharing mutable objects
   const values = { __components: { 'story-testing': { buildVersion: '1.2.3', testStatus: 'PASSED',
     residualIssues: [{ id: 'issue-1', description: '兼容性问题', legacyNote: '保留' }, null] } } }
   const state = normalizeStoryTesting(values)
-  assert.deepEqual(state.residualIssues, [{ id: 'issue-1', description: '兼容性问题', legacyNote: '保留' }])
+  assert.deepEqual(state.residualIssues, [{ id: 'issue-1', description: '兼容性问题', legacyNote: '保留', name: '', type: '', level: '', expectedResult: '', owner: null }])
   state.residualIssues[0].description = '已修改'
   assert.equal(values.__components['story-testing'].residualIssues[0].description, '兼容性问题')
 })

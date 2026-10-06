@@ -513,6 +513,7 @@ export interface DevelopmentItemWorkflowNode {
 }
 
 export interface DevelopmentItemWorkflowDetail {
+  workbenchPeople?: Record<string, string>
   itemType: DevelopmentItemType
   id: number
   title: string
@@ -533,6 +534,7 @@ export interface DevelopmentItemWorkflowDetail {
   blocker?: string
   latestBuildVersion?: string
   testStatus?: string
+  iterationPlanId?: number | null
   iterationPlanName?: string
   version?: number
   sourceRequirements?: SourceRequirementSummary[]

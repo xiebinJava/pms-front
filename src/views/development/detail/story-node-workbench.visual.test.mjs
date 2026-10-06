@@ -7,16 +7,27 @@ const testing = fs.readFileSync(new URL('./StoryTestingResultsWorkbench.vue', im
 const detail = fs.readFileSync(new URL('./DevelopmentItemDetailPage.vue', import.meta.url), 'utf8')
 const preview = fs.readFileSync(new URL('../../../components/workflow/WorkflowWorkbenchPreview.vue', import.meta.url), 'utf8')
 
-test('story node workbench renders its configured variant, purpose and activities', () => {
+test('story node workbench renders its configured variant fields only', () => {
   assert.match(workbench, /defineProps/)
   assert.match(workbench, /componentConfig/)
   assert.match(workbench, /STORY_WORKBENCH_FIELDS/)
   assert.match(workbench, /persisted\.value\.variant \|\| getStoryWorkbenchVariant/)
-  assert.match(workbench, /purpose/)
-  assert.match(workbench, /activities/)
   assert.match(workbench, /:data-variant="variant"/)
   assert.match(workbench, /normalizeStoryWorkbenchState/)
   assert.match(workbench, /mergeStoryWorkbenchState/)
+  assert.doesNotMatch(workbench, /story-node-workbench__heading/)
+  assert.doesNotMatch(workbench, /story-node-workbench__activities/)
+})
+
+test('story node workbench renders the iteration node plan and people confirmation', () => {
+  assert.match(workbench, /normalizeStoryIterationState/)
+  assert.match(workbench, /mergeStoryIterationState/)
+  assert.match(workbench, /getIterationPlans/)
+  assert.match(workbench, /iterationPlans/)
+  assert.match(workbench, /setIterationPlan/)
+  assert.match(workbench, /PersonSelect/)
+  assert.match(workbench, /setDevelopers/)
+  assert.match(workbench, /setTesters/)
 })
 
 test('story node workbench is read-only when disabled or previewing and commits on change', () => {
