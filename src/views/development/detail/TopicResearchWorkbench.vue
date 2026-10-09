@@ -22,12 +22,12 @@ function commit() { update(); emit('commit') }
 <template>
   <section class="topic-research pms-runtime-component">
     <div class="topic-research__card">
-      <label class="topic-research__field">
+      <div class="topic-research__field">
         <span>是否需要调研 <span class="topic-research__required">*</span></span>
-        <a-radio-group v-model:value="state.needed" :disabled="disabled || preview" @change="commit">
+        <a-radio-group v-model:value="state.needed" aria-label="是否需要调研" :disabled="disabled || preview" @change="commit">
           <a-radio value="YES">是</a-radio><a-radio value="NO">否</a-radio>
         </a-radio-group>
-      </label>
+      </div>
       <label v-if="state.needed === 'NO'" class="topic-research__field">
         <span>无需调研原因 <span class="topic-research__required">*</span></span>
         <a-textarea v-model:value="state.skipReason" :disabled="disabled" :rows="3" :maxlength="10000" placeholder="说明为什么无需开展竞品调研，例如已有报告或本次不涉及竞品对比" @change="update" @blur="commit" />

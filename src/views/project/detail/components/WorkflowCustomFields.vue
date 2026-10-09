@@ -142,7 +142,6 @@ async function persistChanges(): Promise<boolean> {
       attachments.value = saved.attachments || {}
       dirty.value = false
     }
-    message.success(t('detail.workflowFields.saved'))
     return true
   } catch (error) {
     message.error((error as Error).message || t('detail.workflowFields.saveFailed'))

@@ -114,6 +114,18 @@ const router = createRouter({
           meta: { titleKey: 'route.developmentIterationDetail', permission: 'project:read' },
         },
         {
+          path: 'development/system-versions',
+          name: 'development-system-versions',
+          component: () => import('/@/views/development/system-versions/index.vue'),
+          meta: { titleKey: 'route.developmentSystemVersions', permission: 'system-version:read' },
+        },
+        {
+          path: 'development/system-versions/:id',
+          name: 'development-system-version-detail',
+          component: () => import('/@/views/development/system-versions/detail.vue'),
+          meta: { titleKey: 'route.developmentSystemVersionDetail', permission: 'system-version:read' },
+        },
+        {
           path: 'development/topics/:id',
           name: 'development-topic-detail',
           component: () => import('/@/views/development/detail/DevelopmentItemDetailPage.vue'),

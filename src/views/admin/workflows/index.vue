@@ -237,6 +237,17 @@ function defaultVersionLabel(template: WorkflowTemplateSummary): string {
     : t('admin.workflow.defaultVersion', { version: versionNo })
 }
 
+function showTemplateVersionLabel(template: WorkflowTemplateSummary | undefined, version: number | undefined): boolean {
+  return version != null && (version > 1 || !template?.defaultTemplate)
+}
+
+function showDefaultVersionLabel(template: WorkflowTemplateSummary | undefined): boolean {
+  if (!template?.defaultTemplate) return false
+  const version = template.publishedVersions?.find((item) => item.id === template.defaultTemplateVersionId)?.versionNo
+    ?? (template.defaultTemplateVersionId === template.publishedVersionId ? template.publishedVersionNo : undefined)
+  return version != null && version > 1
+}
+
 function contentItemLabel(contentItem: WorkflowContentOrderItem): string {
   if (contentItem === 'fields') return t('admin.workflow.fieldsSection')
   if (contentItem === 'legacy-custom-fields') return t('admin.workflow.legacyCustomFieldsSection')
@@ -1075,7 +1086,7 @@ onMounted(async () => {
                 :aria-pressed="selectedTemplateId === template.id"
                 @click="selectTemplate(template.id)"
               >
-                <span class="workflow-choice-card__title"><strong>{{ template.name }}</strong><span class="workflow-choice-card__tags"><a-tag v-if="template.defaultTemplate" color="blue">{{ defaultVersionLabel(template) }}</a-tag><a-tag v-if="template.draftVersionNo" color="orange">{{ $t('admin.workflow.draftVersion', { version: template.draftVersionNo }) }}</a-tag><a-tag v-if="template.publishedVersionNo" color="green">{{ $t('admin.workflow.publishedVersion', { version: template.publishedVersionNo }) }}</a-tag><a-tag v-if="!template.publishedVersionNo">{{ $t('admin.workflow.notPublished') }}</a-tag></span></span>
+                <span class="workflow-choice-card__title"><strong>{{ template.name }}</strong><span class="workflow-choice-card__tags"><a-tag v-if="showDefaultVersionLabel(template)" color="blue">{{ defaultVersionLabel(template) }}</a-tag><a-tag v-if="showTemplateVersionLabel(template, template.draftVersionNo)" color="orange">{{ $t('admin.workflow.draftVersion', { version: template.draftVersionNo }) }}</a-tag><a-tag v-if="showTemplateVersionLabel(template, template.publishedVersionNo)" color="green">{{ $t('admin.workflow.publishedVersion', { version: template.publishedVersionNo }) }}</a-tag><a-tag v-if="!template.publishedVersionNo">{{ $t('admin.workflow.notPublished') }}</a-tag></span></span>
                 <small>{{ template.description || $t('admin.workflow.templatesHint') }}</small>
               </button>
               <button v-if="canWrite" type="button" class="workflow-choice-card workflow-template-choice workflow-template-choice--create" @click="newTemplate">
@@ -1099,10 +1110,10 @@ onMounted(async () => {
                   <div class="template-current__heading">
                     <span class="template-current__eyebrow">{{ $t('admin.workflow.currentTemplate') }}</span>
                     <div class="template-current__status">
-                      <a-tag v-if="selectedTemplateSummary?.defaultTemplate" color="blue">{{ defaultVersionLabel(selectedTemplateSummary) }}</a-tag>
+                      <a-tag v-if="selectedTemplateSummary && showDefaultVersionLabel(selectedTemplateSummary)" color="blue">{{ defaultVersionLabel(selectedTemplateSummary) }}</a-tag>
                       <a-tag v-if="dirty" color="orange">{{ $t('admin.workflow.unsaved') }}</a-tag>
-                      <a-tag v-else-if="selectedTemplateSummary?.draftVersionNo" color="orange">{{ $t('admin.workflow.draftVersion', { version: selectedTemplateSummary.draftVersionNo }) }}</a-tag>
-                      <a-tag v-if="publishedVersion" color="green">{{ $t('admin.workflow.publishedVersion', { version: publishedVersion }) }}</a-tag>
+                      <a-tag v-else-if="selectedTemplateSummary && showTemplateVersionLabel(selectedTemplateSummary, selectedTemplateSummary.draftVersionNo)" color="orange">{{ $t('admin.workflow.draftVersion', { version: selectedTemplateSummary.draftVersionNo }) }}</a-tag>
+                      <a-tag v-if="showTemplateVersionLabel(selectedTemplateSummary, publishedVersion)" color="green">{{ $t('admin.workflow.publishedVersion', { version: publishedVersion }) }}</a-tag>
                     </div>
                   </div>
                   <div class="template-current__name"><a-input v-model:value="templateName" :placeholder="$t('admin.workflow.templateName')" :disabled="!canWrite" :aria-label="$t('admin.workflow.templateName')" @input="markDirty" /></div>

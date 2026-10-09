@@ -33,10 +33,17 @@ test('requirement node workbench renders the persisted node activities and purpo
   assert.match(componentSource, /requirement-node-workbench/)
 })
 
-test('requirement clarification renders only its two text inputs and one conclusion select', () => {
+test('requirement clarification renders system selection, two text inputs, and one conclusion select', () => {
   assert.match(componentSource, /需求背景及目标/)
   assert.match(componentSource, /需求验收标准/)
   assert.match(componentSource, /澄清结论/)
+  assert.match(componentSource, /所属系统/)
+  assert.match(componentSource, /getSystemPage/)
+  assert.match(componentSource, /systemId/)
+  assert.match(componentSource, /receivingCategory/)
+  assert.match(componentSource, /systemFieldVisible/)
+  assert.match(componentSource, /visibleWhenCategory\?/)
+  assert.match(detailSource, /requirementReceivingCategory/)
   assert.match(componentSource, /isClarification/)
   assert.match(componentSource, /@update:value/)
   assert.match(componentSource, /@blur="commit"/)

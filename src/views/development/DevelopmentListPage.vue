@@ -23,7 +23,7 @@ import SourceRequirementList from '/@/components/development/SourceRequirementLi
 import DevelopmentTopicEditModal from './DevelopmentTopicEditModal.vue'
 import DevelopmentStoryEditModal from './DevelopmentStoryEditModal.vue'
 import DevelopmentRequirementEditModal from './DevelopmentRequirementEditModal.vue'
-import { lifecycleStatusTagColor } from '/@/enums'
+import { lifecycleStatusTagColor, requirementTargetTypeTagColor } from '/@/enums'
 
 type DevelopmentListMode = 'topics' | 'stories' | 'requirements'
 type DevelopmentRow = DevelopmentTopicRow | DevelopmentStoryRow | DevelopmentRequirementRow
@@ -121,12 +121,29 @@ function isRequirement(record: DevelopmentRow): record is DevelopmentRequirement
   return 'version' in record
 }
 
+function targetTypeLabel(targetType?: string) {
+  return targetType === 'PROJECT' ? t('developmentList.targetProject')
+    : targetType === 'TOPIC' ? t('developmentList.targetTopic')
+    : targetType === 'STORY' ? t('developmentList.targetStory')
+    : t('common.unset')
+}
+
 function isStory(record: DevelopmentRow): record is DevelopmentStoryRow {
   return 'topicTitle' in record
 }
 
 function isTopic(record: DevelopmentRow): record is DevelopmentTopicRow {
   return 'storyCount' in record
+}
+
+function rowStatus(record: DevelopmentRow) {
+  if (isRequirement(record)) {
+    return record.workflowStatus === 'NOT_CONFIGURED' ? record.status : record.workflowStatus
+  }
+  if (isTopic(record)) {
+    return record.workflowStatus === 'NOT_CONFIGURED' ? record.status : record.workflowStatus
+  }
+  return record.status
 }
 
 function loadParams() {
@@ -383,8 +400,10 @@ onMounted(() => { void loadData() })
               <div class="development-list-page__context-cell">
                 <template v-if="isRequirement(record)">
                   <template v-if="record.executionTarget">
-                    <strong>{{ record.executionTarget.title || record.executionTarget.code || t('common.unset') }}</strong>
-                    <span class="pms-table-subtext">{{ record.executionTarget.targetType === 'PROJECT' ? t('developmentList.targetProject') : record.executionTarget.targetType === 'TOPIC' ? t('developmentList.targetTopic') : t('developmentList.targetStory') }}</span>
+                    <div class="development-list-page__target-line">
+                      <strong class="development-list-page__target-title">{{ record.executionTarget.title || record.executionTarget.code || t('common.unset') }}</strong>
+                      <a-tag :color="requirementTargetTypeTagColor[record.executionTarget.targetType]">{{ targetTypeLabel(record.executionTarget.targetType) }}</a-tag>
+                    </div>
                   </template>
                   <span v-else class="pms-table-subtext">{{ t('developmentList.unassociatedRequirement') }}</span>
                 </template>
@@ -401,7 +420,7 @@ onMounted(() => { void loadData() })
               </div>
             </template>
             <template v-else-if="column.key === 'owner'"><span>{{ record.ownerName || t('common.unset') }}</span></template>
-            <template v-else-if="column.key === 'status'"><a-tag :color="statusColor(isRequirement(record) ? (record.workflowStatus === 'NOT_CONFIGURED' ? record.status : record.workflowStatus) : record.status)">{{ statusLabel(isRequirement(record) ? (record.workflowStatus === 'NOT_CONFIGURED' ? record.status : record.workflowStatus) : record.status) }}</a-tag></template>
+             <template v-else-if="column.key === 'status'"><a-tag :color="statusColor(rowStatus(record))">{{ statusLabel(rowStatus(record)) }}</a-tag></template>
             <template v-else-if="column.key === 'progress'"><a-progress :percent="isRequirement(record) ? (record.workflowProgress ?? 0) : record.progress" size="small" :status="(isRequirement(record) ? (record.workflowProgress ?? 0) : record.progress) === 100 ? 'success' : undefined" style="width: 120px" /></template>
             <template v-else-if="column.key === 'storyCount'"><div class="development-list-page__metric"><strong>{{ t('developmentList.storyCountValue', { count: record.storyCount }) }}</strong><span class="pms-table-subtext">{{ t('developmentList.completedStoryCount', { count: record.completedStoryCount }) }}</span></div></template>
             <template v-else-if="column.key === 'topic'"><button v-if="isStory(record) && record.topicId" type="button" class="pms-project-link development-list-page__topic-link" :title="record.topicTitle || t('common.unset')" @click="openTopic(record)">{{ record.topicTitle || t('common.unset') }}</button><span v-else class="pms-table-subtext">{{ isStory(record) ? (record.topicTitle || t('common.unset')) : t('common.unset') }}</span></template>
@@ -449,6 +468,9 @@ onMounted(() => { void loadData() })
 .development-list-page__table-scroll { min-height: 220px; }
 .development-list-page__project-link { display: inline-block; max-width: 220px; }
 .development-list-page__item-cell, .development-list-page__context-cell { min-width: 0; }
+.development-list-page__target-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.development-list-page__target-line :deep(.ant-tag) { margin: 0; }
+.development-list-page__target-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .development-list-page__source-requirement { display: block; max-width: 220px; margin-top: 5px; padding: 0; overflow: hidden; border: 0; background: none; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .development-list-page__source-requirement:hover { color: var(--pms-primary); text-decoration: underline; }
 .development-list-page__topic-link { display: inline-block; max-width: 170px; padding: 0; overflow: hidden; border: 0; background: none; color: var(--pms-primary); text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }

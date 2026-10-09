@@ -22,13 +22,14 @@ test('splits node roles into clean role names', () => {
 
 test('requires iteration plans, resource ownership, and risk ownership', () => {
   const base = {
-    iterationPlans: [{ name: '迭代一', ownerId: 1, startDate: '2026-09-01', dueDate: '2026-09-07' }],
+    iterationPlans: [{ name: '迭代一', systemId: 101, ownerId: 1, startDate: '2026-09-01', dueDate: '2026-09-07' }],
     resources: [{ role: '技术负责人', ownerId: 1, focus: '投入重点' }],
     risks: [{ title: '风险', ownerId: 1, response: '应对措施' }],
   }
 
   assert.equal(isPlanResourceRiskComplete(base), true)
   assert.equal(isPlanResourceRiskComplete({ ...base, iterationPlans: [] }), false)
+  assert.equal(isPlanResourceRiskComplete({ ...base, iterationPlans: [{ ...base.iterationPlans[0], systemId: undefined }] }), false)
   assert.equal(isPlanResourceRiskComplete({ ...base, resources: [{ ownerId: 1, focus: '' }] }), false)
   assert.equal(isPlanResourceRiskComplete({ ...base, risks: [] }), false)
 })
@@ -150,4 +151,29 @@ test('does not render the plan confirmation checklist footer', () => {
   assert.doesNotMatch(workbench, /plan-resource-risk-footer/)
   assert.doesNotMatch(workbench, /checklist/)
   assert.doesNotMatch(workbench, /CheckCircleOutlined/)
+})
+
+test('iteration rows share system and version controls with standalone iteration creation', () => {
+  const detailRoot = path.resolve(import.meta.dirname)
+  const workbench = fs.readFileSync(path.join(detailRoot, 'components/PlanResourceRiskWorkbench.vue'), 'utf8')
+  const api = fs.readFileSync(path.join(detailRoot, '../../../api/node-plan-resource-risk.ts'), 'utf8')
+  const domain = fs.readFileSync(path.join(detailRoot, '../../../types/domain.ts'), 'utf8')
+
+  assert.match(workbench, /detail\.planResourceRisk\.system/)
+  assert.match(workbench, /IterationSystemFields/)
+  assert.doesNotMatch(workbench, /getSystemVersionPage/)
+  assert.doesNotMatch(workbench, /systemVersionOptionsFor/)
+  assert.match(workbench, /systemVersionId: item\.systemVersionId/)
+  assert.match(workbench, /min-width: 1240px/)
+  assert.match(api, /NodePlanResourceRiskUpdate/)
+  assert.match(domain, /systemVersionId\?: number \| null/)
+})
+
+test('keeps compact iteration system controls on one row', () => {
+  const detailRoot = path.resolve(import.meta.dirname)
+  const systemFields = fs.readFileSync(path.join(detailRoot, '../../development/iterations/IterationSystemFields.vue'), 'utf8')
+
+  assert.match(systemFields, /iteration-system-fields--compact[\s\S]*grid-template-columns/)
+  assert.match(systemFields, /iteration-system-fields--compact[\s\S]*iteration-system-fields__visually-hidden[\s\S]*position: absolute/)
+  assert.match(systemFields, /iteration-system-fields--compact[\s\S]*iteration-system-fields__hint[\s\S]*display: none/)
 })

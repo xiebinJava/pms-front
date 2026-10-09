@@ -165,12 +165,11 @@ const PREVIEW_LAYOUTS: Record<string, PreviewLayout> = {
   },
   'release-handover': {
     titleKey: 'detail.release.title',
-    metrics: ['release', 'decision', 'handover'],
-    metricKeys: { release: 'detail.release.infoTitle', decision: 'detail.release.decisionTitle', handover: 'detail.release.handoverTitle' },
+    metrics: ['release', 'handover'],
+    metricKeys: { release: 'detail.release.infoTitle', handover: 'detail.release.handoverTitle' },
     blocks: [
-      { key: 'releaseInfo', kind: 'form', titleKey: 'detail.release.infoTitle', hintKey: 'detail.release.infoHint', columns: ['version', 'window', 'type'], columnKeys: { version: 'detail.release.version', window: 'detail.release.window', type: 'detail.release.type' } },
-      { key: 'decision', kind: 'form', titleKey: 'detail.release.decisionTitle', hintKey: 'detail.release.decisionHint', columns: ['result', 'decisionNote'], columnKeys: { result: 'detail.release.result', decisionNote: 'detail.release.decisionNote' } },
-      { key: 'handoverItems', kind: 'form', titleKey: 'detail.release.handoverTitle', hintKey: 'detail.release.handoverHint', columns: ['handoverNotes', 'observationItems', 'emergencyContact'], columnKeys: { handoverNotes: 'detail.release.handoverNotes', observationItems: 'detail.release.observationItems', emergencyContact: 'detail.release.emergencyContact' } },
+      { key: 'releaseInfo', kind: 'form', titleKey: 'detail.release.infoTitle', hintKey: 'detail.release.infoHint', columns: ['scope'], columnKeys: { scope: 'detail.release.scopeTitle' } },
+      { key: 'handoverItems', kind: 'form', titleKey: 'detail.release.handoverTitle', hintKey: 'detail.release.handoverHint', columns: ['handoverOwner', 'handoverNotes'], columnKeys: { handoverOwner: 'detail.release.handoverOwner', handoverNotes: 'detail.release.handoverNotes' } },
     ],
   },
   'value-review': {

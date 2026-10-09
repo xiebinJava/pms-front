@@ -22,7 +22,7 @@ test('story node workbench renders its configured variant fields only', () => {
 test('story node workbench renders the iteration node plan and people confirmation', () => {
   assert.match(workbench, /normalizeStoryIterationState/)
   assert.match(workbench, /mergeStoryIterationState/)
-  assert.match(workbench, /getIterationPlans/)
+  assert.match(workbench, /getStoryIterationPlans/)
   assert.match(workbench, /iterationPlans/)
   assert.match(workbench, /setIterationPlan/)
   assert.match(workbench, /PersonSelect/)

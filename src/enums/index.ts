@@ -155,3 +155,9 @@ export const priorityTagColor: Record<number, string> = {
   2: 'orange',
   3: 'orange',
 }
+
+export const requirementTargetTypeTagColor: Record<'PROJECT' | 'TOPIC' | 'STORY', string> = {
+  PROJECT: 'blue',
+  TOPIC: 'purple',
+  STORY: 'cyan',
+}

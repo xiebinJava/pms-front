@@ -21,13 +21,14 @@ test('defines a separate workbench blueprint for each requirement node', () => {
       '确认验收标准',
       '记录澄清结论',
     ],
+    systemField: { visibleWhenCategory: 'FUNCTIONAL', required: false },
   })
 })
 
-test('keeps requirement release workbench aligned with the restored publish version field', () => {
+test('keeps requirement release workbench focused on handover without version selection', () => {
   const blueprint = getRequirementNodeWorkbenchBlueprint({ key: 'release', name: '需求上线' })
   assert.deepEqual(blueprint.activities, [
-    '确认发布版本和范围',
+    '确认上线范围',
     '完成上线前检查',
     '准备交接与回滚方案',
     '记录上线结果',

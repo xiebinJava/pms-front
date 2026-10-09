@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { message, Modal } from 'ant-design-vue'
+import { message } from 'ant-design-vue'
 import { ArrowLeftOutlined, FolderOpenOutlined, InfoCircleOutlined, RollbackOutlined } from '@ant-design/icons-vue'
 import { getDevelopmentItemWorkflow, updateDevelopmentItemNode, completeDevelopmentItemNode, rollbackDevelopmentItemNode } from '/@/api/development-item'
 import { getProjectOrgTree } from '/@/api/admin-org'
@@ -35,6 +35,7 @@ import TopicResearchWorkbench from './TopicResearchWorkbench.vue'
 import TopicDesignReviewWorkbench from './TopicDesignReviewWorkbench.vue'
 import WorkflowNodeShell from '/@/components/workflow/WorkflowNodeShell.vue'
 import WorkflowRuntimeComponentHost from '/@/components/workflow/WorkflowRuntimeComponentHost.vue'
+import { isWorkbenchFilled, areWorkflowFieldsFilled } from '/@/components/workflow/workbench-filled.mjs'
 import SourceRequirementList from '/@/components/development/SourceRequirementList.vue'
 import { WorkflowRuntimeComponentKey } from '/@/components/workflow/workflow-component-registry'
 import { isNodeReadOnly, shouldAutoSaveProfile } from '/@/views/project/detail/workflow'
@@ -75,6 +76,22 @@ const requirementTargetSpecification = computed<RequirementExecutionTargetType |
     ? (state as Record<string, unknown>).requirementSpecification
     : undefined
   return specification === 'PROJECT' || specification === 'TOPIC' || specification === 'STORY' ? specification : undefined
+})
+const requirementReceivingCategory = computed<'FUNCTIONAL' | 'NON_FUNCTIONAL' | undefined>(() => {
+  if (props.itemType !== 'requirement' || !detail.value || !selectedNode.value) return undefined
+  const orderedNodes = [...detail.value.nodes].sort((left, right) => left.sort - right.sort)
+  const currentIndex = orderedNodes.findIndex((node) => node.id === selectedNode.value?.id)
+  for (let index = currentIndex - 1; index >= 0; index -= 1) {
+    const components = orderedNodes[index]?.fieldValues?.__components
+    const state = components && typeof components === 'object' && !Array.isArray(components)
+      ? (components as Record<string, unknown>)[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]
+      : undefined
+    const category = state && typeof state === 'object' && !Array.isArray(state)
+      ? (state as Record<string, unknown>).category
+      : undefined
+    if (category === 'FUNCTIONAL' || category === 'NON_FUNCTIONAL') return category
+  }
+  return undefined
 })
 const requirementDevelopmentTarget = computed<{ targetType: RequirementExecutionTargetType; targetId: number } | undefined>(() => {
   if (props.itemType !== 'requirement' || !detail.value || !selectedNode.value) return undefined
@@ -180,7 +197,8 @@ function isNodeOverlayTarget(target: EventTarget | null): boolean {
 
 function onDocumentPointerDown(event: PointerEvent) {
   const target = event.target
-  const clickedInsideNodeFields = target instanceof Node && Boolean(nodeFieldsContainer.value?.contains(target))
+  const clickedInsideNodeFields = (target instanceof Node && Boolean(nodeFieldsContainer.value?.contains(target)))
+    || (target instanceof Element && Boolean(target.closest('.pms-workflow-node-shell')))
   const clickedInsideOverlay = isNodeOverlayTarget(target)
   if (shouldAutoSaveProfile(nodeFormDirty.value, clickedInsideNodeFields, clickedInsideOverlay)) {
     void saveNode()
@@ -278,6 +296,9 @@ function saveNode(): Promise<boolean> {
   const requestNodeId = node.id
   const requestItemType = props.itemType
   const editRevision = nodeFormEditRevision
+  const notifyOnSuccess = nodeForm.ownerId !== node.ownerId
+    || (nodeForm.startDate || '') !== (node.startDate || '')
+    || (nodeForm.endDate || '') !== (node.endDate || '')
   const payload = {
     ownerId: nodeForm.ownerId,
     startDate: nodeForm.startDate || undefined,
@@ -302,7 +323,7 @@ function saveNode(): Promise<boolean> {
       } else if (nodeFormEditRevision === editRevision) {
         nodeFormDirty.value = false
       }
-      message.success(t('developmentDetail.nodeSaved'))
+      if (notifyOnSuccess) message.success(t('developmentDetail.nodeSaved'))
       return true
     } catch (error) {
       message.error(errorMessage(error, t('developmentDetail.saveFailed')))
@@ -328,31 +349,22 @@ async function saveAllNodeEdits(): Promise<boolean> {
   return true
 }
 
-function confirmCompleteNode() {
+async function completeSelectedNode() {
   const node = selectedNode.value
-  if (!detail.value || !node || node.status !== 1) return
-  Modal.confirm({
-    title: t('developmentDetail.completeNodeTitle'),
-    content: t('developmentDetail.completeNodeContent', { name: node.name }),
-    okText: t('developmentDetail.completeNodeAction'),
-    cancelText: t('common.cancel'),
-    onOk: async () => {
-      if (selectedNode.value?.id !== node.id || completingNode.value) return
-      completingNode.value = true
-      try {
-        if (!(await saveAllNodeEdits())) return
-        if (selectedNode.value?.id !== node.id || selectedNode.value.status !== 1) return
-        detail.value = await completeDevelopmentItemNode(props.itemType, detail.value!.id, node.id)
-        const next = detail.value.nodes.find((item) => item.status === 1) || node
-        setSelectedNode(next)
-        message.success(t('developmentDetail.nodeCompleted'))
-      } catch (error) {
-        message.error(errorMessage(error, t('developmentDetail.completeFailed')))
-      } finally {
-        completingNode.value = false
-      }
-    },
-  })
+  if (!detail.value || !node || node.status !== 1 || completingNode.value) return
+  completingNode.value = true
+  try {
+    if (!(await saveAllNodeEdits())) return
+    if (selectedNode.value?.id !== node.id || selectedNode.value.status !== 1) return
+    detail.value = await completeDevelopmentItemNode(props.itemType, detail.value.id, node.id)
+    const next = detail.value.nodes.find((item) => item.status === 1) || node
+    setSelectedNode(next)
+    message.success(t('developmentDetail.nodeCompleted'))
+  } catch (error) {
+    message.error(errorMessage(error, t('developmentDetail.completeFailed')))
+  } finally {
+    completingNode.value = false
+  }
 }
 
 async function autoCompleteDevelopmentNode() {
@@ -447,6 +459,24 @@ const receivingAnalysisState = computed(() => {
 })
 
 const receivingAnalysisConfig = computed<RequirementReceivingAnalysisConfig>(() => {
+  const configured = selectedNode.value?.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]
+  if (configured && typeof configured === 'object' && !Array.isArray(configured)) {
+    return {
+      showFilter: false,
+      showAnalysis: true,
+      showDecision: true,
+      requireCategory: true,
+      showFeasibilityScore: false,
+      requireFeasibilityScore: false,
+      showRoiScore: false,
+      requireRoiScore: false,
+      showStrategicFitScore: true,
+      requireStrategicFitScore: true,
+      requireAnalysisConclusion: false,
+      allowReject: true,
+      ...(configured as Partial<RequirementReceivingAnalysisConfig>),
+    }
+  }
   return {
     showFilter: false,
     showAnalysis: true,
@@ -588,7 +618,7 @@ onBeforeUnmount(() => {
                     type="primary"
                     class="pms-primary-button pms-project-button pms-project-button--primary"
                     :loading="completingNode"
-                    @click="confirmCompleteNode"
+                    @click="completeSelectedNode"
                   >{{ t('developmentDetail.completeNodeAction') }}</a-button>
                 </div>
               </div>
@@ -629,7 +659,10 @@ onBeforeUnmount(() => {
             </template>
 
             <template #fields>
-              <div v-if="selectedNode.fields?.length" ref="nodeFieldsContainer" @focusout.capture="onNodeFieldsFocusOut">
+              <div v-if="selectedNode.fields?.length" ref="nodeFieldsContainer"
+                class="development-workbench-surface"
+                :class="{ 'development-workbench-surface--filled': areWorkflowFieldsFilled(selectedNode.fields, selectedNode.fieldValues, selectedNode.boundFieldValues || {}, nodeFormDirty || savingNode) }"
+                @focusout.capture="onNodeFieldsFocusOut">
                 <DevelopmentItemWorkflowFields
                   :model-value="nodeForm.fieldValues"
                   :fields="selectedNode.fields"
@@ -643,7 +676,9 @@ onBeforeUnmount(() => {
             </template>
 
             <template #components>
-              <template v-for="componentKey in selectedNode.runtimeComponents || []" :key="componentKey">
+              <div v-for="componentKey in selectedNode.runtimeComponents || []" :key="componentKey"
+                class="development-workbench-surface"
+                :class="{ 'development-workbench-surface--filled': isWorkbenchFilled(componentKey, selectedNode, detail, nodeFormDirty || savingNode) }">
                 <WorkflowRuntimeComponentHost
                   v-if="props.itemType === 'topic' && componentKey === WorkflowRuntimeComponentKey.STORY_LIST"
                   :component-key="componentKey"
@@ -727,6 +762,7 @@ onBeforeUnmount(() => {
                     :model-value="nodeForm.fieldValues"
                     :current-requirement-id="detail.id"
                     :target-specification="requirementTargetSpecification"
+                    :receiving-category="requirementReceivingCategory"
                     :disabled="!selectedNodeEditable || savingNode"
                     @update:model-value="onNodeFieldValuesChange"
                     @commit="saveNode"
@@ -761,7 +797,7 @@ onBeforeUnmount(() => {
                   />
                 </WorkflowRuntimeComponentHost>
                 <WorkflowRuntimeComponentHost v-else :component-key="componentKey" />
-              </template>
+              </div>
             </template>
 
             <template #tasks>
@@ -811,6 +847,20 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.development-workbench-surface { min-width: 0; }
+.development-workbench-surface--filled :deep(.pms-runtime-component),
+.development-workbench-surface--filled :deep(.development-item-fields),
+.development-workbench-surface--filled :deep(.topic-research__card),
+.development-workbench-surface--filled :deep(.topic-design-review__card),
+.development-workbench-surface--filled :deep(.topic-testing-results__card),
+.development-workbench-surface--filled :deep(.story-node-workbench__fields),
+.development-workbench-surface--filled :deep(.requirement-node-workbench__clarification),
+.development-workbench-surface--filled :deep(.requirement-node-workbench__integration),
+.development-workbench-surface--filled :deep(.requirement-node-workbench__scheduling),
+.development-workbench-surface--filled :deep(.requirement-node-workbench__acceptance-card) {
+  background: var(--pms-workbench-filled-bg);
+  border-color: var(--pms-workbench-filled-border);
+}
 .development-item-detail { min-width: 0; }
 .development-item-detail__summary { padding: 24px 26px 19px; border-radius: var(--pms-detail-radius); box-shadow: var(--pms-detail-shadow); }
 .project-header__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }

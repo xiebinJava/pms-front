@@ -85,7 +85,7 @@ test('story testing workbench saves results and recovers after reload', async ({
   await expect(workbench).toBeVisible()
   await expect(workbench.getByRole('heading', { name: '测试结果', exact: true })).toBeVisible()
 
-  const reportUrl = workbench.getByPlaceholder('请输入 http 或 https 文档链接')
+  const reportUrl = workbench.getByPlaceholder('请输入测试报告文档链接')
   await reportUrl.fill('https://doc.example.com/report'); await reportUrl.blur()
   await expect.poll(() => saves.at(-1)?.fieldValues?.__components?.['story-testing']?.reportUrl).toBe('https://doc.example.com/report')
 
@@ -96,7 +96,7 @@ test('story testing workbench saves results and recovers after reload', async ({
   expect(saves.at(-1).fieldValues.__components['story-testing'].legacyNote).toBe('服务端历史')
 
   await page.reload()
-  await expect(workbench.getByPlaceholder('请输入 http 或 https 文档链接')).toHaveValue('https://doc.example.com/report')
+  await expect(workbench.getByPlaceholder('请输入测试报告文档链接')).toHaveValue('https://doc.example.com/report')
 })
 
 test('a story node without configured workbenches renders nothing extra', async ({ page }) => {

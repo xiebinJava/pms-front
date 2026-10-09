@@ -13,11 +13,12 @@ const handlers = parsed.statements.filter(statement => ts.isFunctionDeclaration(
 function pageContext(api) {
   const node = { id: 95, status: 1, version: 0, fieldValues: { build: 'original' } }
   const submitted = []
+  const notices = { success: [], error: [] }
   const context = {
     selectedNodeId: { value: 95 }, nodeForm: {}, nodeFormDirty: { value: false }, nodeFormVersion: { value: undefined },
     detail: { value: { id: 15, nodes: [node] } }, props: { itemType: 'topic' }, savingNode: { value: false },
     nodeFormEditRevision: 0, activeNodeSave: null, queuedNodeSave: false,
-    isNodeReadOnly: status => status === 2, message: { success() {}, error() {} }, t: key => key, errorMessage: () => 'conflict',
+    isNodeReadOnly: status => status === 2, message: { success: value => notices.success.push(value), error: value => notices.error.push(value) }, t: key => key, errorMessage: () => 'conflict',
     updateDevelopmentItemNode: async (_type, _item, _node, payload) => {
       submitted.push(payload)
       if (api) return api(payload)
@@ -29,8 +30,31 @@ function pageContext(api) {
   vm.createContext(context)
   vm.runInContext(ts.transpileModule(handlers, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText, context)
   context.setSelectedNode(node)
-  return { context, node, submitted }
+  return { context, node, submitted, notices }
 }
+
+test('ordinary field autosaves are silent while owner and schedule changes notify', async () => {
+  for (const change of ['field', 'owner', 'schedule']) {
+    const { context, node, notices } = pageContext(async payload => ({ id: 15, nodes: [{ ...node, ...payload, version: 1 }] }))
+    if (change === 'field') context.nodeForm.fieldValues = { build: 'updated' }
+    if (change === 'owner') context.nodeForm.ownerId = 8
+    if (change === 'schedule') context.nodeForm.startDate = '2026-10-06'
+    context.markNodeFormDirty()
+    assert.equal(await context.saveNode(), true)
+    assert.equal(notices.success.length, change === 'field' ? 0 : 1)
+    await context.saveNode()
+    assert.equal(notices.success.length, change === 'field' ? 0 : 1)
+  }
+})
+
+test('failed ordinary field saves still report an error', async () => {
+  const { context, notices } = pageContext(async () => { throw new Error('failure') })
+  context.nodeForm.fieldValues = { build: 'updated' }
+  context.markNodeFormDirty()
+  assert.equal(await context.saveNode(), false)
+  assert.equal(notices.success.length, 0)
+  assert.equal(notices.error.length, 1)
+})
 
 test('task refresh retains the dirty form version so a peer edit cannot be silently overwritten', async () => {
   const { context, node, submitted } = pageContext()

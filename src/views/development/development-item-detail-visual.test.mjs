@@ -29,9 +29,17 @@ test('node details preserve assignment editing, completion, and node-scoped task
   assert.doesNotMatch(detail, /@click="saveNode"/)
   assert.match(detail, /@change="onNodeOwnerChange"/)
   assert.match(detail, /@change="onScheduleChange"/)
-  assert.match(detail, /@click="confirmCompleteNode"/)
+  assert.match(detail, /@click="completeSelectedNode"/)
   assert.match(detail, /@click="confirmRollbackNode"/)
   assert.match(detail, /<DevelopmentItemTaskBoard/)
+})
+
+test('development node completion runs directly without a confirmation dialog', () => {
+  const completionBlock = detail.slice(detail.indexOf('async function completeSelectedNode'), detail.indexOf('\nasync function autoCompleteDevelopmentNode'))
+  assert.match(completionBlock, /async function completeSelectedNode\(\)/)
+  assert.doesNotMatch(completionBlock, /Modal\.confirm/)
+  assert.match(completionBlock, /saveAllNodeEdits\(\)/)
+  assert.match(completionBlock, /completeDevelopmentItemNode\(/)
 })
 
 test('completed development nodes keep project-style disabled assignment controls', () => {
@@ -57,7 +65,7 @@ test('node header keeps completion and rollback actions at the right edge by sta
   const header = detail.slice(detail.indexOf('<template #header>'), detail.indexOf('</template>', detail.indexOf('<template #header>')))
   assert.match(header, /class="node-detail-actions"/)
   assert.match(header, /v-if="selectedNode\.status === 2"[\s\S]*confirmRollbackNode/)
-  assert.match(header, /v-else-if="selectedNode\.status === 1(?: && !detail\.terminalStatus)?"[\s\S]*confirmCompleteNode/)
+  assert.match(header, /v-else-if="selectedNode\.status === 1(?: && !detail\.terminalStatus)?"[\s\S]*completeSelectedNode/)
   assert.doesNotMatch(header, /selectedNode\.status === 0[\s\S]*@click/)
 })
 

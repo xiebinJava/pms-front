@@ -72,6 +72,13 @@ test('development list uses project-style lifecycle labels for workflow states',
   assert.doesNotMatch(source, /developmentList\.workflow\.COMPLETED/)
 })
 
+test('topic list aligns status with the workflow progress source', () => {
+  const source = read('views/development/DevelopmentListPage.vue')
+  assert.match(source, /function rowStatus\(record: DevelopmentRow\)/)
+  assert.match(source, /if \(isTopic\(record\)\)[\s\S]*record\.workflowStatus === 'NOT_CONFIGURED'/)
+  assert.match(source, /statusColor\(rowStatus\(record\)\)/)
+})
+
 test('development filter controls use a flex row with explicit spacing and alignment', () => {
   const source = read('views/development/DevelopmentListPage.vue')
   assert.match(source, /\.pms-table-toolbar__filters\s*\{[^}]*display:\s*flex/)

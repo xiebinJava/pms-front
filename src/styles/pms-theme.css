@@ -1305,6 +1305,7 @@ body { font-family: var(--pms-font-family); background: var(--pms-bg); }
 .workflow-node-shell__components,
 .workflow-node-shell__tasks { margin-top: 14px; }
 .workflow-node-shell__body { min-width: 0; }
+:root { --pms-workbench-filled-bg: #f7fbf8; --pms-workbench-filled-border: #ccebd8; }
 .pms-workflow-component-host { min-width: 0; }
 .pms-workflow-component-host__unknown,
 .pms-workflow-component-host__placeholder { display: grid; gap: 4px; padding: 16px; color: var(--pms-text-muted); background: var(--pms-detail-surface-muted); border: 1px dashed var(--pms-detail-border-strong); border-radius: var(--pms-radius); }

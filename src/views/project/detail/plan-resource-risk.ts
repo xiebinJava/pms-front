@@ -66,7 +66,7 @@ export function mergePlanResourceRiskSaveResult(
 
 export function isPlanResourceRiskComplete(input: PlanResourceRiskCompletionInput): boolean {
   if (!(input.iterationPlans || []).length || (input.iterationPlans || []).some((item) => !item.name?.trim()
-    || !item.ownerId || !item.startDate || !item.dueDate)) return false
+    || !item.systemId || !item.ownerId || !item.startDate || !item.dueDate)) return false
   if (!input.resources.length || input.resources.some((item) => !item.role?.trim() || !item.ownerId || !item.focus?.trim())) return false
   return input.risks.length > 0 && input.risks.every((item) => Boolean(item.title?.trim() && item.ownerId && item.response?.trim()))
 }

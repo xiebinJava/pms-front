@@ -45,12 +45,19 @@ test('labels the business-line lead as an organization leader', () => {
   assert.match(projectLocale, /leader: '组织负责人：\{name\}'/)
 })
 
-test('keeps create-form start and end dates on one row', () => {
-  const modal = source.slice(source.indexOf('pms-project-modal'))
-  const dateGrid = modal.slice(modal.indexOf('grid grid-cols-2'), modal.indexOf('</a-form>'))
-  assert.match(dateGrid, /project\.startDate/)
-  assert.match(dateGrid, /project\.endDate/)
-  assert.doesNotMatch(dateGrid, /common\.priority/)
+test('preselects a project workflow while keeping published alternatives selectable', () => {
+  const modal = source.slice(source.indexOf('<a-modal'), source.indexOf('</a-modal>'))
+  assert.doesNotMatch(modal, /pms-workflow-selection/)
+  assert.match(modal, /class="pms-project-workflow"/)
+  assert.match(modal, /availableWorkflowTemplateVersions/)
+  assert.match(modal, /v-model:value="form\.workflowTemplateVersionId"/)
+  assert.doesNotMatch(modal, /disabled\s*\/>/)
+  assert.match(modal, /class="pms-project-date-row"/)
+  assert.match(modal, /class="pms-project-date-picker"/)
+  assert.match(modal, /v-model:value="projectSchedule"/)
+  assert.match(modal, /:placeholder="\[\$t\('project\.startDate'\), \$t\('project\.endDate'\)\]"/)
+  assert.match(source, /form\.projectTypeId = defaultType\?\.id/)
+  assert.match(source, /form\.workflowTemplateVersionId = defaultType\?\.defaultTemplateVersionId/)
 })
 
 test('renders the project date range as a compact two-line value', () => {

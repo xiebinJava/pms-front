@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { StopOutlined, ReloadOutlined } from '@ant-design/icons-vue'
+import { isWorkbenchFilled } from '/@/components/workflow/workbench-filled.mjs'
 import {
   rejectRequirementReceivingAnalysis,
   reopenRequirementReceivingAnalysis,
@@ -39,6 +40,10 @@ const emptyState = (): RequirementReceivingAnalysisState => ({
 const form = reactive<RequirementReceivingAnalysisState>(emptyState())
 const saving = ref(false)
 const dirty = ref(false)
+const filled = computed(() => isWorkbenchFilled('requirement-receiving-analysis', {
+  fieldValues: { __components: { 'requirement-receiving-analysis': props.state } },
+  componentConfigs: { 'requirement-receiving-analysis': props.config },
+}, {}, dirty.value || saving.value))
 const reopenReason = ref('')
 let formRevision = 0
 let autoSaveTimer: ReturnType<typeof setTimeout> | undefined
@@ -184,7 +189,7 @@ function reopen() {
 </script>
 
 <template>
-  <section class="requirement-receiving-analysis pms-runtime-component">
+  <section class="requirement-receiving-analysis pms-runtime-component" :class="{ 'requirement-receiving-analysis--filled': filled }">
     <a-alert v-if="terminalStatus === 'REJECTED'" type="error" show-icon message="需求已驳回" description="历史目标关系已保留，但不会作为有效需求来源参与项目、专题或故事展示。" />
     <div v-if="terminalStatus === 'REJECTED' && canManage" class="requirement-receiving-analysis__reopen-actions">
       <a-button @click="reopen"><ReloadOutlined />重开需求</a-button>
@@ -213,6 +218,7 @@ function reopen() {
 </template>
 
 <style scoped>
+.requirement-receiving-analysis--filled .requirement-receiving-analysis__section { background: var(--pms-workbench-filled-bg); border-color: var(--pms-workbench-filled-border); }
 .requirement-receiving-analysis { display: grid; gap: 16px; padding-top: 2px; }
 .requirement-receiving-analysis__reopen-actions { display: flex; justify-content: flex-end; }
 .requirement-receiving-analysis__section { display: grid; gap: 14px; padding: 16px; background: var(--pms-detail-surface-muted); border: 1px solid var(--pms-detail-border); border-radius: 8px; }

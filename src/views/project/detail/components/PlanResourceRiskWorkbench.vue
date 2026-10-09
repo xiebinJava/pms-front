@@ -32,6 +32,7 @@ import {
   splitRoleNames,
 } from '../plan-resource-risk'
 import PersonSelect from './PersonSelect.vue'
+import IterationSystemFields from '/@/views/development/iterations/IterationSystemFields.vue'
 
 const props = defineProps<{
   projectId: number
@@ -56,6 +57,7 @@ const seededInitialRows = ref(false)
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 let lastSavedFingerprint = ''
 let savePromise: Promise<boolean> | null = null
+let loadSequence = 0
 
 function emptyState(): NodePlanResourceRisk {
   return {
@@ -98,6 +100,7 @@ const iterationStatusOptions = computed(() => [
   { value: 'PLANNED' as NodeIterationPlanStatus, label: t('detail.planResourceRisk.iterationStatuses.planned') },
   { value: 'IN_PROGRESS' as NodeIterationPlanStatus, label: t('detail.planResourceRisk.iterationStatuses.inProgress') },
   { value: 'DONE' as NodeIterationPlanStatus, label: t('detail.planResourceRisk.iterationStatuses.done') },
+  { value: 'PAUSED' as NodeIterationPlanStatus, label: t('detail.planResourceRisk.iterationStatuses.paused') },
 ])
 const canConfirm = computed(() => isPlanResourceRiskComplete(state))
 
@@ -145,17 +148,23 @@ function syncSavedState(next: NodePlanResourceRisk) {
 async function load() {
   loading.value = true
   loadError.value = false
+  const sequence = ++loadSequence
   seededInitialRows.value = true
   replaceState(emptyState())
   seededInitialRows.value = false
   try {
-    replaceState(await getNodePlanResourceRisk(props.projectId, props.nodeId))
+    const next = await getNodePlanResourceRisk(props.projectId, props.nodeId)
+    if (sequence !== loadSequence) return
+    replaceState(next)
   } catch {
+    if (sequence !== loadSequence) return
     loadError.value = true
     message.error(t('detail.planResourceRisk.loadFailed'))
   } finally {
-    loading.value = false
-    if (!isConfirmed.value && canConfirm.value) scheduleAutoSave(0)
+    if (sequence === loadSequence) {
+      loading.value = false
+      if (!isConfirmed.value && canConfirm.value) scheduleAutoSave(0)
+    }
   }
 }
 
@@ -165,6 +174,8 @@ function toPayload(): NodePlanResourceRiskUpdate {
     iterationPlans: state.iterationPlans.map((item, index) => ({
       id: item.id,
       name: item.name.trim(),
+      systemId: item.systemId,
+      systemVersionId: item.systemVersionId,
       ownerId: item.ownerId,
       goal: item.goal?.trim() || undefined,
       status: item.status,
@@ -361,6 +372,7 @@ onBeforeUnmount(() => {
           <div class="plan-resource-risk-table__head">
             <span>{{ $t('detail.planResourceRisk.iterationName') }}</span>
             <span>{{ $t('detail.planResourceRisk.owner') }}</span>
+            <span>{{ $t('detail.planResourceRisk.system') }}</span>
             <span>{{ $t('detail.planResourceRisk.iterationGoal') }}</span>
             <span>{{ $t('detail.planResourceRisk.statusLabel') }}</span>
             <span>{{ $t('detail.planResourceRisk.iterationSchedule') }}</span>
@@ -370,6 +382,8 @@ onBeforeUnmount(() => {
           <div v-for="item in state.iterationPlans" :key="rowKey(item)" class="plan-resource-risk-table__row">
             <a-input v-model:value="item.name" :disabled="!editable" :placeholder="$t('detail.planResourceRisk.iterationNamePlaceholder')" />
             <PersonSelect v-model="item.ownerId" allow-clear :disabled="!editable" :options="props.ownerOptions" :placeholder="$t('detail.planResourceRisk.ownerPlaceholder')" @change="persistAfterChange" />
+            <IterationSystemFields :project-id="props.projectId" v-model:system-id="item.systemId"
+              v-model:system-version-id="item.systemVersionId" :disabled="!editable" compact preserve-existing-system @change="persistAfterChange" />
             <a-input v-model:value="item.goal" :disabled="!editable" :placeholder="$t('detail.planResourceRisk.iterationGoalPlaceholder')" />
             <a-select v-model:value="item.status" :disabled="!editable" :options="iterationStatusOptions" @change="persistAfterChange" />
             <a-range-picker
@@ -459,10 +473,10 @@ onBeforeUnmount(() => {
 .plan-resource-risk-block { display: grid; gap: 12px; }
 .plan-resource-risk-block__heading { align-items: center; }
 .plan-resource-risk-block__heading :deep(.ant-btn) { flex: 0 0 auto; }
-.plan-resource-risk-table { overflow: auto; background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: 8px; }
+.plan-resource-risk-table { min-width: 0; overflow: auto; background: var(--pms-surface); border: 1px solid var(--pms-border); border-radius: 8px; }
 .plan-resource-risk-table__head, .plan-resource-risk-table__row { display: grid; align-items: center; min-width: 980px; column-gap: 10px; }
 .plan-resource-risk-table--resource .plan-resource-risk-table__head, .plan-resource-risk-table--resource .plan-resource-risk-table__row { grid-template-columns: minmax(170px, 1fr) minmax(168px, 200px) minmax(220px, 1.5fr) 112px 32px; }
-.plan-resource-risk-table--iteration .plan-resource-risk-table__head, .plan-resource-risk-table--iteration .plan-resource-risk-table__row { grid-template-columns: minmax(180px, 1.1fr) minmax(168px, 200px) minmax(180px, 1.2fr) 120px minmax(260px, 1.5fr) 32px; }
+.plan-resource-risk-table--iteration .plan-resource-risk-table__head, .plan-resource-risk-table--iteration .plan-resource-risk-table__row { grid-template-columns: minmax(180px, 1.1fr) minmax(168px, 200px) minmax(240px, 1.5fr) minmax(180px, 1.2fr) 120px minmax(260px, 1.5fr) 32px; min-width: 1240px; }
 .plan-resource-risk-table--risk .plan-resource-risk-table__head, .plan-resource-risk-table--risk .plan-resource-risk-table__row { grid-template-columns: minmax(180px, 1.2fr) 100px minmax(168px, 200px) minmax(220px, 1.5fr) 112px 32px; }
 .plan-resource-risk-table__head { padding: 11px 12px; color: var(--pms-text-muted); background: #f8fafc; border-bottom: 1px solid var(--pms-border); font-size: 11px; font-weight: 650; }
 .plan-resource-risk-table__row { padding: 10px 12px; border-bottom: 1px solid var(--pms-border); }
@@ -470,6 +484,10 @@ onBeforeUnmount(() => {
 .plan-resource-risk-table__row :deep(.ant-select), .plan-resource-risk-table__row :deep(.ant-picker) { width: 100%; }
 .plan-resource-risk-table__row :deep(.ant-input), .plan-resource-risk-table__row :deep(.ant-select-selector), .plan-resource-risk-table__row :deep(.ant-picker) { border-radius: 7px; }
 .plan-resource-risk-table__row :deep(.ant-btn) { padding-inline: 4px; }
+.plan-resource-risk-table__version-alert { margin-bottom: 0; }
+.plan-resource-risk-version-option { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.plan-resource-risk-version-option > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-resource-risk-version-option :deep(.ant-tag) { flex: 0 0 auto; margin-inline-end: 0; }
 .plan-resource-risk-empty { display: grid; min-height: 66px; place-items: center; min-width: 900px; color: var(--pms-text-faint); font-size: 12px; }
 @media (max-width: 640px) {
   .plan-resource-risk-workbench { padding: 14px; }

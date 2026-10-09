@@ -32,6 +32,9 @@ const permissionOptions = computed(() => [
   { value: 'feedback:read', label: t('admin.roles.permFeedbackRead') },
   { value: 'feedback:write', label: t('admin.roles.permFeedbackWrite') },
   { value: 'feedback:manage', label: t('admin.roles.permFeedbackManage') },
+  { value: 'system-version:read', label: t('admin.roles.permSystemVersionRead') },
+  { value: 'system-version:write', label: t('admin.roles.permSystemVersionWrite') },
+  { value: 'system-version:manage', label: t('admin.roles.permSystemVersionManage') },
 ])
 const knownPermissionCodes = computed(() => new Set(permissionOptions.value.map(item => item.value)))
 const selectedPermissions = computed({

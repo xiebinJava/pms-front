@@ -290,13 +290,18 @@ export interface ProjectNode {
 export type NodeDevelopmentStoryStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'TESTING' | 'DONE' | 'BLOCKED'
 export type NodeDevelopmentTopicStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'DONE'
 export type NodeDevelopmentTestStatus = 'NOT_STARTED' | 'TESTING' | 'PASSED' | 'FAILED'
-export type NodeIterationPlanStatus = 'PLANNED' | 'IN_PROGRESS' | 'DONE'
+export type NodeIterationPlanStatus = 'PLANNED' | 'IN_PROGRESS' | 'DONE' | 'PAUSED'
 
 export interface NodeIterationPlan {
   id?: number
   name: string
   ownerId?: number
   ownerName?: string
+  systemId?: number | null
+  systemName?: string
+  systemVersionId?: number | null
+  systemVersionNo?: string
+  systemVersionName?: string
   goal?: string
   status: NodeIterationPlanStatus
   startDate?: string
@@ -306,7 +311,7 @@ export interface NodeIterationPlan {
 
 export interface IterationPlanListItem {
   id: number
-  projectId: number
+  projectId?: number | null
   projectCode?: string
   projectName?: string
   nodeId?: number
@@ -314,6 +319,11 @@ export interface IterationPlanListItem {
   name: string
   ownerId?: number
   ownerName?: string
+  systemId?: number | null
+  systemName?: string
+  systemVersionId?: number | null
+  systemVersionNo?: string
+  systemVersionName?: string
   goal?: string
   status: NodeIterationPlanStatus
   startDate?: string
@@ -865,46 +875,21 @@ export interface NodeAcceptanceUpdate {
   items: NodeAcceptanceItemUpdate[]
 }
 
-export type NodeReleaseType = 'FULL' | 'GRAY' | 'HOTFIX'
-export type NodeReleaseDecisionResult = 'PENDING' | 'APPROVED' | 'DEFERRED' | 'CANCELLED'
-
 export interface NodeRelease {
   projectId: number
   nodeId: number
   version?: number
-  releaseVersion?: string
-  releaseWindowStart?: string
-  releaseWindowEnd?: string
-  releaseType: NodeReleaseType
-  packageReady: boolean
-  configConfirmed: boolean
-  rollbackReady: boolean
-  monitoringConfirmed: boolean
-  onCallConfirmed: boolean
-  decisionResult: NodeReleaseDecisionResult
-  decisionNote?: string
+  handoverOwnerId?: number
+  handoverOwnerName?: string
+  handoverOwnerUsername?: string
   handoverNotes?: string
-  observationItems?: string
-  emergencyContact?: string
   canEdit: boolean
 }
 
 export interface NodeReleaseUpdate {
   version?: number
-  releaseVersion?: string
-  releaseWindowStart?: string
-  releaseWindowEnd?: string
-  releaseType: NodeReleaseType
-  packageReady: boolean
-  configConfirmed: boolean
-  rollbackReady: boolean
-  monitoringConfirmed: boolean
-  onCallConfirmed: boolean
-  decisionResult: NodeReleaseDecisionResult
-  decisionNote?: string
+  handoverOwnerId?: number
   handoverNotes?: string
-  observationItems?: string
-  emergencyContact?: string
 }
 
 export type NodeValueReviewResultStatus = 'PENDING' | 'ACHIEVED' | 'PARTIAL' | 'NOT_ACHIEVED'

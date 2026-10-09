@@ -327,11 +327,19 @@ test('business workbench previews reuse the actual project-page section keys and
     'detail.solutionDesign.package.title', 'detail.solutionDesign.reviews.title', 'detail.solutionDesign.decision.title',
     'detail.planResourceRisk.iterationTitle', 'detail.planResourceRisk.resourceTitle', 'detail.planResourceRisk.riskTitle',
     'detail.acceptance.itemsTitle', 'detail.acceptance.defectsTitle', 'detail.acceptance.decisionTitle',
-    'detail.release.infoTitle', 'detail.release.decisionTitle', 'detail.release.handoverTitle',
+    'detail.release.infoTitle', 'detail.release.handoverTitle',
     'detail.valueReview.valueTitle', 'detail.valueReview.retrospectiveTitle',
   ]) {
     assert.match(workbenchPreviewSource, new RegExp(key.replaceAll('.', '\\.' )), `missing actual section key ${key}`)
   }
+
+  const releasePreview = workbenchPreviewSource.slice(
+    workbenchPreviewSource.indexOf("'release-handover':"),
+    workbenchPreviewSource.indexOf("'value-review':"),
+  )
+  assert.match(releasePreview, /detail\.release\.scopeTitle/)
+  assert.match(releasePreview, /detail\.release\.handoverNotes/)
+  assert.doesNotMatch(releasePreview, /detail\.release\.window|detail\.release\.type|detail\.release\.decisionTitle/)
 
   for (const key of [
     'solution', 'plan', 'acceptance', 'release', 'value', 'knowledge',
@@ -341,7 +349,7 @@ test('business workbench previews reuse the actual project-page section keys and
 
   for (const column of [
     'productSolution', 'technicalSolution', 'iterationName', 'iterationGoal', 'role', 'focus', 'risk', 'response',
-    'requirement', 'criteria', 'defectKey', 'defectSeverity', 'version', 'window', 'handoverNotes',
+    'requirement', 'criteria', 'defectKey', 'defectSeverity', 'scope', 'handoverOwner', 'handoverNotes',
     'result', 'actualResult', 'asset', 'improvement', 'action', 'dueDate',
   ]) {
     assert.match(workbenchPreviewSource, new RegExp(column), `missing actual field ${column}`)

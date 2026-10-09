@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { normalizeResidualIssues } from './requirement-residual-issues.mjs'
+import { applyRequirementIntegrationDecision } from './requirement-integration-state.mjs'
 import { getDevelopmentRequirementPage, getRequirementExecutionTargetOptions } from '/@/api/development-item'
+import { getSystemPage, type SystemDefinition } from '/@/api/system-version'
 import type { RequirementExecutionTarget, RequirementExecutionTargetType } from '/@/types/domain'
 import {
   createRequirementNodeWorkbenchConfig,
@@ -21,6 +23,10 @@ interface RequirementNodeWorkbenchConfig {
   purpose?: string
   activities?: string[]
   display?: { component?: string }
+  systemField?: {
+    visibleWhenCategory?: 'FUNCTIONAL' | 'NON_FUNCTIONAL'
+    required?: boolean
+  }
 }
 
 interface RequirementNodeWorkbenchState {
@@ -30,6 +36,7 @@ interface RequirementNodeWorkbenchState {
   background?: string
   acceptanceCriteria?: string
   conclusion?: string
+  systemId?: number | null
   shouldIntegrate?: 'YES' | 'NO'
   requirementIds?: number[]
   requirementSpecification?: 'PROJECT' | 'TOPIC' | 'STORY'
@@ -63,6 +70,7 @@ const props = defineProps<{
   disabled?: boolean
   currentRequirementId?: number
   targetSpecification?: RequirementExecutionTargetType
+  receivingCategory?: 'FUNCTIONAL' | 'NON_FUNCTIONAL'
 }>()
 
 const emit = defineEmits<{
@@ -75,10 +83,15 @@ const persistedConfig = computed<RequirementNodeWorkbenchConfig | null>(() => pr
   : null)
 const config = computed<RequirementNodeWorkbenchConfig>(() => ({
   ...createRequirementNodeWorkbenchConfig(props.node),
-  display: persistedConfig.value?.display || createRequirementNodeWorkbenchConfig(props.node).display,
+  ...(persistedConfig.value || {}),
 }))
 const displayHint = computed(() => config.value.display?.component === 'requirement-object-tree')
 const isClarification = computed(() => String(props.node?.name || '').includes('需求澄清'))
+const systemFieldVisible = computed(() => {
+  if (!isClarification.value) return false
+  const visibleWhenCategory = config.value.systemField?.visibleWhenCategory || 'FUNCTIONAL'
+  return props.receivingCategory === visibleWhenCategory
+})
 const isAcceptance = computed(() => String(props.node?.name || '').includes('需求验收'))
 const acceptance = reactive({ businessResult: undefined as string | undefined, businessConfirmation: '', residualIssues: [] as Array<{ id: string; description: string }> })
 const businessResultOptions = [
@@ -92,6 +105,7 @@ const clarification = reactive<RequirementNodeWorkbenchState>({
   background: '',
   acceptanceCriteria: '',
   conclusion: undefined,
+  systemId: null,
 })
 const integration = reactive<RequirementIntegrationState>({
   shouldIntegrate: undefined,
@@ -109,6 +123,8 @@ const schedulingDateDraftComplete = ref(false)
 const requirementOptions = ref<Array<{ value: number; label: string }>>([])
 const targetOptions = ref<RequirementExecutionTarget[]>([])
 const targetLoading = ref(false)
+const systemOptions = ref<SystemDefinition[]>([])
+const systemLoading = ref(false)
 const requirementSpecificationOptions = [
   { value: 'PROJECT', label: '项目' },
   { value: 'TOPIC', label: '专题' },
@@ -147,6 +163,7 @@ function syncClarificationState(value: FieldValues | undefined) {
     background: typeof state.background === 'string' ? state.background : '',
     acceptanceCriteria: typeof state.acceptanceCriteria === 'string' ? state.acceptanceCriteria : '',
     conclusion: typeof state.conclusion === 'string' ? state.conclusion : undefined,
+    systemId: state.systemId == null ? null : Number(state.systemId),
   })
 }
 
@@ -224,6 +241,22 @@ async function loadTargetOptions() {
   }
 }
 
+async function loadSystemOptions() {
+  if (!systemFieldVisible.value) {
+    systemOptions.value = []
+    return
+  }
+  systemLoading.value = true
+  try {
+    const result = await getSystemPage({ currPage: 1, pageSize: 100, status: 'ACTIVE' })
+    systemOptions.value = result.list || []
+  } catch {
+    systemOptions.value = []
+  } finally {
+    systemLoading.value = false
+  }
+}
+
 watch(() => [props.node?.name, props.modelValue], () => syncClarificationState(props.modelValue), {
   immediate: true,
   deep: true,
@@ -237,6 +270,13 @@ watch(() => [props.node?.name, props.modelValue], () => {
 watch(() => [props.node?.name, props.currentRequirementId], () => { void loadRequirementOptions() }, { immediate: true })
 watch(() => props.modelValue, (value) => syncIntegrationState(value), { immediate: true, deep: true })
 watch(() => [props.node?.name, props.currentRequirementId, props.targetSpecification], () => { void loadTargetOptions() }, { immediate: true })
+watch(() => [props.node?.name, props.receivingCategory, config.value.systemField?.visibleWhenCategory], () => { void loadSystemOptions() }, { immediate: true })
+watch(systemFieldVisible, (visible) => {
+  if (visible || clarification.systemId == null || props.disabled) return
+  clarification.systemId = null
+  updateClarification('systemId', null)
+  commit()
+}, { immediate: true })
 watch(() => props.modelValue, (value) => syncSchedulingState(value), { immediate: true, deep: true })
 
 function updateClarification(field: keyof RequirementNodeWorkbenchState, value: unknown) {
@@ -290,6 +330,11 @@ function updateConclusion(value: unknown) {
   updateClarification('conclusion', value)
 }
 
+function updateSystemId(value: number | undefined) {
+  updateClarification('systemId', value ?? null)
+  commit()
+}
+
 function updateIntegrationState(patch: Partial<Pick<RequirementNodeWorkbenchState, 'shouldIntegrate' | 'requirementIds' | 'requirementSpecification'>>) {
   const values = asRecord(props.modelValue)
   const components = asRecord(values.__components)
@@ -306,11 +351,12 @@ function updateIntegrationState(patch: Partial<Pick<RequirementNodeWorkbenchStat
   })
 }
 
-function commitIntegrationDecision() {
-  const value = integration.shouldIntegrate
-  if (value !== 'YES' && value !== 'NO') return
-  if (value === 'NO') integration.requirementIds = []
-  updateIntegrationState({ shouldIntegrate: value, requirementIds: [...integration.requirementIds] })
+function commitIntegrationDecision(event: unknown) {
+  const next = applyRequirementIntegrationDecision(integration, event)
+  if (next === integration) return
+  integration.shouldIntegrate = next.shouldIntegrate
+  integration.requirementIds = next.requirementIds
+  updateIntegrationState({ shouldIntegrate: next.shouldIntegrate, requirementIds: [...next.requirementIds] })
   commit()
 }
 
@@ -377,6 +423,20 @@ function commit() {
 <template>
   <section class="requirement-node-workbench pms-runtime-component" data-testid="requirement-node-workbench">
     <section v-if="isClarification" class="requirement-node-workbench__clarification" data-testid="requirement-clarification-fields">
+      <label v-if="systemFieldVisible" class="requirement-node-workbench__field requirement-node-workbench__field--wide">
+        <span>所属系统 <b v-if="config.systemField?.required">*</b></span>
+        <a-select
+          :value="clarification.systemId ?? undefined"
+          :disabled="props.disabled"
+          :loading="systemLoading"
+          :options="systemOptions.map((system) => ({ value: system.id, label: system.name }))"
+          allow-clear
+          show-search
+          option-filter-prop="label"
+          placeholder="请选择需求所属系统（用于迭代计划自动继承）"
+          @change="updateSystemId"
+        />
+      </label>
       <label class="requirement-node-workbench__field requirement-node-workbench__field--wide">
         <span>需求背景及目标</span>
         <a-textarea

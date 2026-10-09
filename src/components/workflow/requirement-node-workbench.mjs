@@ -12,6 +12,7 @@ const BLUEPRINTS = Object.freeze([
     matches: ['需求澄清'],
     purpose: '补充背景、目标、边界和验收标准，形成可执行的需求说明。',
     activities: ['补充需求背景与目标', '明确范围边界和约束', '确认验收标准', '记录澄清结论'],
+    systemField: { visibleWhenCategory: 'FUNCTIONAL', required: false },
   },
   {
     matches: ['需求整合'],
@@ -37,7 +38,7 @@ const BLUEPRINTS = Object.freeze([
   {
     matches: ['需求上线'],
     purpose: '完成发布前检查、上线交接和上线后的监控安排。',
-    activities: ['确认发布版本和范围', '完成上线前检查', '准备交接与回滚方案', '记录上线结果'],
+    activities: ['确认上线范围', '完成上线前检查', '准备交接与回滚方案', '记录上线结果'],
   },
 ])
 
@@ -82,6 +83,7 @@ export function createRequirementNodeWorkbenchConfig(node) {
     nodeName: String(node?.name || node?.nodeName || '需求节点'),
     purpose: blueprint.purpose,
     activities: blueprint.activities,
+    ...(blueprint.systemField ? { systemField: blueprint.systemField } : {}),
     ...(blueprint.display ? { display: blueprint.display } : {}),
   }
 }

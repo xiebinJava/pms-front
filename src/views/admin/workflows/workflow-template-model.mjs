@@ -165,7 +165,7 @@ export function createUniqueWorkflowKey(existingKeys, requestedKey, fallback = '
 export function normalizeWorkflowDefinitionForProcessType(definition, processTypeCode) {
   const normalized = normalizeWorkflowDefinition(definition)
   const processDefinition = processTypeCode === 'requirement-management'
-    ? ensureRequirementNodeWorkbenchConfigs(ensureRequirementReleaseVersionField(normalized))
+    ? ensureRequirementNodeWorkbenchConfigs(removeRequirementReleaseVersionField(normalized))
     : normalized
   if (processTypeCode === 'topic-management') {
     const { sourceTopicNodeKey: _storyOnlyBinding, ...topicDefinition } = processDefinition
@@ -218,27 +218,17 @@ export function ensureRequirementNodeWorkbenchConfigs(definition) {
   return changed ? { ...definition, nodes } : definition
 }
 
-export function ensureRequirementReleaseVersionField(definition) {
+export function removeRequirementReleaseVersionField(definition) {
   if (!definition || !Array.isArray(definition.nodes)) return definition
   let changed = false
   const nodes = definition.nodes.map((node) => {
     if (!String(node?.name || '').includes('需求上线')) return node
-    if ((node.fields || []).some((field) => field.key === 'release-version')) return node
-    const fields = [...(node.fields || []), {
-      key: 'release-version',
-      label: '发布版本',
-      type: 'TEXT',
-      required: true,
-      options: [],
-      visible: true,
-      binding: null,
-      fullWidth: false,
-    }]
+    const fields = (node.fields || []).filter((field) => field.key !== 'release-version')
+    if (fields.length === (node.fields || []).length) return node
     const contentOrder = [...(node.contentOrder || [])]
-    if (!contentOrder.includes('legacy-custom-fields')) {
-      const fieldsIndex = contentOrder.indexOf('fields')
-      if (fieldsIndex >= 0) contentOrder.splice(fieldsIndex + 1, 0, 'legacy-custom-fields')
-      else contentOrder.push('legacy-custom-fields')
+    if (fields.length === 0) {
+      const legacyIndex = contentOrder.indexOf('legacy-custom-fields')
+      if (legacyIndex >= 0) contentOrder.splice(legacyIndex, 1)
     }
     changed = true
     return { ...node, fields, contentOrder }

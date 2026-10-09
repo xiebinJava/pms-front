@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { DeleteOutlined } from '@ant-design/icons-vue'
 import { getDevelopmentTopicPage } from '/@/api/development-item'
-import { getIterationPlans } from '/@/api/iteration-plan'
+import { getStoryIterationPlans } from '/@/api/iteration-plan'
 import { useI18n } from 'vue-i18n'
 import PersonSelect from '/@/views/project/detail/components/PersonSelect.vue'
 import {
@@ -28,6 +28,7 @@ import {
 interface StoryNode { key?: string; name?: string }
 interface StoryWorkbenchConfig { variant?: StoryWorkbenchVariant }
 interface StoryContext extends StoryWritingIdentity, StoryIterationIdentity {
+  id?: number
   projectId?: number | null
   iterationPlanName?: string
   nodes?: Array<{ componentConfigs?: Record<string, Record<string, unknown>>; fieldValues?: unknown }>
@@ -91,12 +92,12 @@ async function loadTopics(keyword = '') {
   } finally { if (request === topicRequest) topicLoading.value = false }
 }
 async function loadIterationPlans() {
-  const projectId = props.story?.projectId
-  if (props.preview || !['iteration', 'release'].includes(variant.value) || projectId == null) return
+  const storyId = props.story?.id
+  if (props.preview || !['iteration', 'release'].includes(variant.value) || storyId == null) return
   const request = ++iterationPlanRequest
   iterationPlanLoading.value = true
   try {
-    const plans = await getIterationPlans(projectId)
+    const plans = await getStoryIterationPlans(storyId)
     if (request === iterationPlanRequest) {
       iterationPlans.value = plans.filter(plan => plan.id != null).map(plan => ({ value: String(plan.id), label: plan.name }))
     }
@@ -109,7 +110,7 @@ onMounted(() => {
   void loadTopics()
   void loadIterationPlans()
 })
-watch([variant, () => props.story?.projectId], () => { void loadIterationPlans() })
+watch([variant, () => props.story?.id, () => props.story?.projectId, () => props.story?.topicId], () => { void loadIterationPlans() })
 watch(() => props.story, story => {
   reconcileStoryWritingIdentity(writing, writingBaseline, story)
   reconcileStoryIterationIdentity(iteration, iterationBaseline, story)
@@ -191,7 +192,6 @@ function removeTestCase(id: string) {
         <span>{{ t('developmentDetail.storyWorkbench.iterationPlan') }}</span>
         <a-select :value="iteration.iterationPlanId || undefined" :disabled="readOnly" :loading="iterationPlanLoading"
           :options="iterationPlanOptions" :aria-label="t('developmentDetail.storyWorkbench.iterationPlan')"
-          :not-found-content="props.story?.projectId == null ? t('developmentDetail.storyWorkbench.iterationPlanNoProject') : undefined"
           :placeholder="t('developmentDetail.storyWorkbench.iterationPlanPlaceholder')"
           allow-clear show-search :filter-option="false" @change="setIterationPlan" />
       </label>
@@ -252,14 +252,14 @@ function removeTestCase(id: string) {
         <span>{{ t('developmentDetail.storyWorkbench.releaseIterationPlan') }}</span>
         <a-select :value="iteration.iterationPlanId || undefined" :disabled="readOnly" :loading="iterationPlanLoading"
           :options="iterationPlanOptions" :aria-label="t('developmentDetail.storyWorkbench.releaseIterationPlan')"
-          :not-found-content="props.story?.projectId == null ? t('developmentDetail.storyWorkbench.iterationPlanNoProject') : undefined"
           :placeholder="t('developmentDetail.storyWorkbench.iterationPlanPlaceholder')"
           allow-clear show-search :filter-option="false" @change="setReleaseIterationPlan" />
       </label>
       <p v-if="!iteration.iterationPlanId" class="story-node-workbench__hint">{{ t('developmentDetail.storyWorkbench.releaseIterationPlanHint') }}</p>
     </div>
-    <div v-else class="story-node-workbench__fields">
-      <label v-for="field in fields" :key="field.key" class="story-node-workbench__field">
+    <div v-else class="story-node-workbench__fields story-node-workbench__writing">
+      <label v-for="field in fields" :key="field.key" class="story-node-workbench__field"
+        :class="{ 'story-node-workbench__field--wide': field.type === 'textarea' }">
         <span>{{ t(`developmentDetail.storyWorkbench.fields.${field.key}`) }}</span>
         <a-textarea v-if="field.type === 'textarea'" v-model:value="state[field.key]" :aria-label="t(`developmentDetail.storyWorkbench.fields.${field.key}`)"
           :disabled="readOnly" :maxlength="2000" :auto-size="{ minRows: 2, maxRows: 6 }"
@@ -280,16 +280,20 @@ function removeTestCase(id: string) {
 </template>
 
 <style scoped>
-.story-node-workbench { display: grid; gap: 12px; min-width: 0; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--pms-detail-border); }
+.story-node-workbench { display: grid; gap: 18px; min-width: 0; margin-top: 18px; padding: 20px; background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: 10px; }
 .story-node-workbench__fields { display: grid; gap: 16px; min-width: 0; }
-.story-node-workbench__field { display: grid; gap: 8px; min-width: 0; color: var(--pms-text); font-size: 13px; }
+.story-node-workbench__field { display: grid; gap: 6px; min-width: 0; }
+.story-node-workbench__field > span { color: var(--pms-text-muted); font-size: 12px; font-weight: 650; }
+.story-node-workbench__field :deep(.ant-select), .story-node-workbench__field :deep(.ant-input), .story-node-workbench__field :deep(.ant-picker) { width: 100%; }
+.story-node-workbench__field :deep(.ant-select-selector), .story-node-workbench__field :deep(.ant-input), .story-node-workbench__field :deep(.ant-picker) { border-radius: 7px; }
 .story-node-workbench__writing { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .story-node-workbench__field--wide { grid-column: 1 / -1; }
-.story-node-workbench__card { display: grid; gap: 16px; min-width: 0; padding: 16px; border: 1px solid var(--pms-detail-border); border-radius: 6px; background: var(--pms-detail-soft-bg, #f7f9fc); }
-.story-node-workbench__card h3 { margin: 0; font-size: 14px; color: var(--pms-text); }
+.story-node-workbench__card { display: grid; gap: 16px; min-width: 0; padding: 16px; border: 1px solid var(--pms-border); border-radius: 8px; background: var(--pms-surface); }
+.story-node-workbench__card h3 { margin: 0; font-size: 16px; font-weight: 700; color: var(--pms-text); }
 .story-node-workbench__card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.story-node-workbench__people { display: grid; grid-template-columns: 80px minmax(0,1fr); gap: 12px; align-items: center; font-size: 13px; }
-.story-node-workbench__hint { margin: 0; color: var(--pms-text-secondary, #64748b); font-size: 13px; }
+.story-node-workbench__people { display: grid; grid-template-columns: 80px minmax(0,1fr); gap: 12px; align-items: center; }
+.story-node-workbench__people > span { color: var(--pms-text-muted); font-size: 12px; font-weight: 650; }
+.story-node-workbench__hint { margin: 0; color: var(--pms-text-muted); font-size: 12px; line-height: 1.55; }
 .story-node-workbench__case-table { overflow-x: auto; background: var(--pms-surface, #fff); border: 1px solid var(--pms-detail-border); border-radius: 6px; }
 .story-node-workbench__case-head, .story-node-workbench__case-row { display: grid; grid-template-columns: 36px minmax(160px, 1.1fr) 112px minmax(200px, 1.4fr) 40px; align-items: center; column-gap: 10px; }
 .story-node-workbench__case-head { padding: 10px 12px; color: var(--pms-text-secondary, #64748b); background: var(--pms-detail-soft-bg, #f8fafc); border-bottom: 1px solid var(--pms-detail-border); font-size: 11px; font-weight: 650; }
@@ -298,5 +302,10 @@ function removeTestCase(id: string) {
 .story-node-workbench__case-index { color: var(--pms-text-secondary, #64748b); font-size: 12px; font-weight: 650; }
 .story-node-workbench__case-row :deep(.ant-select) { width: 100%; }
 .story-node-workbench__case-row :deep(.ant-btn) { padding-inline: 4px; }
-@media (max-width: 640px) { .story-node-workbench__writing { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) {
+  .story-node-workbench { padding: 14px; }
+  .story-node-workbench__writing { grid-template-columns: minmax(0, 1fr); }
+  .story-node-workbench__card-header { align-items: stretch; flex-direction: column; }
+  .story-node-workbench__people { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+}
 </style>

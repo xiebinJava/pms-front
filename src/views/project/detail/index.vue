@@ -8,7 +8,7 @@ import {
   NodeIndexOutlined,
   RollbackOutlined,
 } from '@ant-design/icons-vue'
-import { Modal, message } from 'ant-design-vue'
+import { message } from 'ant-design-vue'
 import { apiErrorMessage } from '/@/plugins/http'
 import { getFollowers } from '/@/api/follower'
 import { getMembers } from '/@/api/member'
@@ -194,6 +194,11 @@ const profileForm = reactive({
 const activeNode = computed<ProjectNode | null>(
   () => nodes.value.find((node) => node.id === activeNodeId.value) || null,
 )
+const activeNodeDescription = computed(() => (
+  nodeHasComponent(activeNode.value, 'release-handover')
+    ? t('detail.release.nodeDescription')
+    : activeNode.value?.description
+))
 const doneNodeCount = computed(() => nodes.value.filter((node) => node.status === 2).length)
 const projectProgress = computed(() => getNodeProgress(doneNodeCount.value, nodes.value.length))
 const currentNodeTaskProgress = computed(() => getCurrentNodeTaskProgress(activeNodeTaskSummary.value))
@@ -1007,26 +1012,18 @@ async function onComplete() {
   }
   const customFieldsReady = await flushWorkflowCustomFields()
   if (customFieldsReady === false) return
-  Modal.confirm({
-    title: t('detail.completeTitle'),
-    content: t('detail.completeContent', { name: nodeToComplete.name }),
-    okText: t('detail.completeOk'),
-    cancelText: t('common.cancel'),
-    onOk: async () => {
-      if (profileSavePromise) await profileSavePromise
-      submitting.value = true
-      try {
-        const nextNodes = await completeNode(projectId.value, nodeToComplete.id)
-        nodes.value = nextNodes
-        project.value = await getProject(projectId.value)
-        const current = nextNodes.find((node) => node.status === 1)
-        activeNodeId.value = current?.id ?? nodeToComplete.id
-        message.success(t('detail.completeSuccess'))
-      } finally {
-        submitting.value = false
-      }
-    },
-  })
+  if (profileSavePromise) await profileSavePromise
+  submitting.value = true
+  try {
+    const nextNodes = await completeNode(projectId.value, nodeToComplete.id)
+    nodes.value = nextNodes
+    project.value = await getProject(projectId.value)
+    const current = nextNodes.find((node) => node.status === 1)
+    activeNodeId.value = current?.id ?? nodeToComplete.id
+    message.success(t('detail.completeSuccess'))
+  } finally {
+    submitting.value = false
+  }
 }
 
 async function refreshAfterLifecycle(preferredStatus: number) {
@@ -1271,7 +1268,7 @@ onBeforeUnmount(() => {
       class="node-detail-card pms-detail-panel pms-section-panel card-surface"
       :node-name="activeNode.name"
       :node-status="activeNode.status"
-      :description="activeNode.description"
+      :description="activeNodeDescription"
     >
       <div class="node-detail-header">
         <div class="node-detail-title">
@@ -1281,7 +1278,7 @@ onBeforeUnmount(() => {
               <h2>{{ activeNode.name }}</h2>
               <a-tag :color="nodeStatusTagColor(activeNode.status)">{{ getNodeStatusLabel(activeNode.status) }}</a-tag>
             </div>
-            <p v-if="activeNode.description" class="node-detail-title__description">{{ activeNode.description }}</p>
+            <p v-if="activeNodeDescription" class="node-detail-title__description">{{ activeNodeDescription }}</p>
             <p v-if="activeNodeReadOnly" class="node-detail-title__readonly-hint" role="note">
               {{ $t('detail.nodeReadonlyHint') }}
             </p>
@@ -1459,6 +1456,7 @@ onBeforeUnmount(() => {
           :node-status="activeNode.status"
           :node-read-only="activeNodeReadOnly"
           :can-edit="canEditActiveNode"
+          :owner-options="nodeOwnerOptions"
           @completion-ready="onReleaseCompletionReady"
         />
       </WorkflowRuntimeComponentHost>
