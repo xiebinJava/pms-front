@@ -103,6 +103,12 @@ test('项目名称打开详情，独立分析入口打开分析抽屉；不可�
   await expect(page.locator('.ant-drawer-title')).toHaveText('项目分析')
   const drawer = page.locator('.ant-drawer-content-wrapper').last()
   await expect(drawer).not.toHaveClass(/ant-drawer-panel-motion/)
+  // Motion classes may disappear before the final transform is painted.
+  // Retry the same strict geometry constraint until the drawer settles.
+  await expect.poll(async () => {
+    const box = await drawer.boundingBox()
+    return box ? box.x + box.width : Number.POSITIVE_INFINITY
+  }).toBeLessThanOrEqual(page.viewportSize()!.width)
   const drawerBox = await drawer.boundingBox()
   expect(drawerBox).not.toBeNull()
   expect(drawerBox!.x).toBeGreaterThanOrEqual(0)
