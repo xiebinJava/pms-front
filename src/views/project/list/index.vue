@@ -140,11 +140,23 @@ const form = reactive({
   projectTypeId: undefined as number | undefined,
   workflowTemplateVersionId: undefined as number | undefined,
 })
+const projectSchedule = computed({
+  get(): [string | null, string | null] {
+    return [form.startDate, form.endDate]
+  },
+  set([startDate, endDate]: [string | null, string | null]) {
+    form.startDate = startDate || null
+    form.endDate = endDate || null
+  },
+})
 const availableWorkflowTemplateVersions = computed(() => getWorkflowTemplateVersionOptions(
   workflowOptions.value.templates,
   form.projectTypeId,
   workflowOptions.value.projectTypes.find((type) => type.id === form.projectTypeId)?.defaultTemplateVersionId,
-))
+).map((version) => ({
+  value: version.id,
+  label: `${version.templateName} · v${version.versionNo}${version.isDefault ? `（${t('project.defaultTemplate')}）` : ''}`,
+})))
 
 const rules = computed(() => ({
   name: [{ required: true, message: t('project.nameRequired') }],
@@ -245,11 +257,6 @@ async function openCreate() {
     message.error((error as Error).message || t('project.workflowOptionsFailed'))
   }
   modalState.open = true
-}
-
-function onProjectTypeChange(projectTypeId?: number) {
-  const type = workflowOptions.value.projectTypes.find((item) => item.id === projectTypeId)
-  form.workflowTemplateVersionId = type?.defaultTemplateVersionId
 }
 
 function openEdit(record: Project) {
@@ -366,7 +373,7 @@ onMounted(async () => {
       </button>
     </section>
 
-    <a-card :bordered="false" class="pms-table-panel pms-table-card">
+    <a-card :bordered="false" class="pms-table-panel pms-table-card pms-list-table">
       <div class="pms-table-toolbar" role="group" :aria-label="$t('project.filters')">
         <div class="pms-table-toolbar__filters">
           <a-input
@@ -509,23 +516,15 @@ onMounted(async () => {
       @ok="onSave"
     >
       <a-form ref="formRef" :model="form" :rules="rules" layout="vertical">
-        <div v-if="!modalState.editingId" class="pms-workflow-selection">
-          <a-form-item :label="$t('project.projectType')">
-            <a-select v-model:value="form.projectTypeId" @change="onProjectTypeChange">
-              <a-select-option v-for="item in workflowOptions.projectTypes" :key="item.id" :value="item.id">
-                {{ item.name }}
-              </a-select-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item :label="$t('project.workflowTemplate')">
-            <a-select v-model:value="form.workflowTemplateVersionId" :placeholder="$t('project.chooseWorkflowTemplate')">
-              <a-select-option v-for="version in availableWorkflowTemplateVersions" :key="version.id" :value="version.id">
-                {{ version.templateName }} · v{{ version.versionNo }}<span v-if="version.isDefault">（{{ $t('project.defaultTemplate') }}）</span>
-              </a-select-option>
-            </a-select>
-            <div class="pms-workflow-selection__hint">{{ $t('project.workflowTemplateHint') }}</div>
-          </a-form-item>
-        </div>
+        <a-form-item v-if="!modalState.editingId" :label="$t('project.workflowTemplate')">
+          <a-select
+            v-model:value="form.workflowTemplateVersionId"
+            :options="availableWorkflowTemplateVersions"
+            class="pms-project-workflow"
+            :placeholder="$t('project.chooseWorkflowTemplate')"
+          />
+          <div class="pms-project-workflow__hint">{{ $t('project.workflowTemplateHint') }}</div>
+        </a-form-item>
         <a-form-item :label="$t('project.name')" name="name">
           <a-input v-model:value="form.name" :placeholder="$t('project.namePlaceholder')" />
         </a-form-item>
@@ -537,15 +536,18 @@ onMounted(async () => {
             <a-select-option v-for="opt in Priority.options()" :key="opt.value" :value="opt.value">
               {{ $t(priorityKey(opt.value)) }}
             </a-select-option>
-          </a-select>
-        </a-form-item>
-        <div class="grid grid-cols-2 gap-3">
-          <a-form-item :label="$t('project.startDate')">
-            <a-date-picker v-model:value="form.startDate" value-format="YYYY-MM-DD" :placeholder="$t('project.startDate')" style="width: 100%" />
+            </a-select>
           </a-form-item>
-          <a-form-item :label="$t('project.endDate')">
-            <a-date-picker v-model:value="form.endDate" value-format="YYYY-MM-DD" :placeholder="$t('project.endDate')" style="width: 100%" />
-          </a-form-item>
+        <div class="pms-project-date-row" role="group" :aria-label="$t('project.rangeAria')">
+          <span class="pms-project-date-row__label">{{ $t('project.rangeAria') }}</span>
+          <div class="pms-project-date-row__control">
+            <a-range-picker
+              v-model:value="projectSchedule"
+              value-format="YYYY-MM-DD"
+              class="pms-project-date-picker"
+              :placeholder="[$t('project.startDate'), $t('project.endDate')]"
+            />
+          </div>
         </div>
       </a-form>
     </a-modal>
@@ -607,8 +609,12 @@ onMounted(async () => {
 }
 
 .pms-search-input { width: 220px; }
-.pms-workflow-selection { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 14px 0; margin-bottom: 12px; background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: 8px; }
-.pms-workflow-selection__hint { margin-top: 5px; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); }
+.pms-project-workflow { width: 100%; }
+.pms-project-workflow__hint { margin-top: 6px; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); line-height: var(--pms-line-height-normal); }
+.pms-project-date-row { display: flex; align-items: center; gap: 12px; min-height: 58px; margin-top: 2px; margin-bottom: 6px; padding: 10px 12px; background: var(--pms-surface-muted); border: 1px solid var(--pms-border); border-radius: 8px; }
+.pms-project-date-row__label { flex: 0 0 72px; color: var(--pms-text-muted); font-size: var(--pms-font-size-body); font-weight: 680; }
+.pms-project-date-row__control { display: flex; flex: 1 1 auto; align-items: center; min-width: 0; }
+.pms-project-date-picker { width: min(100%, 360px); }
 .pms-org-select, .pms-manager-select, .pms-level-select, .pms-node-select { width: 168px; }
 .pms-status-select { width: 130px; }
 .pms-table-toolbar__filters { display: flex; flex-wrap: wrap; }
@@ -657,10 +663,14 @@ onMounted(async () => {
 :deep(.pms-project-table-scroll .ant-table-tbody > tr > td) { height: 95px; }
 :deep(.ant-table-tbody > tr:hover > td) { background: var(--pms-surface-muted) !important; }
 :deep(.ant-modal-content) { border: 1px solid var(--pms-border); border-radius: var(--pms-radius); box-shadow: var(--pms-shadow-md); }
+:deep(.pms-project-modal .ant-modal-body) { padding: 20px 24px 8px; }
+:deep(.pms-project-modal .ant-form-item) { margin-bottom: 18px; }
 
 @media (max-width: 640px) {
   .pms-page-header, .pms-table-toolbar { align-items: stretch; flex-direction: column; }
-  .pms-workflow-selection { grid-template-columns: 1fr; gap: 0; }
+  .pms-project-date-row { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .pms-project-date-row__label { flex-basis: auto; }
+  .pms-project-date-row__control, .pms-project-date-picker { width: 100%; }
   .pms-table-toolbar__filters {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 96px;

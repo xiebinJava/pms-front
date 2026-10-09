@@ -38,7 +38,7 @@ export function createTask(projectId: number | string, data: Partial<Task>): Pro
   return http.post(`/projects/${projectId}/tasks`, data)
 }
 
-export type TaskUpdatePayload = Partial<Task> & { clearDueDate?: boolean }
+export type TaskUpdatePayload = Partial<Task> & { clearDueDate?: boolean; clearIterationPlan?: boolean }
 
 export function updateTask(id: number, data: TaskUpdatePayload): Promise<Task> {
   return http.put(`/tasks/${id}`, data)

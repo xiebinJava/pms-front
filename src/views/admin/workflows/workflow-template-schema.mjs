@@ -9,6 +9,34 @@ export const PROJECT_FIELD_BINDINGS = Object.freeze({
   followers: { binding: 'project.followers', type: 'PERSON_MULTI' },
 })
 
+export const REQUIREMENT_FIELD_BINDINGS = Object.freeze({
+  title: { binding: 'requirement.title', type: 'TEXT' },
+  description: { binding: 'requirement.description', type: 'TEXTAREA' },
+  priority: { binding: 'requirement.priority', type: 'SINGLE_SELECT' },
+  businessLine: { binding: 'requirement.businessLine', type: 'SINGLE_SELECT' },
+  owner: { binding: 'requirement.owner', type: 'PERSON' },
+})
+
+export const TOPIC_FIELD_BINDINGS = Object.freeze({
+  title: { binding: 'topic.title', type: 'TEXT' },
+  owner: { binding: 'topic.owner', type: 'PERSON' },
+  project: { binding: 'topic.project', type: 'TEXT' },
+  status: { binding: 'topic.status', type: 'TEXT' },
+  progress: { binding: 'topic.progress', type: 'NUMBER' },
+  latestBuildVersion: { binding: 'topic.latestBuildVersion', type: 'TEXT' },
+  testStatus: { binding: 'topic.testStatus', type: 'TEXT' },
+})
+
+export const STORY_FIELD_BINDINGS = Object.freeze({
+  title: { binding: 'story.title', type: 'TEXT' },
+  owner: { binding: 'story.owner', type: 'PERSON' },
+  status: { binding: 'story.status', type: 'TEXT' },
+  progress: { binding: 'story.progress', type: 'NUMBER' },
+  storyPoints: { binding: 'story.storyPoints', type: 'NUMBER' },
+  schedule: { binding: 'story.schedule', type: 'DATE_RANGE' },
+  blocker: { binding: 'story.blocker', type: 'TEXTAREA' },
+})
+
 const DEFAULT_PROJECT_FIELDS = Object.freeze([
   { key: 'description', label: 'detail.profileDescription', visible: true, required: true },
   { key: 'priority', label: 'detail.profilePriority', visible: true, required: true },
@@ -19,6 +47,21 @@ const DEFAULT_PROJECT_FIELDS = Object.freeze([
   { key: 'projectMembers', label: 'detail.members', visible: true, required: true },
   { key: 'followers', label: 'detail.followers', visible: true, required: false },
 ])
+
+export const DEFAULT_REQUIREMENT_RECEIVING_ANALYSIS_CONFIG = Object.freeze({
+  showFilter: false,
+  showAnalysis: true,
+  showDecision: true,
+  requireCategory: true,
+  showFeasibilityScore: false,
+  requireFeasibilityScore: false,
+  showRoiScore: false,
+  requireRoiScore: false,
+  showStrategicFitScore: true,
+  requireStrategicFitScore: true,
+  requireAnalysisConclusion: false,
+  allowReject: true,
+})
 
 function clone(value) {
   return structuredClone(value)
@@ -89,11 +132,21 @@ function normalizeNode(node) {
     roles: node.roles ?? '',
     fields: [...projectFields, ...customFields],
     contentOrder,
+    ...(node.componentConfigs ? { componentConfigs: clone(node.componentConfigs) } : {}),
   }
 }
 
 export function normalizeWorkflowDefinition(definition) {
-  if (definition?.schemaVersion === 2) return clone(definition)
+  if (definition?.schemaVersion === 2) {
+    const normalized = clone(definition)
+    normalized.nodes = (normalized.nodes || []).map((node) => ({
+      ...node,
+      fields: (node.fields || []).map((field) => field.binding === 'requirement.priority' && field.type === 'NUMBER'
+        ? { ...field, type: 'SINGLE_SELECT' }
+        : field),
+    }))
+    return normalized
+  }
 
   const normalized = {
     schemaVersion: 2,

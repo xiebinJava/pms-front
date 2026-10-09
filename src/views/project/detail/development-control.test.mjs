@@ -203,3 +203,18 @@ test('only allows creating topics on the currently configured host node', () => 
   assert.equal(addTopicButtons.length, 2)
   assert.match(workbench, /新增专题请前往当前配置节点；此处仅可维护已有专题。/)
 })
+
+test('project detail exposes all direct source requirements without expanding descendants', () => {
+  const detailRoot = path.resolve(import.meta.dirname)
+  const page = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
+  const domain = fs.readFileSync(path.resolve(detailRoot, '../../../types/domain.ts'), 'utf8')
+  const api = fs.readFileSync(path.resolve(detailRoot, '../../../api/project.ts'), 'utf8')
+
+  assert.match(domain, /sourceRequirement\?: SourceRequirementSummary/)
+  assert.match(domain, /sourceRequirements\?: SourceRequirementSummary\[\]/)
+  assert.match(page, /projectSourceRequirements/)
+  assert.match(page, /SourceRequirementList/)
+  assert.match(page, /openSourceRequirement/)
+  assert.match(api, /Omit<Partial<Project>, 'sourceRequirement' \| 'sourceRequirements'>/)
+  assert.doesNotMatch(page, /sourceRequirement\.sourceRequirement/)
+})

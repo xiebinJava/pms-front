@@ -25,6 +25,17 @@ test('project management and configuration are interactive navigation groups', (
   assert.match(source, /v-if="configNavOpen"/)
 })
 
+test('places requirements before project management in the R&D submenu', () => {
+  const subnavStart = source.indexOf('id="pms-project-subnav"')
+  const projectsIndex = source.indexOf("$t('nav.projects')", subnavStart)
+  const requirementsIndex = source.indexOf("$t('nav.requirements')", subnavStart)
+
+  assert.ok(subnavStart >= 0)
+  assert.ok(requirementsIndex >= 0)
+  assert.ok(projectsIndex >= 0)
+  assert.ok(requirementsIndex < projectsIndex)
+})
+
 test('routes workbench separately from project management', () => {
   assert.match(source, /dashboard:\s*'\/dashboard'/)
   assert.match(source, /\$t\('nav.rdManagement'\)/)
@@ -51,6 +62,12 @@ test('uses distinct icons for each navigation meaning', () => {
   assert.match(source, /<ApartmentOutlined \/><span>\{\{ \$t\('nav.org'\) \}\}<\/span>/)
   assert.match(source, /<CloudUploadOutlined \/><span>\{\{ \$t\('nav.import'\) \}\}<\/span>/)
   assert.doesNotMatch(source, /<ApartmentOutlined \/><span>\{\{ \$t\('nav.import'\) \}\}<\/span>/)
+})
+
+test('uses distinct semantic icons for requirements, iteration plans, and workflow templates', () => {
+  assert.match(source, /<FileSearchOutlined \/><span>\{\{ \$t\('nav\.requirements'\) \}\}<\/span>/)
+  assert.match(source, /<CalendarOutlined \/><span>\{\{ \$t\('nav\.iterationPlans'\) \}\}<\/span>/)
+  assert.match(source, /<NodeIndexOutlined \/><span>\{\{ \$t\('nav\.workflows'\) \}\}<\/span>/)
 })
 
 test('topbar exposes scoped search and an in-app notification inbox', () => {

@@ -5,6 +5,13 @@ import type {
   DevelopmentItemTaskSave,
   DevelopmentItemType,
   DevelopmentItemWorkflowDetail,
+  RequirementExecutionTarget,
+  RequirementExecutionTargetHistory,
+  RequirementExecutionTargetType,
+  SourceRequirementSummary,
+  RequirementReceivingAnalysis,
+  RequirementReceivingAnalysisActionCmd,
+  RequirementReceivingAnalysisState,
 } from '/@/types/domain'
 import type { WorkflowTemplateSummary } from '/@/types/workflow'
 
@@ -36,6 +43,34 @@ export interface DevelopmentTopicProjectOption {
 export interface DevelopmentWorkflowTemplateOptions {
   topicTemplates: WorkflowTemplateSummary[]
   storyTemplates: WorkflowTemplateSummary[]
+  requirementTemplates: WorkflowTemplateSummary[]
+}
+
+export interface DevelopmentRequirementPageParams {
+  currPage: number
+  pageSize: number
+  keyword?: string
+  status?: string
+  targetType?: 'PROJECT' | 'TOPIC' | 'STORY'
+  ownerId?: number
+  deleted?: boolean
+}
+
+export interface DevelopmentRequirementRow {
+  id: number
+  title: string
+  description?: string
+  priority?: number
+  ownerId?: number
+  ownerName?: string
+  orgUnitId?: number
+  status: string
+  deleted?: boolean
+  version: number
+  workflowConfigured?: boolean
+  workflowStatus?: 'NOT_CONFIGURED' | 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | string
+  workflowProgress?: number
+  executionTarget?: RequirementExecutionTarget
 }
 
 export interface DevelopmentTopicRow {
@@ -60,6 +95,8 @@ export interface DevelopmentTopicRow {
   latestBuildVersion?: string
   testStatus?: string
   blocker?: string
+  sourceRequirements?: SourceRequirementSummary[]
+  sourceRequirement?: SourceRequirementSummary
 }
 
 export interface DevelopmentStoryRow {
@@ -85,6 +122,8 @@ export interface DevelopmentStoryRow {
   startDate?: string
   dueDate?: string
   blocker?: string
+  sourceRequirements?: SourceRequirementSummary[]
+  sourceRequirement?: SourceRequirementSummary
 }
 
 export interface DevelopmentTopicStory {
@@ -100,6 +139,8 @@ export interface DevelopmentTopicStory {
   dueDate?: string
   blocker?: string
   sort?: number
+  buildVersion?: string | null
+  testStatus?: string | null
 }
 
 export function getDevelopmentTopicPage(params: DevelopmentTopicPageParams): Promise<PageResult<DevelopmentTopicRow>> {
@@ -137,6 +178,44 @@ export function getDevelopmentTopicProjectOptions(params: {
 
 export function getDevelopmentStoryPage(params: DevelopmentItemPageParams): Promise<PageResult<DevelopmentStoryRow>> {
   return http.post('/development/stories/page', params)
+}
+
+export function getDevelopmentRequirementPage(params: DevelopmentRequirementPageParams): Promise<PageResult<DevelopmentRequirementRow>> {
+  return http.post('/development/requirements/page', params)
+}
+
+export function getDevelopmentRequirement(id: number | string): Promise<DevelopmentRequirementRow> {
+  return http.get(`/development/requirements/${id}`)
+}
+
+export function createDevelopmentRequirement(payload: {
+  title: string
+  description?: string
+  priority?: number
+  ownerId?: number | null
+  orgUnitId?: number | null
+  templateVersionId?: number | null
+}): Promise<number> {
+  return http.post('/development/requirements', payload)
+}
+
+export function updateDevelopmentRequirement(id: number, payload: {
+  title: string
+  description?: string
+  priority?: number
+  ownerId?: number | null
+  orgUnitId?: number | null
+  version: number
+}): Promise<void> {
+  return http.put(`/development/requirements/${id}`, payload)
+}
+
+export function deleteDevelopmentRequirement(id: number): Promise<void> {
+  return http.delete(`/development/requirements/${id}`)
+}
+
+export function restoreDevelopmentRequirement(id: number): Promise<void> {
+  return http.post(`/development/requirements/${id}/restore`)
 }
 
 export function createDevelopmentStory(payload: {
@@ -179,7 +258,63 @@ export function getDevelopmentItemWorkflow(
   itemType: DevelopmentItemType,
   itemId: number | string,
 ): Promise<DevelopmentItemWorkflowDetail> {
-  return http.get(`/development/${itemType === 'topic' ? 'topics' : 'stories'}/${itemId}`)
+  const collection = itemType === 'topic' ? 'topics' : itemType === 'story' ? 'stories' : 'requirements'
+  const path = itemType === 'requirement'
+    ? `/development/requirements/${itemId}/workflow`
+    : `/development/${collection}/${itemId}`
+  return http.get(path)
+}
+
+export interface RequirementExecutionTargetOptionParams {
+  currPage: number
+  pageSize: number
+  keyword?: string
+  targetType?: RequirementExecutionTargetType
+}
+
+export interface RequirementExecutionTargetCommand {
+  targetType?: RequirementExecutionTargetType
+  targetId?: number
+  requirementVersion: number
+  reason?: string
+}
+
+export function getRequirementExecutionTargetOptions(
+  id: number | string,
+  params: RequirementExecutionTargetOptionParams,
+): Promise<PageResult<RequirementExecutionTarget>> {
+  return http.post(`/development/requirements/${id}/execution-target/options`, params)
+}
+
+export function linkRequirementExecutionTarget(
+  id: number | string,
+  payload: RequirementExecutionTargetCommand,
+): Promise<RequirementExecutionTarget> {
+  return http.post(`/development/requirements/${id}/execution-target`, payload)
+}
+
+export function unlinkRequirementExecutionTarget(
+  id: number | string,
+  payload: Pick<RequirementExecutionTargetCommand, 'requirementVersion' | 'reason'>,
+): Promise<null> {
+  return http.delete(`/development/requirements/${id}/execution-target`, { data: payload })
+}
+
+export function changeRequirementExecutionTarget(
+  id: number | string,
+  payload: RequirementExecutionTargetCommand,
+): Promise<RequirementExecutionTarget> {
+  return http.post(`/development/requirements/${id}/execution-target/change`, payload)
+}
+
+export function getRequirementExecutionTargetHistory(
+  id: number | string,
+): Promise<RequirementExecutionTargetHistory[]> {
+  return http.get(`/development/requirements/${id}/execution-target/history`)
+}
+
+function developmentItemMutationPath(itemType: DevelopmentItemType, itemId: number | string): string {
+  return itemType === 'requirement' ? `/development/requirements/${itemId}` : `/development/items/${itemType}/${itemId}`
 }
 
 export function updateDevelopmentItemNode(
@@ -188,7 +323,7 @@ export function updateDevelopmentItemNode(
   nodeId: number | string,
   payload: DevelopmentItemNodeUpdate,
 ): Promise<DevelopmentItemWorkflowDetail> {
-  return http.put(`/development/items/${itemType}/${itemId}/nodes/${nodeId}`, payload)
+  return http.put(`${developmentItemMutationPath(itemType, itemId)}/nodes/${nodeId}`, payload)
 }
 
 export function completeDevelopmentItemNode(
@@ -196,7 +331,46 @@ export function completeDevelopmentItemNode(
   itemId: number | string,
   nodeId: number | string,
 ): Promise<DevelopmentItemWorkflowDetail> {
-  return http.post(`/development/items/${itemType}/${itemId}/nodes/${nodeId}/complete`)
+  return http.post(`${developmentItemMutationPath(itemType, itemId)}/nodes/${nodeId}/complete`)
+}
+
+export function rollbackDevelopmentItemNode(
+  itemType: DevelopmentItemType,
+  itemId: number | string,
+  nodeId: number | string,
+  reason: string,
+): Promise<DevelopmentItemWorkflowDetail> {
+  return http.post(`${developmentItemMutationPath(itemType, itemId)}/nodes/${nodeId}/rollback`, { reason })
+}
+
+export function getRequirementReceivingAnalysis(
+  requirementId: number | string,
+  nodeId: number | string,
+): Promise<RequirementReceivingAnalysis> {
+  return http.get(`/development/requirements/${requirementId}/nodes/${nodeId}/requirement-receiving-analysis`)
+}
+
+export function saveRequirementReceivingAnalysis(
+  requirementId: number | string,
+  nodeId: number | string,
+  payload: { version: number; state: RequirementReceivingAnalysisState },
+): Promise<RequirementReceivingAnalysis> {
+  return http.put(`/development/requirements/${requirementId}/nodes/${nodeId}/requirement-receiving-analysis`, payload)
+}
+
+export function rejectRequirementReceivingAnalysis(
+  requirementId: number | string,
+  nodeId: number | string,
+  payload: RequirementReceivingAnalysisActionCmd,
+): Promise<RequirementReceivingAnalysis> {
+  return http.post(`/development/requirements/${requirementId}/nodes/${nodeId}/requirement-receiving-analysis/reject`, payload)
+}
+
+export function reopenRequirementReceivingAnalysis(
+  requirementId: number | string,
+  payload: RequirementReceivingAnalysisActionCmd,
+): Promise<RequirementReceivingAnalysis> {
+  return http.post(`/development/requirements/${requirementId}/requirement-receiving-analysis/reopen`, payload)
 }
 
 export function createDevelopmentItemTask(
@@ -205,7 +379,7 @@ export function createDevelopmentItemTask(
   nodeId: number | string,
   payload: DevelopmentItemTaskSave,
 ): Promise<DevelopmentItemWorkflowDetail> {
-  return http.post(`/development/items/${itemType}/${itemId}/nodes/${nodeId}/tasks`, payload)
+  return http.post(`${developmentItemMutationPath(itemType, itemId)}/nodes/${nodeId}/tasks`, payload)
 }
 
 export function updateDevelopmentItemTask(
@@ -214,7 +388,7 @@ export function updateDevelopmentItemTask(
   taskId: number | string,
   payload: DevelopmentItemTaskSave,
 ): Promise<DevelopmentItemWorkflowDetail> {
-  return http.put(`/development/items/${itemType}/${itemId}/tasks/${taskId}`, payload)
+  return http.put(`${developmentItemMutationPath(itemType, itemId)}/tasks/${taskId}`, payload)
 }
 
 export function deleteDevelopmentItemTask(
@@ -222,5 +396,5 @@ export function deleteDevelopmentItemTask(
   itemId: number | string,
   taskId: number | string,
 ): Promise<DevelopmentItemWorkflowDetail> {
-  return http.delete(`/development/items/${itemType}/${itemId}/tasks/${taskId}`)
+  return http.delete(`${developmentItemMutationPath(itemType, itemId)}/tasks/${taskId}`)
 }

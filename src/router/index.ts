@@ -31,6 +31,12 @@ const router = createRouter({
       meta: { titleKey: 'route.resetPassword' },
     },
     {
+      path: '/cli/authorize',
+      name: 'cli-authorize',
+      component: () => import('/@/views/auth/cli-authorize.vue'),
+      meta: { titleKey: 'route.login' },
+    },
+    {
       path: '/',
       component: () => import('/@/layout/Index.vue'),
       children: [
@@ -90,6 +96,36 @@ const router = createRouter({
           meta: { titleKey: 'route.developmentStories' },
         },
         {
+          path: 'development/requirements',
+          name: 'development-requirements',
+          component: () => import('/@/views/development/requirements/index.vue'),
+          meta: { titleKey: 'route.developmentRequirements', permission: 'requirement:read' },
+        },
+        {
+          path: 'development/iterations',
+          name: 'development-iterations',
+          component: () => import('/@/views/development/iterations/index.vue'),
+          meta: { titleKey: 'route.developmentIterations', permission: 'project:read' },
+        },
+        {
+          path: 'development/iterations/:id',
+          name: 'development-iteration-detail',
+          component: () => import('/@/views/development/iterations/detail.vue'),
+          meta: { titleKey: 'route.developmentIterationDetail', permission: 'project:read' },
+        },
+        {
+          path: 'development/system-versions',
+          name: 'development-system-versions',
+          component: () => import('/@/views/development/system-versions/index.vue'),
+          meta: { titleKey: 'route.developmentSystemVersions', permission: 'system-version:read' },
+        },
+        {
+          path: 'development/system-versions/:id',
+          name: 'development-system-version-detail',
+          component: () => import('/@/views/development/system-versions/detail.vue'),
+          meta: { titleKey: 'route.developmentSystemVersionDetail', permission: 'system-version:read' },
+        },
+        {
           path: 'development/topics/:id',
           name: 'development-topic-detail',
           component: () => import('/@/views/development/detail/DevelopmentItemDetailPage.vue'),
@@ -102,6 +138,13 @@ const router = createRouter({
           component: () => import('/@/views/development/detail/DevelopmentItemDetailPage.vue'),
           props: { itemType: 'story' },
           meta: { titleKey: 'route.developmentStoryDetail', permission: 'project:read' },
+        },
+        {
+          path: 'development/requirements/:id',
+          name: 'development-requirement-detail',
+          component: () => import('/@/views/development/detail/DevelopmentItemDetailPage.vue'),
+          props: { itemType: 'requirement' },
+          meta: { titleKey: 'route.developmentRequirementDetail', permission: 'requirement:read' },
         },
         {
           path: 'projects/dashboard',

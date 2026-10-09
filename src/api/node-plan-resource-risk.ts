@@ -1,6 +1,8 @@
 import { http } from '/@/plugins/http'
 import type { NodePlanResourceRisk, NodePlanResourceRiskUpdate } from '/@/types/domain'
 
+export type NodePlanResourceRiskWritePayload = NodePlanResourceRiskUpdate
+
 function basePath(projectId: number | string, nodeId: number): string {
   return `/projects/${projectId}/nodes/${nodeId}/plan-resource-risk`
 }
@@ -12,7 +14,7 @@ export function getNodePlanResourceRisk(projectId: number | string, nodeId: numb
 export function saveNodePlanResourceRisk(
   projectId: number | string,
   nodeId: number,
-  payload: NodePlanResourceRiskUpdate,
+  payload: NodePlanResourceRiskWritePayload,
 ): Promise<NodePlanResourceRisk> {
   return http.put(basePath(projectId, nodeId), payload)
 }

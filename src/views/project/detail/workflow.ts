@@ -37,6 +37,7 @@ export interface TaskFormDraft {
   priority: number
   assigneeId?: number
   requirementId?: number
+  iterationPlanId?: number
   dueDate?: string | null
   parentId?: number
 }
@@ -205,6 +206,15 @@ export function pickFallbackPeople(
     })
   }
   return picked
+}
+
+/** Remove cached people that are no longer returned by the active-account API. */
+export function filterKnownRecentPeople(
+  recent: PersonOption[],
+  knownPeople: PersonOption[],
+): PersonOption[] {
+  const knownIds = new Set(knownPeople.filter(isPersonOption).map((option) => option.value))
+  return recent.filter((option) => isPersonOption(option) && knownIds.has(option.value))
 }
 
 export function listPersonSelectOptions(input: {

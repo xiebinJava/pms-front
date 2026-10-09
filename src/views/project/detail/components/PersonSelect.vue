@@ -6,6 +6,7 @@ import { searchUsers } from '/@/api/user'
 import { useUserStore } from '/@/store/user'
 import {
   formatPersonLabel,
+  filterKnownRecentPeople,
   getSinglePersonSelection,
   isSelectableAccount,
   listPersonSelectOptions,
@@ -142,7 +143,10 @@ function loadRecentPeople() {
 }
 
 function refreshOpenOptions() {
-  openOptions.value = pickFallbackPeople(recentOptions.value, fallbackPool.value)
+  openOptions.value = pickFallbackPeople(
+    filterKnownRecentPeople(recentOptions.value, fallbackPool.value),
+    fallbackPool.value,
+  )
 }
 
 async function ensureFallbackPool() {

@@ -32,6 +32,7 @@ import {
   resolvePersonSelectLabel,
   getSinglePersonSelection,
   listPersonSelectOptions,
+  filterKnownRecentPeople,
   pickFallbackPeople,
   readRecentPeople,
   rememberRecentPeople,
@@ -698,6 +699,16 @@ test('fills an empty or short recent list with random people up to six', () => {
     fallback: pool,
     random: () => 0,
   }), filled)
+})
+
+test('does not offer cached people that are no longer present in the server suggestion pool', () => {
+  const stale = { value: 99, label: '郑明月（demo.data.04-260913）' }
+  const current = { value: 1, label: '张伟（alex.zhang）' }
+
+  assert.deepEqual(
+    filterKnownRecentPeople([stale, current], [current]),
+    [current],
+  )
 })
 
 test('keeps explicitly supplied project people selectable when remote suggestions are empty', () => {

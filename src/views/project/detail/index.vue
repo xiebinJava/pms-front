@@ -8,7 +8,7 @@ import {
   NodeIndexOutlined,
   RollbackOutlined,
 } from '@ant-design/icons-vue'
-import { Modal, message } from 'ant-design-vue'
+import { message } from 'ant-design-vue'
 import { apiErrorMessage } from '/@/plugins/http'
 import { getFollowers } from '/@/api/follower'
 import { getMembers } from '/@/api/member'
@@ -68,6 +68,7 @@ import WorkflowCustomFields from './components/WorkflowCustomFields.vue'
 import WorkflowNodeShell from '/@/components/workflow/WorkflowNodeShell.vue'
 import WorkflowRuntimeComponentHost from '/@/components/workflow/WorkflowRuntimeComponentHost.vue'
 import ProjectReadinessCard from './components/ProjectReadinessCard.vue'
+import SourceRequirementList from '/@/components/development/SourceRequirementList.vue'
 import { buildAttentionRoute } from './project-attention.mjs'
 import { missingConfiguredProjectFields, nodeHasComponent, nodeWorkflowContentOrder, nodeWorkflowFields, shouldAutoSaveOnBlur, transitionActiveNode } from './workflow-config.mjs'
 import type { PersonOption } from './workflow'
@@ -88,6 +89,12 @@ const focusNodeId = computed(() => {
   return Number.isFinite(value) && value > 0 ? value : null
 })
 const project = ref<Project | null>(null)
+const projectSourceRequirements = computed(() => {
+  const current = project.value
+  if (!current) return []
+  if (current.sourceRequirements?.length) return current.sourceRequirements
+  return current.sourceRequirement ? [current.sourceRequirement] : []
+})
 const nodes = ref<ProjectNode[]>([])
 const loading = ref(false)
 const loadError = ref(false)
@@ -187,6 +194,11 @@ const profileForm = reactive({
 const activeNode = computed<ProjectNode | null>(
   () => nodes.value.find((node) => node.id === activeNodeId.value) || null,
 )
+const activeNodeDescription = computed(() => (
+  nodeHasComponent(activeNode.value, 'release-handover')
+    ? t('detail.release.nodeDescription')
+    : activeNode.value?.description
+))
 const doneNodeCount = computed(() => nodes.value.filter((node) => node.status === 2).length)
 const projectProgress = computed(() => getNodeProgress(doneNodeCount.value, nodes.value.length))
 const currentNodeTaskProgress = computed(() => getCurrentNodeTaskProgress(activeNodeTaskSummary.value))
@@ -1000,26 +1012,18 @@ async function onComplete() {
   }
   const customFieldsReady = await flushWorkflowCustomFields()
   if (customFieldsReady === false) return
-  Modal.confirm({
-    title: t('detail.completeTitle'),
-    content: t('detail.completeContent', { name: nodeToComplete.name }),
-    okText: t('detail.completeOk'),
-    cancelText: t('common.cancel'),
-    onOk: async () => {
-      if (profileSavePromise) await profileSavePromise
-      submitting.value = true
-      try {
-        const nextNodes = await completeNode(projectId.value, nodeToComplete.id)
-        nodes.value = nextNodes
-        project.value = await getProject(projectId.value)
-        const current = nextNodes.find((node) => node.status === 1)
-        activeNodeId.value = current?.id ?? nodeToComplete.id
-        message.success(t('detail.completeSuccess'))
-      } finally {
-        submitting.value = false
-      }
-    },
-  })
+  if (profileSavePromise) await profileSavePromise
+  submitting.value = true
+  try {
+    const nextNodes = await completeNode(projectId.value, nodeToComplete.id)
+    nodes.value = nextNodes
+    project.value = await getProject(projectId.value)
+    const current = nextNodes.find((node) => node.status === 1)
+    activeNodeId.value = current?.id ?? nodeToComplete.id
+    message.success(t('detail.completeSuccess'))
+  } finally {
+    submitting.value = false
+  }
 }
 
 async function refreshAfterLifecycle(preferredStatus: number) {
@@ -1111,6 +1115,10 @@ function onTerminate() {
 function onRestore() {
   if (!canRestoreProject.value) return
   openReasonModal('restore')
+}
+
+function openSourceRequirement(requirementId: number) {
+  if (requirementId > 0) void router.push(`/development/requirements/${requirementId}`)
 }
 
 function onRollback() {
@@ -1217,6 +1225,9 @@ onBeforeUnmount(() => {
           <span>{{ $t('detail.projectPeriod') }}：</span>
           <strong>{{ formatDate(project.startDate) }} → {{ formatDate(project.endDate) }}</strong>
         </div>
+        <div v-if="projectSourceRequirements.length" class="project-header__meta-item project-header__meta-item--wide">
+          <SourceRequirementList :items="projectSourceRequirements" :label="$t('detail.sourceRequirement')" @open="openSourceRequirement" />
+        </div>
       </div>
 
       <div class="project-header__insights">
@@ -1257,7 +1268,7 @@ onBeforeUnmount(() => {
       class="node-detail-card pms-detail-panel pms-section-panel card-surface"
       :node-name="activeNode.name"
       :node-status="activeNode.status"
-      :description="activeNode.description"
+      :description="activeNodeDescription"
     >
       <div class="node-detail-header">
         <div class="node-detail-title">
@@ -1267,7 +1278,7 @@ onBeforeUnmount(() => {
               <h2>{{ activeNode.name }}</h2>
               <a-tag :color="nodeStatusTagColor(activeNode.status)">{{ getNodeStatusLabel(activeNode.status) }}</a-tag>
             </div>
-            <p v-if="activeNode.description" class="node-detail-title__description">{{ activeNode.description }}</p>
+            <p v-if="activeNodeDescription" class="node-detail-title__description">{{ activeNodeDescription }}</p>
             <p v-if="activeNodeReadOnly" class="node-detail-title__readonly-hint" role="note">
               {{ $t('detail.nodeReadonlyHint') }}
             </p>
@@ -1445,6 +1456,7 @@ onBeforeUnmount(() => {
           :node-status="activeNode.status"
           :node-read-only="activeNodeReadOnly"
           :can-edit="canEditActiveNode"
+          :owner-options="nodeOwnerOptions"
           @completion-ready="onReleaseCompletionReady"
         />
       </WorkflowRuntimeComponentHost>
@@ -1610,6 +1622,8 @@ onBeforeUnmount(() => {
 .project-header__meta-item { display: flex; align-items: baseline; min-width: 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); white-space: nowrap; }
 .project-header__meta-item > span { flex: 0 0 auto; }
 .project-header__meta-item strong { min-width: 0; overflow: hidden; color: var(--pms-text-strong); font-weight: 650; text-overflow: ellipsis; }
+.project-header__source-requirement { max-width: min(100%, 360px); padding: 0; overflow: hidden; border: 0; background: none; color: var(--pms-primary); font-size: inherit; font-weight: 650; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.project-header__source-requirement:hover { text-decoration: underline; }
 .project-header__meta-item--wide { flex: 0 1 auto; max-width: min(100%, 620px); }
 .project-header__meta-item--divider { padding-right: 20px; border-right: 1px solid var(--pms-border-soft); }
 .project-header__insights { gap: 24px; margin-top: 19px; padding-top: 17px; border-top: 1px solid var(--pms-border); }

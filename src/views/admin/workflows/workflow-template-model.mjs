@@ -1,6 +1,116 @@
-import { normalizeWorkflowDefinition } from './workflow-template-schema.mjs'
+import { DEFAULT_REQUIREMENT_RECEIVING_ANALYSIS_CONFIG, normalizeWorkflowDefinition } from './workflow-template-schema.mjs'
+import {
+  createRequirementNodeWorkbenchConfig,
+  REQUIREMENT_NODE_WORKBENCH_COMPONENT,
+} from '../../../components/workflow/requirement-node-workbench.mjs'
 
 export const FIXED_NODE_BLOCKS = Object.freeze(['owner', 'schedule', 'task-board'])
+
+export const WORKFLOW_PROCESS_SOURCES = Object.freeze({
+  general: 'project',
+  'project-management': 'project',
+  'requirement-management': 'requirement',
+  'topic-management': 'topic',
+  'story-management': 'story',
+})
+
+export function getWorkflowSourceForProcessType(processTypeCode) {
+  return WORKFLOW_PROCESS_SOURCES[String(processTypeCode || '')]
+}
+
+export const REQUIREMENT_WORKBENCH_PALETTE = Object.freeze([
+  {
+    key: 'requirement-receiving-analysis',
+    runtimeKey: 'requirement-receiving-analysis',
+    processTypeCodes: ['requirement-management'],
+    workbenchTypes: ['requirement'],
+    nodeNameIncludes: ['需求接收'],
+  },
+  {
+    key: 'requirement-clarification-workbench',
+    runtimeKey: 'requirement-node-workbench',
+    processTypeCodes: ['requirement-management'],
+    workbenchTypes: ['requirement'],
+    nodeNameIncludes: ['需求澄清'],
+  },
+  {
+    key: 'requirement-integration-workbench',
+    runtimeKey: 'requirement-node-workbench',
+    processTypeCodes: ['requirement-management'],
+    workbenchTypes: ['requirement'],
+    nodeNameIncludes: ['需求整合'],
+  },
+  {
+    key: 'requirement-scheduling-workbench',
+    runtimeKey: 'requirement-node-workbench',
+    processTypeCodes: ['requirement-management'],
+    workbenchTypes: ['requirement'],
+    nodeNameIncludes: ['需求排期'],
+  },
+  {
+    key: 'requirement-execution',
+    runtimeKey: 'requirement-execution',
+    processTypeCodes: ['requirement-management'],
+    workbenchTypes: ['requirement'],
+    nodeNameIncludes: ['需求开发'],
+  },
+  {
+    key: 'requirement-acceptance-workbench',
+    runtimeKey: 'requirement-node-workbench',
+    processTypeCodes: ['requirement-management'],
+    workbenchTypes: ['requirement'],
+    nodeNameIncludes: ['需求验收'],
+  },
+])
+
+const PROJECT_WORKBENCH_NODES = Object.freeze({
+  'requirement-scope': ['需求澄清'],
+  'solution-design': ['方案设计'],
+  'plan-resource-risk': ['计划、资源与风险', '计划资源与风险'],
+  'development-control': ['开发测试'],
+  'business-acceptance': ['业务验收'],
+  'release-handover': ['发布决策'],
+  'value-review': ['价值验证'],
+  'knowledge-standard': ['知识沉淀'],
+})
+
+export function getAvailableWorkflowComponents({ processTypeCode, source, components = [], paletteComponents = [], currentNode, currentNodeIndex = -1 } = {}) {
+  if (!processTypeCode || !source || !Array.isArray(components)) return []
+  const runtimeKeys = new Set(components.map((component) => component.key))
+  const candidates = (source === 'requirement' || source === 'story') && Array.isArray(paletteComponents) && paletteComponents.length
+    ? paletteComponents
+    : components
+  return candidates
+    .filter((component) => !component.processTypeCodes?.length || component.processTypeCodes.includes(processTypeCode))
+    .filter((component) => component.workbenchTypes?.includes(source))
+    // Keep legacy implementations registered without exposing cross-type
+    // workbenches for new bindings. Dedicated story workbenches come later.
+    .filter((component) => {
+      const key = component.runtimeKey || component.key
+      // Retired from new bindings; keep the runtime registration for historical snapshots.
+      if (key === 'story-split') return false
+      if (Object.hasOwn(PROJECT_WORKBENCH_NODES, key)) return source === 'project'
+      if (key === 'story-list' || key === 'topic-research' || key === 'topic-design-review') return source === 'topic'
+      if (source === 'story') return key === 'story-node-workbench' || key === 'story-testing'
+      return source === 'requirement' && ['requirement-execution', 'requirement-receiving-analysis', 'requirement-node-workbench'].includes(key)
+    })
+    .filter((component) => runtimeKeys.has(component.runtimeKey || component.key))
+    .map(({ key, runtimeKey = key, workbenchTypes, nodeNameIncludes }) => ({
+      key,
+      runtimeKey,
+      workbenchTypes,
+      applicable: key === 'topic-design-review' ? String(currentNode?.name || '').includes('方案设计与评审') : key === 'topic-research' ? String(currentNode?.name || '').includes('需求调研') : source === 'project'
+        ? (key === 'development-control' && (currentNode?.contentOrder || []).includes(`component:${runtimeKey}`))
+          || (PROJECT_WORKBENCH_NODES[key] || []).some((match) => String(currentNode?.name || '').includes(match))
+        : source === 'story'
+        ? Array.isArray(nodeNameIncludes)
+          && nodeNameIncludes.some((match) => String(currentNode?.name || '').includes(match))
+        : source !== 'requirement'
+        ? true
+        : currentNodeIndex > 0 && Array.isArray(nodeNameIncludes)
+          && nodeNameIncludes.some((match) => String(currentNode?.name || '').includes(match)),
+    }))
+}
 
 export const DEFAULT_PROJECT_BASIC_INFO_FIELDS = Object.freeze([
   { key: 'description', label: '项目描述', visible: true, required: true },
@@ -12,6 +122,10 @@ export const DEFAULT_PROJECT_BASIC_INFO_FIELDS = Object.freeze([
   { key: 'projectMembers', label: '项目成员', visible: true, required: true },
   { key: 'followers', label: '关注人', visible: true, required: false },
 ])
+
+export const DEFAULT_COMPONENT_CONFIGS = Object.freeze({
+  'requirement-receiving-analysis': DEFAULT_REQUIREMENT_RECEIVING_ANALYSIS_CONFIG,
+})
 
 export function getWorkflowTemplateEntryStep({
   typeCount,
@@ -50,16 +164,76 @@ export function createUniqueWorkflowKey(existingKeys, requestedKey, fallback = '
 
 export function normalizeWorkflowDefinitionForProcessType(definition, processTypeCode) {
   const normalized = normalizeWorkflowDefinition(definition)
+  const processDefinition = processTypeCode === 'requirement-management'
+    ? ensureRequirementNodeWorkbenchConfigs(removeRequirementReleaseVersionField(normalized))
+    : normalized
   if (processTypeCode === 'topic-management') {
-    const { sourceTopicNodeKey: _storyOnlyBinding, ...topicDefinition } = normalized
+    const { sourceTopicNodeKey: _storyOnlyBinding, ...topicDefinition } = processDefinition
     return topicDefinition
   }
   if (processTypeCode === 'story-management') {
-    const { sourceProjectNodeKey: _projectOnlyBinding, ...storyDefinition } = normalized
+    const { sourceProjectNodeKey: _projectOnlyBinding, ...storyDefinition } = processDefinition
     return storyDefinition
   }
-  const { sourceProjectNodeKey: _projectOnlyBinding, sourceTopicNodeKey: _storyOnlyBinding, ...otherDefinition } = normalized
+  if (processTypeCode === 'requirement-management') {
+    const { sourceProjectNodeKey: _projectOnlyBinding, sourceTopicNodeKey: _storyOnlyBinding, ...requirementDefinition } = processDefinition
+    return requirementDefinition
+  }
+  const { sourceProjectNodeKey: _projectOnlyBinding, sourceTopicNodeKey: _storyOnlyBinding, ...otherDefinition } = processDefinition
   return otherDefinition
+}
+
+export function ensureRequirementNodeWorkbenchConfigs(definition) {
+  if (!definition || !Array.isArray(definition.nodes)) return definition
+  let changed = false
+  const componentItem = `component:${REQUIREMENT_NODE_WORKBENCH_COMPONENT}`
+  const nodes = definition.nodes.map((node) => {
+    if (!Array.isArray(node.contentOrder) || !node.contentOrder.includes(componentItem)) return node
+    const current = node.componentConfigs?.[REQUIREMENT_NODE_WORKBENCH_COMPONENT]
+    const activities = Array.isArray(current?.activities) ? current.activities : []
+    const validActivities = activities.length > 0
+      && activities.every((activity) => typeof activity === 'string' && activity.trim())
+    if (validActivities && current?.nodeKey === node.key) return node
+
+    changed = true
+    const defaults = createRequirementNodeWorkbenchConfig(node)
+    const repaired = {
+      ...defaults,
+      ...(current || {}),
+      nodeKey: defaults.nodeKey,
+      nodeName: defaults.nodeName,
+      purpose: typeof current?.purpose === 'string' && current.purpose.trim()
+        ? current.purpose
+        : defaults.purpose,
+      activities: validActivities ? current.activities : defaults.activities,
+    }
+    return {
+      ...node,
+      componentConfigs: {
+        ...(node.componentConfigs || {}),
+        [REQUIREMENT_NODE_WORKBENCH_COMPONENT]: repaired,
+      },
+    }
+  })
+  return changed ? { ...definition, nodes } : definition
+}
+
+export function removeRequirementReleaseVersionField(definition) {
+  if (!definition || !Array.isArray(definition.nodes)) return definition
+  let changed = false
+  const nodes = definition.nodes.map((node) => {
+    if (!String(node?.name || '').includes('需求上线')) return node
+    const fields = (node.fields || []).filter((field) => field.key !== 'release-version')
+    if (fields.length === (node.fields || []).length) return node
+    const contentOrder = [...(node.contentOrder || [])]
+    if (fields.length === 0) {
+      const legacyIndex = contentOrder.indexOf('legacy-custom-fields')
+      if (legacyIndex >= 0) contentOrder.splice(legacyIndex, 1)
+    }
+    changed = true
+    return { ...node, fields, contentOrder }
+  })
+  return changed ? { ...definition, nodes } : definition
 }
 
 export function setTopicSourceProjectNodeKey(definition, nodeKey) {
@@ -116,6 +290,33 @@ export function moveWorkflowField(node, fieldKey, toIndex) {
 
 export function moveWorkflowContentItem(node, contentItem, toIndex) {
   return { ...node, contentOrder: moveByKey(node.contentOrder || [], contentItem, toIndex) }
+}
+
+export function addWorkflowComponent(node, componentKey, config) {
+  const contentItem = `component:${componentKey}`
+  if ((node.contentOrder || []).includes(contentItem)) return node
+  const componentConfigs = { ...(node.componentConfigs || {}) }
+  if (componentKey === 'requirement-receiving-analysis' && !componentConfigs[componentKey]) {
+    componentConfigs[componentKey] = structuredClone(DEFAULT_REQUIREMENT_RECEIVING_ANALYSIS_CONFIG)
+  }
+  if (config && !componentConfigs[componentKey]) componentConfigs[componentKey] = structuredClone(config)
+  return {
+    ...node,
+    contentOrder: [...(node.contentOrder || []), contentItem],
+    ...(Object.keys(componentConfigs).length ? { componentConfigs } : {}),
+  }
+}
+
+export function removeWorkflowComponent(node, componentKey) {
+  const contentItem = `component:${componentKey}`
+  const contentOrder = (node.contentOrder || []).filter((item) => item !== contentItem)
+  const componentConfigs = { ...(node.componentConfigs || {}) }
+  delete componentConfigs[componentKey]
+  return {
+    ...node,
+    contentOrder,
+    ...(Object.keys(componentConfigs).length ? { componentConfigs } : { componentConfigs: undefined }),
+  }
 }
 
 export function moveWorkflowNode(nodes, nodeKey, toIndex) {

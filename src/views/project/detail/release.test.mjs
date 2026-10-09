@@ -8,19 +8,8 @@ import * as releasePresentation from './release.ts'
 const { isReleaseComplete } = releasePresentation
 
 const completeState = {
-  releaseVersion: 'v2.6.0',
-  releaseWindowStart: '2026-09-26T20:00:00',
-  releaseWindowEnd: '2026-09-26T22:00:00',
-  releaseType: 'GRAY',
-  packageReady: true,
-  configConfirmed: true,
-  rollbackReady: true,
-  monitoringConfirmed: true,
-  onCallConfirmed: true,
-  decisionResult: 'APPROVED',
+  handoverOwnerId: 42,
   handoverNotes: '运维已接收发布说明。',
-  observationItems: '重点观察订单错误率。',
-  emergencyContact: '值班电话 400-000-0000',
 }
 
 test('completed release nodes show completed instead of ready when release data is complete', () => {
@@ -36,18 +25,10 @@ test('active release nodes show ready only when required release data is complet
   assert.equal(releasePresentation.getReleaseWorkbenchStatus?.({ nodeStatus: 1, completionReady: false }), 'draft')
 })
 
-test('release completion requires release information, decision, and handover fields', () => {
+test('release completion requires a handover owner and handover notes', () => {
   assert.equal(isReleaseComplete(completeState), true)
-  assert.equal(isReleaseComplete({
-    ...completeState,
-    packageReady: false,
-    configConfirmed: false,
-    rollbackReady: false,
-    monitoringConfirmed: false,
-    onCallConfirmed: false,
-  }), true)
-  assert.equal(isReleaseComplete({ ...completeState, decisionResult: 'PENDING' }), false)
-  assert.equal(isReleaseComplete({ ...completeState, emergencyContact: '' }), false)
+  assert.equal(isReleaseComplete({ ...completeState, handoverOwnerId: undefined }), false)
+  assert.equal(isReleaseComplete({ ...completeState, handoverNotes: '' }), false)
 })
 
 test('release completion stays manual and is not derived from task progress', () => {
@@ -66,15 +47,30 @@ test('mounts the release workbench only for the release node and uses the lifecy
   assert.match(api, /nodes\/\$\{nodeId\}\/release/)
 })
 
-test('does not render the removed launch checklist in the release workbench', () => {
+test('renders only iteration-derived versions and handover notes', () => {
   const detailRoot = path.resolve(import.meta.dirname)
   const workbench = fs.readFileSync(path.join(detailRoot, 'components/ReleaseDecisionHandoverWorkbench.vue'), 'utf8')
   assert.match(workbench, /detail\.release\.infoTitle/)
-  assert.match(workbench, /detail\.release\.decisionTitle/)
   assert.match(workbench, /detail\.release\.handoverTitle/)
+  assert.match(workbench, /getIterationPlans/)
+  assert.match(workbench, /iteration\.systemName/)
+  assert.match(workbench, /iteration\.systemVersionNo/)
+  assert.match(workbench, /PersonSelect/)
+  assert.match(workbench, /state\.handoverOwnerId/)
+  assert.match(workbench, /handoverOwnerName/)
+  assert.match(workbench, /handoverOwnerUsername/)
+  assert.match(workbench, /handoverOwnerDisplay/)
   assert.match(workbench, /completion-ready/)
   assert.doesNotMatch(workbench, /detail\.release\.checklistTitle/)
   assert.doesNotMatch(workbench, /release-checklist/)
+  assert.doesNotMatch(workbench, /state\.releaseVersion/)
+  assert.doesNotMatch(workbench, /state\.releaseWindowStart|state\.releaseWindowEnd|state\.releaseType/)
+  assert.doesNotMatch(workbench, /state\.decisionResult|state\.decisionNote/)
+  assert.doesNotMatch(workbench, /state\.observationItems/)
+  assert.doesNotMatch(workbench, /state\.emergencyContact/)
+  assert.doesNotMatch(workbench, /rollbackReady|monitoringConfirmed|onCallConfirmed/)
+  assert.doesNotMatch(workbench, /detail\.release\.window|detail\.release\.type|detail\.release\.decisionTitle/)
+  assert.doesNotMatch(workbench, /releaseVersion|releaseWindowStart|releaseWindowEnd|releaseType|packageReady|configConfirmed|rollbackReady|monitoringConfirmed|onCallConfirmed|decisionResult|decisionNote|observationItems|emergencyContact/)
   assert.doesNotMatch(workbench, /完成节点/)
   assert.doesNotMatch(workbench, /task-columns/)
 })
@@ -89,7 +85,7 @@ test('saves release drafts when an editable control loses focus', () => {
   assert.doesNotMatch(workbench, /scheduleAutoSave|persistAutoSave/)
 })
 
-test('saves the release draft before opening the lifecycle completion confirmation', () => {
+test('saves the release draft before completing the lifecycle node without confirmation', () => {
   const detailRoot = path.resolve(import.meta.dirname)
   const page = fs.readFileSync(path.join(detailRoot, 'index.vue'), 'utf8')
   const workbench = fs.readFileSync(path.join(detailRoot, 'components/ReleaseDecisionHandoverWorkbench.vue'), 'utf8')
@@ -100,7 +96,8 @@ test('saves the release draft before opening the lifecycle completion confirmati
   assert.match(completionBlock, /const nodeToComplete = activeNode\.value/)
   assert.match(completionBlock, /const saved = await releaseWorkbenchRef\.value\?\.saveDraft\(\)/)
   assert.match(completionBlock, /if \(!saved\) return/)
-  assert.ok(completionBlock.indexOf('const saved = await releaseWorkbenchRef.value?.saveDraft()') < completionBlock.indexOf('Modal.confirm'))
+  assert.doesNotMatch(completionBlock, /Modal\.confirm/)
+  assert.match(completionBlock, /submitting\.value = true/)
   assert.match(completionBlock, /completeNode\(projectId\.value, nodeToComplete\.id\)/)
   assert.match(workbench, /async function saveDraft\(showSuccess = false\): Promise<boolean>/)
   assert.match(workbench, /defineExpose\(\{ saveDraft \}\)/)

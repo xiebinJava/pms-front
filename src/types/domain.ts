@@ -47,6 +47,8 @@ export interface Project {
   orgUnitLeaderName?: string
   createdAt: string
   updatedAt: string
+  sourceRequirements?: SourceRequirementSummary[]
+  sourceRequirement?: SourceRequirementSummary
   permissions?: ProjectPermissions
   readiness?: ProjectReadiness
   attentionSummary?: ProjectAttentionSummary
@@ -182,6 +184,8 @@ export interface Task {
   version?: number
   projectId: number
   nodeId?: number
+  iterationPlanId?: number
+  iterationPlanName?: string
   parentId?: number
   title: string
   description?: string
@@ -286,18 +290,91 @@ export interface ProjectNode {
 export type NodeDevelopmentStoryStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'TESTING' | 'DONE' | 'BLOCKED'
 export type NodeDevelopmentTopicStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'DONE'
 export type NodeDevelopmentTestStatus = 'NOT_STARTED' | 'TESTING' | 'PASSED' | 'FAILED'
-export type NodeIterationPlanStatus = 'PLANNED' | 'IN_PROGRESS' | 'DONE'
+export type NodeIterationPlanStatus = 'PLANNED' | 'IN_PROGRESS' | 'DONE' | 'PAUSED'
 
 export interface NodeIterationPlan {
   id?: number
   name: string
   ownerId?: number
   ownerName?: string
+  systemId?: number | null
+  systemName?: string
+  systemVersionId?: number | null
+  systemVersionNo?: string
+  systemVersionName?: string
   goal?: string
   status: NodeIterationPlanStatus
   startDate?: string
   dueDate?: string
   sort?: number
+}
+
+export interface IterationPlanListItem {
+  id: number
+  projectId?: number | null
+  projectCode?: string
+  projectName?: string
+  nodeId?: number
+  nodeName?: string
+  name: string
+  ownerId?: number
+  ownerName?: string
+  systemId?: number | null
+  systemName?: string
+  systemVersionId?: number | null
+  systemVersionNo?: string
+  systemVersionName?: string
+  goal?: string
+  status: NodeIterationPlanStatus
+  startDate?: string
+  dueDate?: string
+  sort?: number
+  storyCount: number
+  completedStoryCount: number
+  taskCount: number
+  completedTaskCount: number
+  progress: number
+}
+
+export interface IterationPlanStory {
+  id: number
+  projectId: number
+  nodeId?: number
+  topicId?: number
+  topicTitle?: string
+  title: string
+  ownerId?: number
+  ownerName?: string
+  status: NodeDevelopmentStoryStatus
+  progress: number
+  storyPoints: number
+  startDate?: string
+  dueDate?: string
+  blocker?: string
+}
+
+export interface IterationPlanTask {
+  id: number
+  version?: number
+  projectId: number
+  nodeId?: number
+  nodeName?: string
+  parentId?: number
+  title: string
+  description?: string
+  deliverable?: string
+  status: number
+  priority: number
+  assigneeId?: number
+  assigneeName?: string
+  dueDate?: string
+  sort?: number
+}
+
+export interface IterationPlanDetail {
+  plan: IterationPlanListItem
+  stories: IterationPlanStory[]
+  tasks: IterationPlanTask[]
 }
 
 export interface NodeDevelopmentStory {
@@ -374,8 +451,37 @@ export interface NodeDevelopmentControlUpdate {
   }>
 }
 
-export type DevelopmentItemType = 'topic' | 'story'
-export type DevelopmentWorkflowStatus = 'NOT_CONFIGURED' | 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'
+export type DevelopmentItemType = 'topic' | 'story' | 'requirement'
+export type DevelopmentWorkflowStatus = 'NOT_CONFIGURED' | 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'REJECTED'
+
+export type RequirementExecutionTargetType = 'PROJECT' | 'TOPIC' | 'STORY'
+
+export interface RequirementExecutionTarget {
+  targetType: RequirementExecutionTargetType
+  targetId: number
+  title?: string
+  code?: string
+  status?: string
+  ownerId?: number
+  ownerName?: string
+  progress?: number
+  navigationType?: string
+  navigationId?: number
+}
+
+export interface RequirementExecutionTargetHistory {
+  id: number
+  requirementId: number
+  action: 'LINK' | 'UNLINK' | 'REPLACE' | string
+  targetType?: RequirementExecutionTargetType
+  targetId?: number
+  previousTargetType?: RequirementExecutionTargetType
+  previousTargetId?: number
+  reason?: string
+  operatorId?: number
+  operatorName?: string
+  createdAt?: string
+}
 
 export interface DevelopmentItemTask {
   id: number
@@ -404,16 +510,20 @@ export interface DevelopmentItemWorkflowNode {
   status: 0 | 1 | 2
   ownerId?: number
   ownerName?: string
+  reviewerNames?: Record<string, string>
   startDate?: string
   endDate?: string
   version: number
   fields: WorkflowFieldDefinition[]
   fieldValues: Record<string, unknown>
+  boundFieldValues?: Record<string, unknown>
   tasks: DevelopmentItemTask[]
   runtimeComponents?: string[]
+  componentConfigs?: Record<string, Record<string, unknown>>
 }
 
 export interface DevelopmentItemWorkflowDetail {
+  workbenchPeople?: Record<string, string>
   itemType: DevelopmentItemType
   id: number
   title: string
@@ -434,9 +544,16 @@ export interface DevelopmentItemWorkflowDetail {
   blocker?: string
   latestBuildVersion?: string
   testStatus?: string
+  iterationPlanId?: number | null
   iterationPlanName?: string
+  version?: number
+  sourceRequirements?: SourceRequirementSummary[]
+  sourceRequirement?: SourceRequirementSummary
+  executionTarget?: RequirementExecutionTarget
+  executionTargetHistory?: RequirementExecutionTargetHistory[]
   workflowConfigured: boolean
   workflowStatus: DevelopmentWorkflowStatus
+  terminalStatus?: string | null
   workflowProgress: number
   workflowId?: number
   templateVersionId?: number
@@ -446,12 +563,74 @@ export interface DevelopmentItemWorkflowDetail {
   nodes: DevelopmentItemWorkflowNode[]
 }
 
+export interface SourceRequirementSummary {
+  id: number
+  title: string
+  status?: string
+  ownerId?: number
+  ownerName?: string
+  targetType?: RequirementExecutionTargetType
+  targetId?: number
+}
+
 export interface DevelopmentItemNodeUpdate {
   ownerId?: number
   startDate?: string
   endDate?: string
   fieldValues?: Record<string, unknown>
   version: number
+}
+
+export type RequirementReceivingValidity = 'PENDING' | 'VALID' | 'INVALID' | 'INSUFFICIENT_INFO'
+export type RequirementReceivingFilterReason = 'DUPLICATE' | 'OUT_OF_SCOPE' | 'INSUFFICIENT_INFO' | 'LOW_VALUE' | 'INFEASIBLE' | 'EXISTING_SOLUTION' | 'OTHER'
+export type RequirementReceivingCategory = 'FUNCTIONAL' | 'NON_FUNCTIONAL'
+export type RequirementReceivingDecision = 'PASS' | 'NEEDS_INFO' | 'REJECT'
+export type RequirementReceivingValueConclusion = 'HIGH' | 'MEDIUM' | 'LOW' | 'PENDING'
+
+export interface RequirementReceivingAnalysisState {
+  validity?: RequirementReceivingValidity
+  filterReasons?: RequirementReceivingFilterReason[]
+  interpretation?: string
+  filterNote?: string
+  category?: RequirementReceivingCategory
+  feasibilityScore?: number
+  roiScore?: number
+  strategicFitScore?: number
+  analysisConclusion?: string
+  decision?: RequirementReceivingDecision
+  supplementNote?: string
+  decisionReason?: string
+}
+
+export interface RequirementReceivingAnalysisConfig {
+  showFilter: boolean
+  showAnalysis: boolean
+  showDecision: boolean
+  requireCategory: boolean
+  showFeasibilityScore: boolean
+  requireFeasibilityScore: boolean
+  showRoiScore: boolean
+  requireRoiScore: boolean
+  showStrategicFitScore: boolean
+  requireStrategicFitScore: boolean
+  requireAnalysisConclusion: boolean
+  allowReject: boolean
+}
+
+export interface RequirementReceivingAnalysis {
+  requirementId: number
+  nodeId: number
+  nodeVersion: number
+  nodeStatus: 0 | 1 | 2
+  terminalStatus?: string | null
+  state?: RequirementReceivingAnalysisState | null
+  config: RequirementReceivingAnalysisConfig
+  averageScore?: number | null
+  valueConclusion: RequirementReceivingValueConclusion
+}
+
+export interface RequirementReceivingAnalysisActionCmd {
+  reason: string
 }
 
 export interface DevelopmentItemTaskSave {
@@ -696,46 +875,21 @@ export interface NodeAcceptanceUpdate {
   items: NodeAcceptanceItemUpdate[]
 }
 
-export type NodeReleaseType = 'FULL' | 'GRAY' | 'HOTFIX'
-export type NodeReleaseDecisionResult = 'PENDING' | 'APPROVED' | 'DEFERRED' | 'CANCELLED'
-
 export interface NodeRelease {
   projectId: number
   nodeId: number
   version?: number
-  releaseVersion?: string
-  releaseWindowStart?: string
-  releaseWindowEnd?: string
-  releaseType: NodeReleaseType
-  packageReady: boolean
-  configConfirmed: boolean
-  rollbackReady: boolean
-  monitoringConfirmed: boolean
-  onCallConfirmed: boolean
-  decisionResult: NodeReleaseDecisionResult
-  decisionNote?: string
+  handoverOwnerId?: number
+  handoverOwnerName?: string
+  handoverOwnerUsername?: string
   handoverNotes?: string
-  observationItems?: string
-  emergencyContact?: string
   canEdit: boolean
 }
 
 export interface NodeReleaseUpdate {
   version?: number
-  releaseVersion?: string
-  releaseWindowStart?: string
-  releaseWindowEnd?: string
-  releaseType: NodeReleaseType
-  packageReady: boolean
-  configConfirmed: boolean
-  rollbackReady: boolean
-  monitoringConfirmed: boolean
-  onCallConfirmed: boolean
-  decisionResult: NodeReleaseDecisionResult
-  decisionNote?: string
+  handoverOwnerId?: number
   handoverNotes?: string
-  observationItems?: string
-  emergencyContact?: string
 }
 
 export type NodeValueReviewResultStatus = 'PENDING' | 'ACHIEVED' | 'PARTIAL' | 'NOT_ACHIEVED'

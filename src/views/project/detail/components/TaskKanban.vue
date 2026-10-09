@@ -5,11 +5,12 @@ import { CalendarOutlined, CloseOutlined, PlusOutlined, UserOutlined } from '@an
 import { Modal, message } from 'ant-design-vue'
 import { apiErrorMessage } from '/@/plugins/http'
 import { createTask, deleteTask, getTask, getTasks, moveTask, updateTask } from '/@/api/task'
+import { getIterationPlans } from '/@/api/iteration-plan'
 import { getMembers } from '/@/api/member'
 import { getNodeRequirementScope } from '/@/api/node-requirement-scope'
 import { priorityKey, taskStatusKey, Priority, TaskStatus } from '/@/enums'
 import { formatDate } from '/@/utils/format'
-import type { NodeRequirement, Project, ProjectMember, ProjectNode, Task, TaskDetail } from '/@/types/domain'
+import type { NodeIterationPlan, NodeRequirement, Project, ProjectMember, ProjectNode, Task, TaskDetail } from '/@/types/domain'
 import {
   buildTaskPayload,
   formatPersonLabel,
@@ -40,6 +41,7 @@ const { t } = useI18n()
 const tasks = ref<Task[]>([])
 const members = ref<ProjectMember[]>([])
 const requirements = ref<NodeRequirement[]>([])
+const iterationPlans = ref<NodeIterationPlan[]>([])
 const loading = ref(false)
 const softLoading = ref(false)
 const hasLoadedOnce = ref(false)
@@ -91,6 +93,7 @@ const form = reactive({
   assigneeId: undefined as number | undefined,
   dueDate: null as string | null,
   requirementId: undefined as number | undefined,
+  iterationPlanId: undefined as number | undefined,
 })
 const rules = computed(() => ({ title: [{ required: true, message: t('task.titleRequired') }] }))
 
@@ -127,6 +130,17 @@ const requirementOptions = computed(() => requirements.value
     label: `${requirement.code || ''} ${requirement.name}`.trim(),
   })))
 
+const iterationPlanOptions = computed(() => {
+  const options = iterationPlans.value
+    .filter((plan) => plan.id != null)
+    .map((plan) => ({ value: plan.id, label: plan.name }))
+  const currentId = editingTask.value?.iterationPlanId
+  if (currentId != null && !options.some((option) => option.value === currentId)) {
+    options.unshift({ value: currentId, label: editingTask.value?.iterationPlanName || `#${currentId}` })
+  }
+  return options
+})
+
 function emitTaskProgress(list: Task[] = tasks.value) {
   emit('task-progress', {
     projectId: props.projectId,
@@ -155,15 +169,17 @@ async function loadAll() {
     const requirementScopePromise = nodeHasComponent(props.node, 'requirement-scope')
       ? getNodeRequirementScope(props.projectId, props.nodeId).catch(() => null)
       : Promise.resolve(null)
-    const [taskList, memberList, requirementScope] = await Promise.all([
+    const [taskList, memberList, requirementScope, planList] = await Promise.all([
       getTasks(props.projectId, props.nodeId),
       getMembers(props.projectId),
       requirementScopePromise,
+      getIterationPlans(props.projectId),
     ])
     if (sequence !== loadSequence || requestedNodeId !== props.nodeId) return
     tasks.value = taskList
     members.value = memberList
     requirements.value = requirementScope?.requirements || []
+    iterationPlans.value = planList
     emitTaskProgress(taskList)
     await maybeOpenFocusedTask()
   } finally {
@@ -221,6 +237,7 @@ function openCreate(status: number, requirementId?: number) {
     assigneeId: undefined,
     dueDate: null,
     requirementId,
+    iterationPlanId: undefined,
   })
   modalState.open = true
 }
@@ -243,6 +260,7 @@ function openEdit(task: Task) {
     assigneeId: task.assigneeId,
     dueDate: task.dueDate || null,
     requirementId: task.requirementId,
+    iterationPlanId: task.iterationPlanId,
   })
   modalState.open = true
   void loadDetail(task.id)
@@ -262,6 +280,9 @@ async function onSave() {
         : {}),
       ...(modalState.editingId && form.requirementId == null && editingTask.value?.requirementId != null
         ? { clearRequirement: true }
+        : {}),
+      ...(modalState.editingId && form.iterationPlanId == null && editingTask.value?.iterationPlanId != null
+        ? { clearIterationPlan: true }
         : {}),
     }
     if (modalState.editingId) {
@@ -458,6 +479,15 @@ defineExpose({ openCreateForRequirement, refreshRequirements })
           allow-clear
           :options="requirementOptions"
           :placeholder="$t('task.requirementPlaceholder')"
+        />
+      </a-form-item>
+      <a-form-item :label="$t('task.iterationPlan')">
+        <a-select
+          v-model:value="form.iterationPlanId"
+          :disabled="!canManageModal"
+          allow-clear
+          :options="iterationPlanOptions"
+          :placeholder="$t('task.iterationPlanPlaceholder')"
         />
       </a-form-item>
       <a-form-item :label="$t('task.description')">

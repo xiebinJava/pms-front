@@ -44,6 +44,8 @@ test('development list follows the project workbench page pattern', () => {
   assert.match(source, /pagination\.total/)
   assert.match(source, /#emptyText/)
   assert.match(source, /development-list-page__table-scroll/)
+  assert.match(source, /class="[^"]*pms-list-table[^"]*"/)
+  assert.match(source, /pms-project-table-scroll/)
   assert.doesNotMatch(source, /development-list-page__view-switch|onViewChange/)
   assert.match(source, /t\('common\.refresh'\)/)
 })
@@ -58,6 +60,23 @@ test('development list uses translated state text and responsive filter geometry
   assert.doesNotMatch(source, /record\.testStatus \|\| ''/)
   assert.match(zh, /developmentList:\s*\{[\s\S]*eyebrow:/)
   assert.match(zh, /developmentList:\s*\{[\s\S]*emptyTitle:/)
+})
+
+test('development list uses project-style lifecycle labels for workflow states', () => {
+  const source = read('views/development/DevelopmentListPage.vue')
+  assert.match(source, /status === 'NOT_STARTED'[\s\S]*developmentList\.statusNotStarted/)
+  assert.match(source, /status === 'IN_PROGRESS'[\s\S]*developmentList\.statusInProgress/)
+  assert.match(source, /status === 'COMPLETED'[\s\S]*developmentList\.statusDone/)
+  assert.doesNotMatch(source, /developmentList\.workflow\.NOT_STARTED/)
+  assert.doesNotMatch(source, /developmentList\.workflow\.IN_PROGRESS/)
+  assert.doesNotMatch(source, /developmentList\.workflow\.COMPLETED/)
+})
+
+test('topic list aligns status with the workflow progress source', () => {
+  const source = read('views/development/DevelopmentListPage.vue')
+  assert.match(source, /function rowStatus\(record: DevelopmentRow\)/)
+  assert.match(source, /if \(isTopic\(record\)\)[\s\S]*record\.workflowStatus === 'NOT_CONFIGURED'/)
+  assert.match(source, /statusColor\(rowStatus\(record\)\)/)
 })
 
 test('development filter controls use a flex row with explicit spacing and alignment', () => {
@@ -192,4 +211,10 @@ test('development lists reuse the project list visual contracts without a second
   assert.doesNotMatch(source, /development-list-page__toolbar/)
   assert.doesNotMatch(source, /development-list-page__table-heading/)
   assert.doesNotMatch(source, /development-list-page__actions|development-list-page__action--primary/)
+})
+
+test('development aggregate tables use one horizontal scroll owner', () => {
+  const source = read('views/development/DevelopmentListPage.vue')
+  assert.match(source, /class="pms-table-scroll pms-project-table-scroll development-list-page__table-scroll"/)
+  assert.doesNotMatch(source, /<a-table[^>]*:scroll=/)
 })

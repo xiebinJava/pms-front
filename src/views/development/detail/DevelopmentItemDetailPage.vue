@@ -2,46 +2,135 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { message, Modal } from 'ant-design-vue'
-import { ArrowLeftOutlined, FolderOpenOutlined, InfoCircleOutlined } from '@ant-design/icons-vue'
-import { getDevelopmentItemWorkflow, updateDevelopmentItemNode, completeDevelopmentItemNode } from '/@/api/development-item'
+import { message } from 'ant-design-vue'
+import { ArrowLeftOutlined, FolderOpenOutlined, InfoCircleOutlined, RollbackOutlined } from '@ant-design/icons-vue'
+import { getDevelopmentItemWorkflow, updateDevelopmentItemNode, completeDevelopmentItemNode, rollbackDevelopmentItemNode } from '/@/api/development-item'
+import { getProjectOrgTree } from '/@/api/admin-org'
 import type {
   DevelopmentItemType,
   DevelopmentItemWorkflowDetail,
   DevelopmentItemWorkflowNode,
+  OrgUnit,
+  RequirementReceivingAnalysisConfig,
+  RequirementReceivingAnalysisState,
+  RequirementExecutionTargetType,
 } from '/@/types/domain'
-import type { PersonOption } from '/@/views/project/detail/workflow'
+import { buildBusinessLineOptions } from '/@/views/project/detail/workflow'
+import type { BusinessLineOption, PersonOption } from '/@/views/project/detail/workflow'
 import PersonSelect from '/@/views/project/detail/components/PersonSelect.vue'
 import DevelopmentItemFlow from './components/DevelopmentItemFlow.vue'
 import DevelopmentItemWorkflowFields from './components/DevelopmentItemWorkflowFields.vue'
 import DevelopmentItemTaskBoard from './components/DevelopmentItemTaskBoard.vue'
 import DevelopmentStorySplitComponent from './DevelopmentStorySplitComponent.vue'
 import DevelopmentStoryListComponent from './DevelopmentStoryListComponent.vue'
+import StoryNodeWorkbenchComponent from './StoryNodeWorkbenchComponent.vue'
+import { rebaseStoryWritingAcknowledgement } from '/@/components/workflow/story-node-workbench.mjs'
+import StoryTestingResultsWorkbench from './StoryTestingResultsWorkbench.vue'
+import { isTestingResultsEnabled } from './topic-testing-results.mjs'
+import RequirementExecutionComponent from './RequirementExecutionComponent.vue'
+import RequirementDevelopmentTreeComponent from './RequirementDevelopmentTreeComponent.vue'
+import RequirementReceivingAnalysisComponent from './RequirementReceivingAnalysisComponent.vue'
+import RequirementNodeWorkbenchComponent from './RequirementNodeWorkbenchComponent.vue'
+import TopicResearchWorkbench from './TopicResearchWorkbench.vue'
+import TopicDesignReviewWorkbench from './TopicDesignReviewWorkbench.vue'
 import WorkflowNodeShell from '/@/components/workflow/WorkflowNodeShell.vue'
 import WorkflowRuntimeComponentHost from '/@/components/workflow/WorkflowRuntimeComponentHost.vue'
+import { isWorkbenchFilled, areWorkflowFieldsFilled } from '/@/components/workflow/workbench-filled.mjs'
+import SourceRequirementList from '/@/components/development/SourceRequirementList.vue'
 import { WorkflowRuntimeComponentKey } from '/@/components/workflow/workflow-component-registry'
 import { isNodeReadOnly, shouldAutoSaveProfile } from '/@/views/project/detail/workflow'
 import { shouldAutoSaveOnBlur } from '/@/views/project/detail/workflow-config.mjs'
+import { useUserStore } from '/@/store/user'
 
 const props = defineProps<{ itemType: DevelopmentItemType }>()
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+const userStore = useUserStore()
 const detail = ref<DevelopmentItemWorkflowDetail>()
 const members = ref<PersonOption[]>([])
+const orgTree = ref<OrgUnit[]>([])
+const businessLineOptions = computed<BusinessLineOption[]>(() => buildBusinessLineOptions(orgTree.value))
 const loading = ref(false)
 const loadError = ref(false)
 const savingNode = ref(false)
 const nodeFormDirty = ref(false)
+const nodeFormVersion = ref(0)
 const completingNode = ref(false)
+const autoCompletedDevelopmentNodeKey = ref('')
+const rollingBack = ref(false)
+const rollbackModalOpen = ref(false)
+const rollbackReason = ref('')
 const selectedNodeId = ref<number>()
 const selectedNode = computed(() => detail.value?.nodes.find((node) => node.id === selectedNodeId.value))
-const selectedNodeEditable = computed(() => selectedNode.value != null && !isNodeReadOnly(selectedNode.value.status))
+const requirementTargetSpecification = computed<RequirementExecutionTargetType | undefined>(() => {
+  if (props.itemType !== 'requirement' || !detail.value || !selectedNode.value) return undefined
+  const orderedNodes = [...detail.value.nodes].sort((left, right) => left.sort - right.sort)
+  const currentIndex = orderedNodes.findIndex((node) => node.id === selectedNode.value?.id)
+  const previousNode = currentIndex > 0 ? orderedNodes[currentIndex - 1] : undefined
+  const components = previousNode?.fieldValues?.__components
+  const state = components && typeof components === 'object' && !Array.isArray(components)
+    ? (components as Record<string, unknown>)['requirement-node-workbench']
+    : undefined
+  const specification = state && typeof state === 'object' && !Array.isArray(state)
+    ? (state as Record<string, unknown>).requirementSpecification
+    : undefined
+  return specification === 'PROJECT' || specification === 'TOPIC' || specification === 'STORY' ? specification : undefined
+})
+const requirementReceivingCategory = computed<'FUNCTIONAL' | 'NON_FUNCTIONAL' | undefined>(() => {
+  if (props.itemType !== 'requirement' || !detail.value || !selectedNode.value) return undefined
+  const orderedNodes = [...detail.value.nodes].sort((left, right) => left.sort - right.sort)
+  const currentIndex = orderedNodes.findIndex((node) => node.id === selectedNode.value?.id)
+  for (let index = currentIndex - 1; index >= 0; index -= 1) {
+    const components = orderedNodes[index]?.fieldValues?.__components
+    const state = components && typeof components === 'object' && !Array.isArray(components)
+      ? (components as Record<string, unknown>)[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]
+      : undefined
+    const category = state && typeof state === 'object' && !Array.isArray(state)
+      ? (state as Record<string, unknown>).category
+      : undefined
+    if (category === 'FUNCTIONAL' || category === 'NON_FUNCTIONAL') return category
+  }
+  return undefined
+})
+const requirementDevelopmentTarget = computed<{ targetType: RequirementExecutionTargetType; targetId: number } | undefined>(() => {
+  if (props.itemType !== 'requirement' || !detail.value || !selectedNode.value) return undefined
+  const orderedNodes = [...detail.value.nodes].sort((left, right) => left.sort - right.sort)
+  const currentIndex = orderedNodes.findIndex((node) => node.id === selectedNode.value?.id)
+  for (let index = currentIndex - 1; index >= 0; index -= 1) {
+    const components = orderedNodes[index]?.fieldValues?.__components
+    const workbenchState = components && typeof components === 'object' && !Array.isArray(components)
+      ? (components as Record<string, unknown>)['requirement-node-workbench']
+      : undefined
+    if (!workbenchState || typeof workbenchState !== 'object' || Array.isArray(workbenchState)) continue
+    const state = workbenchState as Record<string, unknown>
+    const targetType = state.targetType
+    const targetId = Number(state.targetId)
+    if ((targetType === 'PROJECT' || targetType === 'TOPIC' || targetType === 'STORY') && Number.isFinite(targetId)) {
+      return { targetType, targetId }
+    }
+  }
+  return undefined
+})
+const selectedNodeEditable = computed(() => selectedNode.value != null
+  && !isNodeReadOnly(selectedNode.value.status) && !detail.value?.terminalStatus && !completingNode.value)
+const requirementTargetWritable = computed(() => props.itemType !== 'requirement' || userStore.can('requirement:write'))
+const requirementTargetManageable = computed(() => props.itemType !== 'requirement' || userStore.can('requirement:manage'))
 const activeNode = computed(() => detail.value?.nodes.find((node) => node.status === 1))
 const itemId = computed(() => Number(route.params.id))
-const pageTitle = computed(() => detail.value?.title || t(props.itemType === 'topic' ? 'developmentDetail.topicTitle' : 'developmentDetail.storyTitle'))
-const listPath = computed(() => props.itemType === 'topic' ? '/development/topics' : '/development/stories')
+const pageTitle = computed(() => detail.value?.title || t(props.itemType === 'topic'
+  ? 'developmentDetail.topicTitle'
+  : props.itemType === 'story' ? 'developmentDetail.storyTitle' : 'developmentDetail.requirementTitle'))
+const listPath = computed(() => props.itemType === 'topic'
+  ? '/development/topics'
+  : props.itemType === 'story' ? '/development/stories' : '/development/requirements')
 const progressPercent = computed(() => Math.max(0, Math.min(100, detail.value?.workflowProgress || 0)))
+const sourceRequirements = computed(() => {
+  const current = detail.value
+  if (!current) return []
+  if (current.sourceRequirements?.length) return current.sourceRequirements
+  return current.sourceRequirement ? [current.sourceRequirement] : []
+})
 const nodeForm = reactive({ ownerId: undefined as number | undefined, startDate: '', endDate: '', fieldValues: {} as Record<string, unknown> })
 const nodeFieldsContainer = ref<HTMLElement | null>(null)
 let nodeFormEditRevision = 0
@@ -57,6 +146,7 @@ function onScheduleChange(_dates: unknown, dateStrings: string[]) {
 
 function setSelectedNode(node?: DevelopmentItemWorkflowNode) {
   selectedNodeId.value = node?.id
+  nodeFormVersion.value = node?.version ?? 0
   nodeForm.ownerId = node?.ownerId
   nodeForm.startDate = node?.startDate || ''
   nodeForm.endDate = node?.endDate || ''
@@ -79,6 +169,7 @@ function collectDetailPeople(workflow: DevelopmentItemWorkflowDetail): PersonOpt
   add(workflow.ownerId, workflow.ownerName)
   workflow.nodes.forEach((node) => {
     add(node.ownerId, node.ownerName)
+    Object.entries(node.reviewerNames || {}).forEach(([id, label]) => add(Number(id), label))
     addTasks(node.tasks || [])
   })
   return Array.from(options.values())
@@ -106,7 +197,8 @@ function isNodeOverlayTarget(target: EventTarget | null): boolean {
 
 function onDocumentPointerDown(event: PointerEvent) {
   const target = event.target
-  const clickedInsideNodeFields = target instanceof Node && Boolean(nodeFieldsContainer.value?.contains(target))
+  const clickedInsideNodeFields = (target instanceof Node && Boolean(nodeFieldsContainer.value?.contains(target)))
+    || (target instanceof Element && Boolean(target.closest('.pms-workflow-node-shell')))
   const clickedInsideOverlay = isNodeOverlayTarget(target)
   if (shouldAutoSaveProfile(nodeFormDirty.value, clickedInsideNodeFields, clickedInsideOverlay)) {
     void saveNode()
@@ -122,7 +214,7 @@ function onNodeFieldsFocusOut() {
 
 async function onWorkflowNodeSelect(nodeId: number) {
   if (nodeId === selectedNodeId.value) return
-  if (!(await saveNode())) return
+  if (!(await saveAllNodeEdits())) return
   setSelectedNode(detail.value?.nodes.find((node) => node.id === nodeId))
 }
 
@@ -137,6 +229,7 @@ async function loadData() {
   loadError.value = false
   try {
     const result = await getDevelopmentItemWorkflow(props.itemType, id)
+    orgTree.value = props.itemType === 'requirement' ? await getProjectOrgTree().catch(() => []) : []
     detail.value = result
     setSelectedNode(result.nodes.find((node) => node.status === 1) || result.nodes[0])
     members.value = collectDetailPeople(result)
@@ -179,6 +272,18 @@ function openTopic() {
   if (detail.value?.topicId) void router.push(`/development/topics/${detail.value.topicId}`)
 }
 
+function openSourceRequirement(requirementId: number) {
+  if (requirementId > 0) void router.push(`/development/requirements/${requirementId}`)
+}
+
+function openRequirementTarget() {
+  const target = detail.value?.executionTarget
+  if (!target || target.navigationId == null) return
+  const id = target.navigationId
+  const type = target.navigationType || target.targetType.toLowerCase()
+  void router.push(type === 'project' ? `/projects/${id}` : type === 'topic' ? `/development/topics/${id}` : `/development/stories/${id}`)
+}
+
 function saveNode(): Promise<boolean> {
   if (activeNodeSave) {
     queuedNodeSave = true
@@ -191,12 +296,15 @@ function saveNode(): Promise<boolean> {
   const requestNodeId = node.id
   const requestItemType = props.itemType
   const editRevision = nodeFormEditRevision
+  const notifyOnSuccess = nodeForm.ownerId !== node.ownerId
+    || (nodeForm.startDate || '') !== (node.startDate || '')
+    || (nodeForm.endDate || '') !== (node.endDate || '')
   const payload = {
     ownerId: nodeForm.ownerId,
     startDate: nodeForm.startDate || undefined,
     endDate: nodeForm.endDate || undefined,
     fieldValues: { ...nodeForm.fieldValues },
-    version: node.version,
+    version: nodeFormVersion.value,
   }
   savingNode.value = true
   let request: Promise<boolean> = Promise.resolve(false)
@@ -206,12 +314,16 @@ function saveNode(): Promise<boolean> {
       if (detail.value?.id !== requestItemId || props.itemType !== requestItemType) return true
       detail.value = updated
       const savedNode = updated.nodes.find((item) => item.id === requestNodeId)
+      // Advance only after our own successful save, never from a task/detail refresh.
+      if (savedNode && selectedNodeId.value === requestNodeId) nodeFormVersion.value = savedNode.version
       if (savedNode && selectedNodeId.value === requestNodeId && nodeFormEditRevision === editRevision) {
         setSelectedNode(savedNode)
+      } else if (savedNode && selectedNodeId.value === requestNodeId && requestItemType === 'story') {
+        nodeForm.fieldValues = rebaseStoryWritingAcknowledgement(nodeForm.fieldValues, payload.fieldValues, updated)
       } else if (nodeFormEditRevision === editRevision) {
         nodeFormDirty.value = false
       }
-      message.success(t('developmentDetail.nodeSaved'))
+      if (notifyOnSuccess) message.success(t('developmentDetail.nodeSaved'))
       return true
     } catch (error) {
       message.error(errorMessage(error, t('developmentDetail.saveFailed')))
@@ -229,29 +341,102 @@ function saveNode(): Promise<boolean> {
   return request
 }
 
-function confirmCompleteNode() {
+async function saveAllNodeEdits(): Promise<boolean> {
+  while (activeNodeSave || nodeFormDirty.value) {
+    const pending = activeNodeSave || saveNode()
+    if (!(await pending)) return false
+  }
+  return true
+}
+
+async function completeSelectedNode() {
   const node = selectedNode.value
-  if (!detail.value || !node || node.status !== 1) return
-  Modal.confirm({
-    title: t('developmentDetail.completeNodeTitle'),
-    content: t('developmentDetail.completeNodeContent', { name: node.name }),
-    okText: t('developmentDetail.completeNodeAction'),
-    cancelText: t('common.cancel'),
-    onOk: async () => {
-      if (!(await saveNode())) return
-      completingNode.value = true
-      try {
-        detail.value = await completeDevelopmentItemNode(props.itemType, detail.value!.id, node.id)
-        const next = detail.value.nodes.find((item) => item.status === 1) || node
-        setSelectedNode(next)
-        message.success(t('developmentDetail.nodeCompleted'))
-      } catch (error) {
-        message.error(errorMessage(error, t('developmentDetail.completeFailed')))
-      } finally {
-        completingNode.value = false
-      }
-    },
-  })
+  if (!detail.value || !node || node.status !== 1 || completingNode.value) return
+  completingNode.value = true
+  try {
+    if (!(await saveAllNodeEdits())) return
+    if (selectedNode.value?.id !== node.id || selectedNode.value.status !== 1) return
+    detail.value = await completeDevelopmentItemNode(props.itemType, detail.value.id, node.id)
+    const next = detail.value.nodes.find((item) => item.status === 1) || node
+    setSelectedNode(next)
+    message.success(t('developmentDetail.nodeCompleted'))
+  } catch (error) {
+    message.error(errorMessage(error, t('developmentDetail.completeFailed')))
+  } finally {
+    completingNode.value = false
+  }
+}
+
+async function autoCompleteDevelopmentNode() {
+  const node = selectedNode.value
+  const currentDetail = detail.value
+  const target = requirementDevelopmentTarget.value
+  if (props.itemType !== 'requirement'
+    || !currentDetail
+    || !node
+    || node.status !== 1
+    || currentDetail.terminalStatus
+    || !String(node.name || '').includes('需求开发')
+    || !target
+    || !requirementTargetWritable.value
+    || completingNode.value) return
+
+  const completionKey = `${currentDetail.id}:${node.id}:${target.targetType}:${target.targetId}`
+  if (autoCompletedDevelopmentNodeKey.value === completionKey) return
+  if (!(await saveNode())) return
+  if (selectedNode.value?.id !== node.id || selectedNode.value.status !== 1) return
+
+  autoCompletedDevelopmentNodeKey.value = completionKey
+  completingNode.value = true
+  try {
+    detail.value = await completeDevelopmentItemNode(props.itemType, currentDetail.id, node.id)
+    const next = detail.value.nodes.find((item) => item.status === 1) || node
+    setSelectedNode(next)
+    message.success(t('developmentDetail.nodeCompleted'))
+  } catch (error) {
+    autoCompletedDevelopmentNodeKey.value = ''
+    message.error(errorMessage(error, t('developmentDetail.completeFailed')))
+  } finally {
+    completingNode.value = false
+  }
+}
+
+function confirmRollbackNode() {
+  const node = selectedNode.value
+  if (!detail.value || !node || node.status !== 2) return
+  rollbackReason.value = ''
+  rollbackModalOpen.value = true
+}
+
+function closeRollbackModal() {
+  if (rollingBack.value) return
+  rollbackModalOpen.value = false
+  rollbackReason.value = ''
+}
+
+async function submitRollbackNode() {
+  const reason = rollbackReason.value.trim()
+  if (!reason) {
+    message.warning(t('developmentDetail.rollbackReasonRequired'))
+    return
+  }
+  const node = selectedNode.value
+  if (!detail.value || !node || node.status !== 2) return
+  rollingBack.value = true
+  try {
+    detail.value = await rollbackDevelopmentItemNode(props.itemType, detail.value.id, node.id, reason)
+    const target = detail.value.nodes.find((item) => item.id === node.id)
+      || detail.value.nodes.find((item) => item.status === 1)
+      || detail.value.nodes[0]
+    setSelectedNode(target)
+    rollbackModalOpen.value = false
+    rollbackReason.value = ''
+    message.success(t('developmentDetail.nodeRolledBack'))
+  } catch (error) {
+    message.error(errorMessage(error, t('developmentDetail.rollbackFailed')))
+  } finally {
+    rollingBack.value = false
+  }
 }
 
 function onDetailUpdated(next: DevelopmentItemWorkflowDetail) {
@@ -263,6 +448,50 @@ function onDetailUpdated(next: DevelopmentItemWorkflowDetail) {
       || next.nodes[0])
   }
 }
+
+function onReceivingAnalysisUpdated() {
+  void loadData()
+}
+
+const receivingAnalysisState = computed(() => {
+  const values = selectedNode.value?.fieldValues as { __components?: Record<string, unknown> } | undefined
+  return values?.__components?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS] as RequirementReceivingAnalysisState | undefined
+})
+
+const receivingAnalysisConfig = computed<RequirementReceivingAnalysisConfig>(() => {
+  const configured = selectedNode.value?.componentConfigs?.[WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS]
+  if (configured && typeof configured === 'object' && !Array.isArray(configured)) {
+    return {
+      showFilter: false,
+      showAnalysis: true,
+      showDecision: true,
+      requireCategory: true,
+      showFeasibilityScore: false,
+      requireFeasibilityScore: false,
+      showRoiScore: false,
+      requireRoiScore: false,
+      showStrategicFitScore: true,
+      requireStrategicFitScore: true,
+      requireAnalysisConclusion: false,
+      allowReject: true,
+      ...(configured as Partial<RequirementReceivingAnalysisConfig>),
+    }
+  }
+  return {
+    showFilter: false,
+    showAnalysis: true,
+    showDecision: true,
+    requireCategory: true,
+    showFeasibilityScore: false,
+    requireFeasibilityScore: false,
+    showRoiScore: false,
+    requireRoiScore: false,
+    showStrategicFitScore: true,
+    requireStrategicFitScore: true,
+    requireAnalysisConclusion: false,
+    allowReject: true,
+  }
+})
 
 watch(() => [props.itemType, route.params.id], () => { void loadData() }, { immediate: true })
 
@@ -305,7 +534,12 @@ onBeforeUnmount(() => {
                 <span>{{ t('developmentDetail.owner') }}：</span><strong>{{ detail.ownerName || t('common.unset') }}</strong>
               </div>
               <div class="project-header__meta-item project-header__meta-item--wide">
-                <template v-if="detail.projectId != null && detail.sourceNodeId != null">
+                <template v-if="props.itemType === 'requirement' && detail.executionTarget">
+                  <span>{{ t('developmentDetail.requirementExecution.targetLabel') }}：</span>
+                  <button v-if="detail.executionTarget.navigationId != null" type="button" class="development-item-detail__context-link" @click="openRequirementTarget">{{ detail.executionTarget.title || t('common.unset') }}</button>
+                  <span v-else class="development-item-detail__context-unbound">{{ detail.executionTarget.title || t('common.unset') }}</span>
+                </template>
+                <template v-else-if="detail.projectId != null && detail.sourceNodeId != null">
                   <FolderOpenOutlined />
                   <button type="button" class="development-item-detail__context-link" @click="openSource">{{ detail.projectName || t('common.unset') }}</button>
                   <span class="development-item-detail__context-separator">/</span>
@@ -316,6 +550,9 @@ onBeforeUnmount(() => {
                   <span class="development-item-detail__context-separator">/</span>
                   <button type="button" class="development-item-detail__context-link" @click="openTopic">{{ detail.topicTitle || t('developmentDetail.topicTitle') }}</button>
                 </template>
+              </div>
+              <div v-if="props.itemType !== 'requirement' && sourceRequirements.length" class="project-header__meta-item project-header__meta-item--wide">
+                <SourceRequirementList :items="sourceRequirements" @open="openSourceRequirement" />
               </div>
             </div>
 
@@ -366,16 +603,22 @@ onBeforeUnmount(() => {
                       <a-tag :color="selectedNode.status === 2 ? 'green' : selectedNode.status === 1 ? 'blue' : 'default'">{{ t(`developmentDetail.nodeStatus.${selectedNode.status === 2 ? 'completed' : selectedNode.status === 1 ? 'active' : 'locked'}`) }}</a-tag>
                     </div>
                     <p v-if="selectedNode.description" class="node-detail-title__description">{{ selectedNode.description }}</p>
-                    <p v-if="selectedNode.deliverable" class="development-item-detail__deliverable"><InfoCircleOutlined />{{ t('developmentDetail.deliverable') }}：{{ selectedNode.deliverable }}</p>
+                    <p v-if="selectedNode.deliverable && !(props.itemType === 'topic' && selectedNode.runtimeComponents?.some(key => key === WorkflowRuntimeComponentKey.TOPIC_RESEARCH || key === WorkflowRuntimeComponentKey.TOPIC_DESIGN_REVIEW))" class="development-item-detail__deliverable"><InfoCircleOutlined />{{ t('developmentDetail.deliverable') }}：{{ selectedNode.deliverable }}</p>
                   </div>
                 </div>
                 <div class="node-detail-actions">
                   <a-button
-                    v-if="selectedNode.status === 1"
+                    v-if="selectedNode.status === 2"
+                    class="pms-project-button pms-project-button--secondary"
+                    :loading="rollingBack"
+                    @click="confirmRollbackNode"
+                  ><RollbackOutlined />{{ t('developmentDetail.rollbackNodeAction') }}</a-button>
+                  <a-button
+                    v-else-if="selectedNode.status === 1 && !detail.terminalStatus"
                     type="primary"
                     class="pms-primary-button pms-project-button pms-project-button--primary"
                     :loading="completingNode"
-                    @click="confirmCompleteNode"
+                    @click="completeSelectedNode"
                   >{{ t('developmentDetail.completeNodeAction') }}</a-button>
                 </div>
               </div>
@@ -387,17 +630,15 @@ onBeforeUnmount(() => {
                 <span class="node-owner-row__label">{{ t('developmentDetail.nodeOwner') }}</span>
                 <div class="node-owner-row__control">
                   <PersonSelect
-                    v-if="selectedNodeEditable"
                     v-model="nodeForm.ownerId"
                     class="node-owner-row__select"
                     :options="members"
                     :remote-search="true"
                     allow-clear
                     :placeholder="t('developmentDetail.assigneePlaceholder')"
-                    :disabled="savingNode"
+                    :disabled="!selectedNodeEditable || savingNode"
                     @change="onNodeOwnerChange"
                   />
-                  <strong v-else>{{ selectedNode.ownerName || t('common.unset') }}</strong>
                 </div>
               </div>
 
@@ -405,26 +646,29 @@ onBeforeUnmount(() => {
                 <span class="node-owner-row__label">{{ t('developmentDetail.nodeSchedule') }}</span>
                 <div class="node-owner-row__control">
                   <a-range-picker
-                    v-if="selectedNodeEditable"
                     :value="[nodeForm.startDate || null, nodeForm.endDate || null]"
                     value-format="YYYY-MM-DD"
                     class="node-schedule-picker"
                     :placeholder="[t('developmentDetail.startDate'), t('developmentDetail.endDate')]"
-                    :disabled="savingNode"
+                    :disabled="!selectedNodeEditable || savingNode"
                     @change="onScheduleChange"
                   />
-                  <strong v-else>{{ nodeForm.startDate || '—' }} → {{ nodeForm.endDate || '—' }}</strong>
                 </div>
               </div>
               </div>
             </template>
 
             <template #fields>
-              <div v-if="selectedNode.fields?.length" ref="nodeFieldsContainer" @focusout.capture="onNodeFieldsFocusOut">
+              <div v-if="selectedNode.fields?.length" ref="nodeFieldsContainer"
+                class="development-workbench-surface"
+                :class="{ 'development-workbench-surface--filled': areWorkflowFieldsFilled(selectedNode.fields, selectedNode.fieldValues, selectedNode.boundFieldValues || {}, nodeFormDirty || savingNode) }"
+                @focusout.capture="onNodeFieldsFocusOut">
                 <DevelopmentItemWorkflowFields
                   :model-value="nodeForm.fieldValues"
                   :fields="selectedNode.fields"
+                  :bound-values="selectedNode.boundFieldValues || {}"
                   :person-options="members"
+                  :business-line-options="businessLineOptions"
                   :disabled="!selectedNodeEditable || savingNode"
                   @update:model-value="onNodeFieldValuesChange"
                 />
@@ -432,12 +676,16 @@ onBeforeUnmount(() => {
             </template>
 
             <template #components>
-              <template v-for="componentKey in selectedNode.runtimeComponents || []" :key="componentKey">
+              <div v-for="componentKey in selectedNode.runtimeComponents || []" :key="componentKey"
+                class="development-workbench-surface"
+                :class="{ 'development-workbench-surface--filled': isWorkbenchFilled(componentKey, selectedNode, detail, nodeFormDirty || savingNode) }">
                 <WorkflowRuntimeComponentHost
                   v-if="props.itemType === 'topic' && componentKey === WorkflowRuntimeComponentKey.STORY_LIST"
                   :component-key="componentKey"
                 >
-                  <DevelopmentStoryListComponent :topic-id="detail.id" :node-id="selectedNode.id" :can-edit="selectedNodeEditable" />
+                  <DevelopmentStoryListComponent :topic-id="detail.id" :node-id="selectedNode.id" :can-edit="selectedNodeEditable"
+                    :testing-results-enabled="isTestingResultsEnabled(selectedNode.componentConfigs?.[componentKey])" :model-value="nodeForm.fieldValues"
+                    @update:model-value="onNodeFieldValuesChange" @commit="saveNode" />
                 </WorkflowRuntimeComponentHost>
                 <WorkflowRuntimeComponentHost
                   v-else-if="props.itemType === 'topic' && componentKey === WorkflowRuntimeComponentKey.STORY_SPLIT"
@@ -445,8 +693,111 @@ onBeforeUnmount(() => {
                 >
                   <DevelopmentStorySplitComponent :topic-id="detail.id" :node-id="selectedNode.id" :can-edit="selectedNodeEditable" />
                 </WorkflowRuntimeComponentHost>
+                <WorkflowRuntimeComponentHost
+                  v-else-if="props.itemType === 'requirement' && componentKey === WorkflowRuntimeComponentKey.REQUIREMENT_EXECUTION"
+                  :component-key="componentKey"
+                >
+                  <RequirementDevelopmentTreeComponent
+                    v-if="String(selectedNode.name || '').includes('需求开发')"
+                    :target-type="requirementDevelopmentTarget?.targetType"
+                    :target-id="requirementDevelopmentTarget?.targetId"
+                    @all-completed="autoCompleteDevelopmentNode"
+                  />
+                  <RequirementExecutionComponent
+                    v-else
+                    :item-id="detail.id"
+                    :target="detail.executionTarget"
+                    :target-history="detail.executionTargetHistory"
+                    :requirement-version="detail.version"
+                    :can-write="selectedNodeEditable && requirementTargetWritable"
+                    :can-manage="selectedNodeEditable && requirementTargetManageable"
+                    @updated="onDetailUpdated"
+                  />
+                </WorkflowRuntimeComponentHost>
+                <WorkflowRuntimeComponentHost
+                  v-else-if="props.itemType === 'requirement' && componentKey === WorkflowRuntimeComponentKey.REQUIREMENT_RECEIVING_ANALYSIS"
+                  :component-key="componentKey"
+                >
+                  <RequirementReceivingAnalysisComponent
+                    :requirement-id="detail.id"
+                    :node-id="selectedNode.id"
+                    :node-version="selectedNode.version"
+                    :node-status="selectedNode.status"
+                    :state="receivingAnalysisState"
+                    :config="receivingAnalysisConfig"
+                    :terminal-status="detail.terminalStatus"
+                    :can-write="requirementTargetWritable && selectedNode.status !== 2"
+                    :can-manage="requirementTargetManageable"
+                    @updated="onReceivingAnalysisUpdated"
+                  />
+                </WorkflowRuntimeComponentHost>
+                <WorkflowRuntimeComponentHost
+                  v-else-if="props.itemType === 'topic' && componentKey === WorkflowRuntimeComponentKey.TOPIC_DESIGN_REVIEW"
+                  :component-key="componentKey"
+                >
+                  <TopicDesignReviewWorkbench :key="selectedNode.id" :model-value="nodeForm.fieldValues" :disabled="!selectedNodeEditable" :person-options="members"
+                    @update:model-value="onNodeFieldValuesChange" @commit="saveNode" />
+                </WorkflowRuntimeComponentHost>
+                <WorkflowRuntimeComponentHost
+                  v-else-if="props.itemType === 'topic' && componentKey === WorkflowRuntimeComponentKey.TOPIC_RESEARCH"
+                  :component-key="componentKey"
+                >
+                  <TopicResearchWorkbench :key="selectedNode.id" :model-value="nodeForm.fieldValues" :disabled="!selectedNodeEditable"
+                    @update:model-value="onNodeFieldValuesChange" @commit="saveNode" />
+                </WorkflowRuntimeComponentHost>
+                <WorkflowRuntimeComponentHost
+                  v-else-if="props.itemType === 'requirement' && componentKey === WorkflowRuntimeComponentKey.REQUIREMENT_NODE_WORKBENCH"
+                  :component-key="componentKey"
+                >
+                  <RequirementDevelopmentTreeComponent
+                    v-if="String(selectedNode.name || '').includes('需求开发')"
+                    :target-type="requirementDevelopmentTarget?.targetType"
+                    :target-id="requirementDevelopmentTarget?.targetId"
+                    @all-completed="autoCompleteDevelopmentNode"
+                  />
+                  <RequirementNodeWorkbenchComponent
+                    v-else
+                    :node="selectedNode"
+                    :component-config="selectedNode.componentConfigs?.[componentKey]"
+                    :model-value="nodeForm.fieldValues"
+                    :current-requirement-id="detail.id"
+                    :target-specification="requirementTargetSpecification"
+                    :receiving-category="requirementReceivingCategory"
+                    :disabled="!selectedNodeEditable || savingNode"
+                    @update:model-value="onNodeFieldValuesChange"
+                    @commit="saveNode"
+                  />
+                </WorkflowRuntimeComponentHost>
+                <WorkflowRuntimeComponentHost
+                  v-else-if="props.itemType === 'story' && componentKey === WorkflowRuntimeComponentKey.STORY_NODE_WORKBENCH"
+                  :component-key="componentKey"
+                >
+                  <StoryNodeWorkbenchComponent
+                    :key="selectedNode.id"
+                    :story="detail"
+                    :node="selectedNode"
+                    :component-config="selectedNode.componentConfigs?.[componentKey]"
+                    :model-value="nodeForm.fieldValues"
+                    :disabled="!selectedNodeEditable"
+                    @update:model-value="onNodeFieldValuesChange"
+                    @commit="saveNode"
+                  />
+                </WorkflowRuntimeComponentHost>
+                <WorkflowRuntimeComponentHost
+                  v-else-if="props.itemType === 'story' && componentKey === WorkflowRuntimeComponentKey.STORY_TESTING"
+                  :component-key="componentKey"
+                >
+                  <StoryTestingResultsWorkbench
+                    :key="selectedNode.id"
+                    :story="detail"
+                    :model-value="nodeForm.fieldValues"
+                    :disabled="!selectedNodeEditable"
+                    @update:model-value="onNodeFieldValuesChange"
+                    @commit="saveNode"
+                  />
+                </WorkflowRuntimeComponentHost>
                 <WorkflowRuntimeComponentHost v-else :component-key="componentKey" />
-              </template>
+              </div>
             </template>
 
             <template #tasks>
@@ -455,6 +806,31 @@ onBeforeUnmount(() => {
               </div>
             </template>
           </WorkflowNodeShell>
+
+          <a-modal
+            v-model:open="rollbackModalOpen"
+            class="pms-project-modal"
+            :title="t('developmentDetail.rollbackNodeTitle')"
+            :ok-text="t('developmentDetail.rollbackNodeAction')"
+            :confirm-loading="rollingBack"
+            :mask-closable="!rollingBack"
+            :closable="!rollingBack"
+            @ok="submitRollbackNode"
+            @cancel="closeRollbackModal"
+          >
+            <p class="rollback-modal__description">{{ t('developmentDetail.rollbackNodeContent') }}</p>
+            <div class="rollback-modal__field">
+              <div class="rollback-modal__label"><span>*</span> {{ t('developmentDetail.rollbackReasonLabel') }}</div>
+              <a-textarea
+                v-model:value="rollbackReason"
+                :rows="4"
+                :maxlength="200"
+                show-count
+                :disabled="rollingBack"
+                :placeholder="t('developmentDetail.rollbackReasonPlaceholder')"
+              />
+            </div>
+          </a-modal>
 
           <section v-if="props.itemType === 'story' && (detail.blocker || detail.iterationPlanName || detail.storyPoints || detail.latestBuildVersion || detail.testStatus)" class="management-card pms-detail-panel pms-section-panel card-surface">
             <div class="section-title-row pms-section-heading"><h2>{{ t('developmentDetail.developmentInfo') }}</h2></div>
@@ -471,6 +847,20 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.development-workbench-surface { min-width: 0; }
+.development-workbench-surface--filled :deep(.pms-runtime-component),
+.development-workbench-surface--filled :deep(.development-item-fields),
+.development-workbench-surface--filled :deep(.topic-research__card),
+.development-workbench-surface--filled :deep(.topic-design-review__card),
+.development-workbench-surface--filled :deep(.topic-testing-results__card),
+.development-workbench-surface--filled :deep(.story-node-workbench__fields),
+.development-workbench-surface--filled :deep(.requirement-node-workbench__clarification),
+.development-workbench-surface--filled :deep(.requirement-node-workbench__integration),
+.development-workbench-surface--filled :deep(.requirement-node-workbench__scheduling),
+.development-workbench-surface--filled :deep(.requirement-node-workbench__acceptance-card) {
+  background: var(--pms-workbench-filled-bg);
+  border-color: var(--pms-workbench-filled-border);
+}
 .development-item-detail { min-width: 0; }
 .development-item-detail__summary { padding: 24px 26px 19px; border-radius: var(--pms-detail-radius); box-shadow: var(--pms-detail-shadow); }
 .project-header__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
@@ -498,9 +888,10 @@ onBeforeUnmount(() => {
 .detail-breadcrumb__back { padding: 0; color: var(--pms-text-muted); font: inherit; background: none; border: 0; cursor: pointer; }
 .detail-breadcrumb__back:hover { color: var(--pms-primary); }
 .detail-breadcrumb__separator { color: var(--pms-text-faint); }
-.node-detail-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.node-detail-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; }
 .node-detail-title { display: flex; align-items: center; flex: 1 1 auto; gap: 12px; min-width: 0; }
 .node-detail-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
+.node-detail-actions .ant-btn { margin-left: auto; }
 .node-detail-title__copy { flex: 1 1 auto; min-width: 0; }
 .node-detail-title__heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .node-detail-title h2 { margin: 0; color: var(--pms-text); font-size: 17px; font-weight: 600; line-height: var(--pms-line-height-tight); }
@@ -523,6 +914,10 @@ onBeforeUnmount(() => {
 .development-item-detail__info-grid > div { display: grid; gap: 3px; }
 .development-item-detail__info-grid span { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
 .development-item-detail__info-grid strong { color: var(--pms-text); }
+.rollback-modal__description { margin-bottom: 16px; color: var(--pms-text-muted); }
+.rollback-modal__field { display: grid; gap: 7px; }
+.rollback-modal__label { color: var(--pms-text); font-weight: 600; }
+.rollback-modal__label span { color: var(--pms-danger); }
 @media (min-width: 1100px) { .development-item-detail__summary { margin-inline: -7px; } }
 @media (max-width: 900px) { .project-header__meta,.project-header__insights { align-items: flex-start; flex-wrap: wrap; } .project-header__meta-item--wide { flex: 1 1 100%; } .project-header__meta-item--divider { padding-right: 0; border-right: 0; } }
 @media (max-width: 640px) {

@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { BellOutlined, BookOutlined, CloudUploadOutlined, DashboardOutlined, DownOutlined, ExperimentOutlined, FileTextOutlined, FolderOpenOutlined, LineChartOutlined, LogoutOutlined, MenuOutlined, ProjectOutlined, SearchOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, MessageOutlined, NodeIndexOutlined } from '@ant-design/icons-vue'
+import { BellOutlined, BookOutlined, CalendarOutlined, CloudUploadOutlined, DashboardOutlined, DownOutlined, ExperimentOutlined, FileSearchOutlined, FileTextOutlined, FolderOpenOutlined, LineChartOutlined, LogoutOutlined, MenuOutlined, ProjectOutlined, SearchOutlined, SettingOutlined, TeamOutlined, ApartmentOutlined, SafetyCertificateOutlined, AuditOutlined, MessageOutlined, NodeIndexOutlined, TagsOutlined } from '@ant-design/icons-vue'
 import { useUserStore } from '/@/store/user'
 import LocaleSwitch from '/@/components/LocaleSwitch.vue'
 import { message } from 'ant-design-vue'
@@ -67,6 +67,9 @@ const selectedKeys = computed(() => {
   if (route.path.startsWith('/projects/dashboard')) return ['enterprise-project-board']
   if (route.path.startsWith('/development/topics')) return ['development-topics']
   if (route.path.startsWith('/development/stories')) return ['development-stories']
+  if (route.path.startsWith('/development/requirements')) return ['development-requirements']
+  if (route.path.startsWith('/development/iterations')) return ['development-iterations']
+  if (route.path.startsWith('/development/system-versions')) return ['development-system-versions']
   if (route.path.startsWith('/projects')) return ['projects']
   if (route.path.startsWith('/admin/users')) return ['admin-users']
   if (route.path.startsWith('/admin/org')) return ['admin-org']
@@ -88,6 +91,9 @@ const menuRoutes: Record<string, string> = {
   'enterprise-project-board': '/projects/dashboard',
   'development-topics': '/development/topics',
   'development-stories': '/development/stories',
+  'development-requirements': '/development/requirements',
+  'development-iterations': '/development/iterations',
+  'development-system-versions': '/development/system-versions',
   projects: '/projects',
   feedback: '/feedback',
   'admin-users': '/admin/users',
@@ -411,10 +417,13 @@ onBeforeUnmount(() => {
               </div>
             </div>
             <div class="pms-nav-group pms-nav-group--projects">
-              <button class="pms-nav-section-label" :class="{ 'pms-nav-section-label--active': selectedKeys.some(key => ['projects', 'development-topics', 'development-stories'].includes(key)) }" type="button" aria-controls="pms-project-subnav" :aria-expanded="projectNavOpen" @click.stop="projectNavOpen = !projectNavOpen">
+              <button class="pms-nav-section-label" :class="{ 'pms-nav-section-label--active': selectedKeys.some(key => ['projects', 'development-topics', 'development-stories', 'development-requirements', 'development-iterations', 'development-system-versions'].includes(key)) }" type="button" aria-controls="pms-project-subnav" :aria-expanded="projectNavOpen" @click.stop="projectNavOpen = !projectNavOpen">
                 <ExperimentOutlined /><span>{{ $t('nav.rdManagement') }}</span><DownOutlined class="pms-nav-section-label__arrow" :class="{ 'pms-nav-section-label__arrow--collapsed': !projectNavOpen }" />
               </button>
               <div v-if="projectNavOpen" id="pms-project-subnav" class="pms-nav-subnav">
+                <button v-if="can('requirement:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('development-requirements') }" :aria-current="selectedKeys.includes('development-requirements') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'development-requirements' })">
+                  <FileSearchOutlined /><span>{{ $t('nav.requirements') }}</span>
+                </button>
                 <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('projects') }" :aria-current="selectedKeys.includes('projects') ? 'page' : undefined" type="button" :aria-label="$t('nav.projectsTab')" @click.stop="handleMenuClick({ key: 'projects' })">
                   <ProjectOutlined /><span>{{ $t('nav.projects') }}</span>
                 </button>
@@ -423,6 +432,12 @@ onBeforeUnmount(() => {
                 </button>
                 <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('development-stories') }" :aria-current="selectedKeys.includes('development-stories') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'development-stories' })">
                   <FileTextOutlined /><span>{{ $t('nav.stories') }}</span>
+                </button>
+                <button class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('development-iterations') }" :aria-current="selectedKeys.includes('development-iterations') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'development-iterations' })">
+                  <CalendarOutlined /><span>{{ $t('nav.iterationPlans') }}</span>
+                </button>
+                <button v-if="can('system-version:read')" class="pms-nav-link" :class="{ 'pms-nav-link--active': selectedKeys.includes('development-system-versions') }" :aria-current="selectedKeys.includes('development-system-versions') ? 'page' : undefined" type="button" @click.stop="handleMenuClick({ key: 'development-system-versions' })">
+                  <TagsOutlined /><span>{{ $t('nav.systemVersions') }}</span>
                 </button>
               </div>
             </div>
