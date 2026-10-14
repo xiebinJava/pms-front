@@ -43,8 +43,63 @@ export interface SystemVersionHistory {
   [key: string]: unknown
 }
 
+export interface SystemVersionRelatedIteration {
+  id: number
+  name: string
+  status?: string
+  startDate?: string | null
+  dueDate?: string | null
+}
+
+export interface SystemVersionRelatedStory {
+  id: number
+  title: string
+  projectId?: number | null
+  topicId?: number | null
+  status?: string
+  ownerId?: number | null
+  ownerName?: string
+  progress?: number
+  startDate?: string | null
+  dueDate?: string | null
+  sourceIterations?: SystemVersionRelatedIteration[]
+}
+
+export interface SystemVersionRelatedTopic {
+  id: number
+  title: string
+  projectId?: number | null
+  status?: string
+  ownerId?: number | null
+  ownerName?: string
+  progress?: number
+  storyCount?: number
+  stories?: SystemVersionRelatedStory[]
+}
+
+export interface SystemVersionRelatedProject {
+  id: number
+  code?: string
+  name: string
+  status?: number
+  ownerId?: number | null
+  ownerName?: string
+  progress?: number
+  startDate?: string | null
+  endDate?: string | null
+  topics?: SystemVersionRelatedTopic[]
+  stories?: SystemVersionRelatedStory[]
+}
+
+export interface SystemVersionRelatedItems {
+  projects?: SystemVersionRelatedProject[]
+  unboundTopics?: SystemVersionRelatedTopic[]
+  unboundStories?: SystemVersionRelatedStory[]
+}
+
 export interface SystemVersionDetail extends SystemVersionRow {
   history?: SystemVersionHistory[]
+  relatedItems?: SystemVersionRelatedItems
 }
 
 export interface SystemPageParams {

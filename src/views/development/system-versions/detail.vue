@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeftOutlined, CalendarOutlined, UserOutlined } from '@ant-design/icons-vue'
+import { ArrowLeftOutlined, CalendarOutlined, FileTextOutlined, FolderOpenOutlined, UserOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import PmsPageHeader from '/@/components/PmsPageHeader.vue'
 import {
@@ -11,6 +11,9 @@ import {
   updateSystemVersionStatus,
   type SystemVersionDetail,
   type SystemVersionHistory,
+  type SystemVersionRelatedIteration,
+  type SystemVersionRelatedProject,
+  type SystemVersionRelatedStory,
   type SystemVersionStatus,
 } from '/@/api/system-version'
 import { systemVersionNextStatuses, systemVersionStatusColor, systemVersionStatusLabelKey } from '/@/enums/system-version'
@@ -29,6 +32,7 @@ const statusOpen = ref(false)
 const statusSaving = ref(false)
 const statusTarget = ref<SystemVersionStatus | null>(null)
 const statusForm = reactive({ reason: '' })
+const relatedItemsView = ref<'topic' | 'iteration'>('topic')
 
 const canManage = computed(() => userStore.can('system-version:manage'))
 const nextStatusOptions = computed(() => {
@@ -48,6 +52,93 @@ function errorText(error: unknown, fallback: string) {
 
 function statusLabel(status?: string) {
   return t(systemVersionStatusLabelKey(status))
+}
+
+const relatedItemsCount = computed(() => {
+  const related = detail.value?.relatedItems
+  const projects = related?.projects || []
+  return projects.length
+    + projects.reduce((total, project) => total
+      + (project.topics || []).reduce((topicTotal, topic) => topicTotal + 1 + (topic.stories?.length || 0), 0)
+      + (project.stories?.length || 0), 0)
+    + (related?.unboundTopics?.length || 0)
+    + (related?.unboundStories?.length || 0)
+    + (related?.unboundTopics || []).reduce((total, topic) => total + (topic.stories?.length || 0), 0)
+})
+
+function relatedStatusKey(status?: string | number) {
+  if (typeof status === 'number') {
+    return ({ 1: 'ACTIVE', 2: 'COMPLETED', 3: 'TERMINATED', 4: 'DELETED' } as Record<number, string>)[status] || String(status)
+  }
+  return status || ''
+}
+
+function relatedStatusLabel(status?: string | number) {
+  const normalized = relatedStatusKey(status)
+  if (!normalized) return t('common.unset')
+  const key = `systemVersionView.detailView.relatedStatuses.${normalized}`
+  const translated = t(key)
+  return translated === key ? normalized : translated
+}
+
+function relatedStatusColor(status?: string | number) {
+  const normalized = relatedStatusKey(status)
+  if (normalized === 'DONE' || normalized === 'COMPLETED') return 'green'
+  if (normalized === 'IN_PROGRESS' || normalized === 'ACTIVE' || normalized === 'TESTING') return 'blue'
+  if (normalized === 'BLOCKED' || normalized === 'TERMINATED' || normalized === 'DELETED') return 'red'
+  return 'default'
+}
+
+function openRelatedItem(type: 'project' | 'topic' | 'story', id?: number) {
+  if (!id) return
+  const paths = { project: '/projects', topic: '/development/topics', story: '/development/stories' }
+  void router.push(`${paths[type]}/${id}`)
+}
+
+function iterationRange(startDate?: string | null, dueDate?: string | null) {
+  const start = formatDate(startDate)
+  const end = formatDate(dueDate)
+  if (start === '—' && end === '—') return ''
+  return `${start} → ${end}`
+}
+
+type StoryIterationGroup = {
+  key: string
+  iteration: SystemVersionRelatedIteration | null
+  stories: SystemVersionRelatedStory[]
+}
+
+function groupStoriesByIteration(stories: SystemVersionRelatedStory[] = []): StoryIterationGroup[] {
+  const groups = new Map<string, StoryIterationGroup>()
+  stories.forEach((story) => {
+    const iteration = story.sourceIterations?.[0] || null
+    const key = iteration?.id != null ? `iteration-${iteration.id}` : 'iteration-unassigned'
+    const group = groups.get(key) || { key, iteration, stories: [] }
+    group.stories.push(story)
+    groups.set(key, group)
+  })
+  return Array.from(groups.values())
+}
+
+function projectStories(project: SystemVersionRelatedProject): SystemVersionRelatedStory[] {
+  const stories = [
+    ...(project.stories || []),
+    ...(project.topics || []).flatMap((topic) => topic.stories || []),
+  ]
+  return Array.from(new Map(stories.map((story) => [story.id, story])).values())
+}
+
+function unboundStories(): SystemVersionRelatedStory[] {
+  const related = detail.value?.relatedItems
+  const stories = [
+    ...(related?.unboundStories || []),
+    ...(related?.unboundTopics || []).flatMap((topic) => topic.stories || []),
+  ]
+  return Array.from(new Map(stories.map((story) => [story.id, story])).values())
+}
+
+function storyTopicLabel(story: SystemVersionRelatedStory, topics: { id: number; title: string }[] = []) {
+  return topics.find((topic) => topic.id === story.topicId)?.title || t('systemVersionView.detailView.unboundTopic')
 }
 
 function historyAction(item: SystemVersionHistory) {
@@ -136,8 +227,13 @@ watch(() => route.params.id, () => { void loadData() })
     </div>
 
     <PmsPageHeader :eyebrow="t('systemVersionView.eyebrow')" :title="detail.versionNo" :description="detail.versionName">
+      <template #title>
+        <span class="system-version-detail-page__title-row">
+          <span>{{ detail.versionNo }}</span>
+          <a-tag class="system-version-detail-page__header-status" :color="systemVersionStatusColor(detail.status)">{{ statusLabel(detail.status) }}</a-tag>
+        </span>
+      </template>
       <template #actions>
-        <a-tag :color="systemVersionStatusColor(detail.status)">{{ statusLabel(detail.status) }}</a-tag>
         <a-select
            v-if="canManage && nextStatusOptions.length"
           :value="undefined"
@@ -171,7 +267,174 @@ watch(() => route.params.id, () => { void loadData() })
       <div class="system-version-detail-page__date-grid">
         <div><span>{{ t('systemVersionView.detailView.plannedReleaseDate') }}</span><strong><CalendarOutlined /> {{ formatDate(detail.plannedReleaseDate) }}</strong></div>
         <div><span>{{ t('systemVersionView.detailView.releasedAt') }}</span><strong><CalendarOutlined /> {{ formatDateTime(detail.releasedAt) }}</strong></div>
-        <div><span>{{ t('systemVersionView.detailView.status') }}</span><a-tag :color="systemVersionStatusColor(detail.status)">{{ statusLabel(detail.status) }}</a-tag></div>
+        <div><span>{{ t('systemVersionView.detailView.status') }}</span><a-tag class="system-version-detail-page__summary-status" :color="systemVersionStatusColor(detail.status)">{{ statusLabel(detail.status) }}</a-tag></div>
+      </div>
+    </section>
+
+    <section class="system-version-detail-page__section pms-detail-panel pms-section-panel card-surface system-version-detail-page__related-items">
+      <div class="pms-section-heading">
+        <div>
+          <h2>{{ t('systemVersionView.detailView.relatedItems') }}</h2>
+          <p class="pms-section-heading__hint">{{ t('systemVersionView.detailView.relatedItemsHint') }}</p>
+        </div>
+        <div class="system-version-detail-page__related-heading-actions">
+          <span class="system-version-detail-page__related-count">{{ relatedItemsCount }} {{ t('systemVersionView.detailView.relatedItemCount') }}</span>
+          <div v-if="relatedItemsCount > 0" class="system-version-detail-page__related-view-switch" role="tablist" :aria-label="t('systemVersionView.detailView.relatedViewLabel')">
+            <button type="button" role="tab" :aria-selected="relatedItemsView === 'topic'" :class="{ 'is-active': relatedItemsView === 'topic' }" @click="relatedItemsView = 'topic'">{{ t('systemVersionView.detailView.relatedViewByTopic') }}</button>
+            <button type="button" role="tab" :aria-selected="relatedItemsView === 'iteration'" :class="{ 'is-active': relatedItemsView === 'iteration' }" @click="relatedItemsView = 'iteration'">{{ t('systemVersionView.detailView.relatedViewByIteration') }}</button>
+          </div>
+        </div>
+      </div>
+      <p v-if="relatedItemsCount === 0" class="system-version-detail-page__empty-copy">{{ t('systemVersionView.detailView.noRelatedItems') }}</p>
+      <div v-if="relatedItemsView === 'topic'" class="system-version-detail-page__related-tree" role="tree" :aria-label="t('systemVersionView.detailView.relatedViewByTopic')">
+        <ul class="system-version-detail-page__tree-list" role="group">
+          <li v-for="project in detail.relatedItems?.projects || []" :key="`project-${project.id}`" class="system-version-detail-page__tree-item" role="treeitem" aria-level="2">
+            <div class="system-version-detail-page__tree-node">
+              <span class="system-version-detail-page__tree-icon"><FolderOpenOutlined /></span>
+              <button type="button" class="system-version-detail-page__tree-link" @click="openRelatedItem('project', project.id)">{{ project.name }}</button>
+              <a-tag :color="relatedStatusColor(project.status)">{{ relatedStatusLabel(project.status) }}</a-tag>
+              <span class="system-version-detail-page__tree-meta">{{ project.ownerName || t('common.unset') }} · {{ project.progress ?? 0 }}%<template v-if="iterationRange(project.startDate, project.endDate)"> · {{ iterationRange(project.startDate, project.endDate) }}</template></span>
+            </div>
+            <ul v-if="(project.topics?.length || 0) + (project.stories?.length || 0)" class="system-version-detail-page__tree-list" role="group">
+              <li v-for="topic in project.topics || []" :key="`topic-${topic.id}`" class="system-version-detail-page__tree-item" role="treeitem" aria-level="3">
+                <div class="system-version-detail-page__tree-node">
+                  <span class="system-version-detail-page__tree-icon"><FolderOpenOutlined /></span>
+                  <button type="button" class="system-version-detail-page__tree-link" @click="openRelatedItem('topic', topic.id)">{{ topic.title }}</button>
+                  <a-tag :color="relatedStatusColor(topic.status)">{{ relatedStatusLabel(topic.status) }}</a-tag>
+                  <span class="system-version-detail-page__tree-meta">{{ topic.storyCount || 0 }} {{ t('systemVersionView.detailView.relatedStories') }} · {{ topic.progress ?? 0 }}%</span>
+                </div>
+                <ul v-if="topic.stories?.length" class="system-version-detail-page__tree-list" role="group">
+                  <li v-for="story in topic.stories" :key="`story-${story.id}`" class="system-version-detail-page__tree-item" role="treeitem" aria-level="4">
+                    <div class="system-version-detail-page__tree-node">
+                      <span class="system-version-detail-page__tree-icon"><FileTextOutlined /></span>
+                      <button type="button" class="system-version-detail-page__tree-link" @click="openRelatedItem('story', story.id)">{{ story.title }}</button>
+                      <a-tag :color="relatedStatusColor(story.status)">{{ relatedStatusLabel(story.status) }}</a-tag>
+                      <span class="system-version-detail-page__tree-meta">{{ story.ownerName || t('common.unset') }} · {{ story.progress ?? 0 }}%<template v-if="iterationRange(story.startDate, story.dueDate)"> · {{ iterationRange(story.startDate, story.dueDate) }}</template></span>
+                    </div>
+                    <div v-if="story.sourceIterations?.length" class="system-version-detail-page__iteration-tags">
+                      <span>{{ t('systemVersionView.detailView.sourceIteration') }}：</span>
+                      <span v-for="iteration in story.sourceIterations" :key="iteration.id" class="system-version-detail-page__iteration-tag">
+                        {{ iteration.name }}<small v-if="iterationRange(iteration.startDate, iteration.dueDate)"> · {{ iterationRange(iteration.startDate, iteration.dueDate) }}</small>
+                      </span>
+                    </div>
+                  </li>
+                </ul>
+              </li>
+              <li v-if="project.stories?.length" class="system-version-detail-page__tree-item system-version-detail-page__tree-item--group" role="treeitem" aria-level="3">
+                <div class="system-version-detail-page__tree-node"><span class="system-version-detail-page__tree-icon"><FileTextOutlined /></span><strong>{{ t('systemVersionView.detailView.unboundStories') }}</strong></div>
+                <ul class="system-version-detail-page__tree-list" role="group">
+                  <li v-for="story in project.stories" :key="`project-story-${story.id}`" class="system-version-detail-page__tree-item" role="treeitem" aria-level="4">
+                    <div class="system-version-detail-page__tree-node">
+                      <span class="system-version-detail-page__tree-icon"><FileTextOutlined /></span>
+                      <button type="button" class="system-version-detail-page__tree-link" @click="openRelatedItem('story', story.id)">{{ story.title }}</button>
+                      <a-tag :color="relatedStatusColor(story.status)">{{ relatedStatusLabel(story.status) }}</a-tag>
+                      <span class="system-version-detail-page__tree-meta">{{ story.ownerName || t('common.unset') }} · {{ story.progress ?? 0 }}%<template v-if="iterationRange(story.startDate, story.dueDate)"> · {{ iterationRange(story.startDate, story.dueDate) }}</template></span>
+                    </div>
+                    <div v-if="story.sourceIterations?.length" class="system-version-detail-page__iteration-tags">
+                      <span>{{ t('systemVersionView.detailView.sourceIteration') }}：</span>
+                      <span v-for="iteration in story.sourceIterations" :key="iteration.id" class="system-version-detail-page__iteration-tag">
+                        {{ iteration.name }}<small v-if="iterationRange(iteration.startDate, iteration.dueDate)"> · {{ iterationRange(iteration.startDate, iteration.dueDate) }}</small>
+                      </span>
+                    </div>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+          <li v-if="detail.relatedItems?.unboundTopics?.length" class="system-version-detail-page__tree-item system-version-detail-page__tree-item--group" role="treeitem" aria-level="2">
+            <div class="system-version-detail-page__tree-node"><span class="system-version-detail-page__tree-icon"><FolderOpenOutlined /></span><strong>{{ t('systemVersionView.detailView.unboundTopics') }}</strong></div>
+            <ul class="system-version-detail-page__tree-list" role="group">
+              <li v-for="topic in detail.relatedItems.unboundTopics" :key="`unbound-topic-${topic.id}`" class="system-version-detail-page__tree-item" role="treeitem" aria-level="3">
+                <div class="system-version-detail-page__tree-node">
+                  <span class="system-version-detail-page__tree-icon"><FolderOpenOutlined /></span>
+                  <button type="button" class="system-version-detail-page__tree-link" @click="openRelatedItem('topic', topic.id)">{{ topic.title }}</button>
+                  <a-tag :color="relatedStatusColor(topic.status)">{{ relatedStatusLabel(topic.status) }}</a-tag>
+                  <span class="system-version-detail-page__tree-meta">{{ topic.storyCount || 0 }} {{ t('systemVersionView.detailView.relatedStories') }} · {{ topic.progress ?? 0 }}%</span>
+                </div>
+                <ul v-if="topic.stories?.length" class="system-version-detail-page__tree-list" role="group">
+                  <li v-for="story in topic.stories" :key="`unbound-topic-story-${story.id}`" class="system-version-detail-page__tree-item" role="treeitem" aria-level="4">
+                    <div class="system-version-detail-page__tree-node"><span class="system-version-detail-page__tree-icon"><FileTextOutlined /></span><button type="button" class="system-version-detail-page__tree-link" @click="openRelatedItem('story', story.id)">{{ story.title }}</button><a-tag :color="relatedStatusColor(story.status)">{{ relatedStatusLabel(story.status) }}</a-tag><span class="system-version-detail-page__tree-meta">{{ story.ownerName || t('common.unset') }} · {{ story.progress ?? 0 }}%<template v-if="iterationRange(story.startDate, story.dueDate)"> · {{ iterationRange(story.startDate, story.dueDate) }}</template></span></div>
+                    <div v-if="story.sourceIterations?.length" class="system-version-detail-page__iteration-tags">
+                      <span>{{ t('systemVersionView.detailView.sourceIteration') }}：</span>
+                      <span v-for="iteration in story.sourceIterations" :key="iteration.id" class="system-version-detail-page__iteration-tag">
+                        {{ iteration.name }}<small v-if="iterationRange(iteration.startDate, iteration.dueDate)"> · {{ iterationRange(iteration.startDate, iteration.dueDate) }}</small>
+                      </span>
+                    </div>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+          <li v-if="detail.relatedItems?.unboundStories?.length" class="system-version-detail-page__tree-item system-version-detail-page__tree-item--group" role="treeitem" aria-level="2">
+            <div class="system-version-detail-page__tree-node"><span class="system-version-detail-page__tree-icon"><FileTextOutlined /></span><strong>{{ t('systemVersionView.detailView.unboundStories') }}</strong></div>
+            <ul class="system-version-detail-page__tree-list" role="group">
+              <li v-for="story in detail.relatedItems.unboundStories" :key="`unbound-story-${story.id}`" class="system-version-detail-page__tree-item" role="treeitem" aria-level="3">
+                <div class="system-version-detail-page__tree-node"><span class="system-version-detail-page__tree-icon"><FileTextOutlined /></span><button type="button" class="system-version-detail-page__tree-link" @click="openRelatedItem('story', story.id)">{{ story.title }}</button><a-tag :color="relatedStatusColor(story.status)">{{ relatedStatusLabel(story.status) }}</a-tag><span class="system-version-detail-page__tree-meta">{{ story.ownerName || t('common.unset') }} · {{ story.progress ?? 0 }}%<template v-if="iterationRange(story.startDate, story.dueDate)"> · {{ iterationRange(story.startDate, story.dueDate) }}</template></span></div>
+                <div v-if="story.sourceIterations?.length" class="system-version-detail-page__iteration-tags">
+                  <span>{{ t('systemVersionView.detailView.sourceIteration') }}：</span>
+                  <span v-for="iteration in story.sourceIterations" :key="iteration.id" class="system-version-detail-page__iteration-tag">
+                    {{ iteration.name }}<small v-if="iterationRange(iteration.startDate, iteration.dueDate)"> · {{ iterationRange(iteration.startDate, iteration.dueDate) }}</small>
+                  </span>
+                </div>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+      <div v-else-if="relatedItemsView === 'iteration'" class="system-version-detail-page__related-tree system-version-detail-page__iteration-view" role="tree" :aria-label="t('systemVersionView.detailView.relatedViewByIteration')">
+        <ul class="system-version-detail-page__tree-list" role="group">
+          <li v-for="project in detail.relatedItems?.projects || []" :key="`iteration-project-${project.id}`" class="system-version-detail-page__tree-item" role="treeitem" aria-level="2">
+            <div class="system-version-detail-page__tree-node">
+              <span class="system-version-detail-page__tree-icon"><FolderOpenOutlined /></span>
+              <button type="button" class="system-version-detail-page__tree-link" @click="openRelatedItem('project', project.id)">{{ project.name }}</button>
+              <a-tag :color="relatedStatusColor(project.status)">{{ relatedStatusLabel(project.status) }}</a-tag>
+              <span class="system-version-detail-page__tree-meta">{{ project.ownerName || t('common.unset') }} · {{ project.progress ?? 0 }}%<template v-if="iterationRange(project.startDate, project.endDate)"> · {{ iterationRange(project.startDate, project.endDate) }}</template></span>
+            </div>
+            <ul v-if="projectStories(project).length" class="system-version-detail-page__tree-list" role="group">
+              <li v-for="iterationGroup in groupStoriesByIteration(projectStories(project))" :key="`iteration-project-${project.id}-${iterationGroup.key}`" class="system-version-detail-page__tree-item system-version-detail-page__iteration-group" role="treeitem" aria-level="3">
+                <div class="system-version-detail-page__tree-node system-version-detail-page__iteration-group-header">
+                  <span class="system-version-detail-page__tree-icon"><CalendarOutlined /></span>
+                  <strong>{{ iterationGroup.iteration?.name || t('systemVersionView.detailView.unassignedIteration') }}</strong>
+                  <span class="system-version-detail-page__tree-meta">{{ t('systemVersionView.detailView.sourceIteration') }}<template v-if="iterationGroup.iteration && iterationRange(iterationGroup.iteration.startDate, iterationGroup.iteration.dueDate)"> · {{ iterationRange(iterationGroup.iteration.startDate, iterationGroup.iteration.dueDate) }}</template></span>
+                </div>
+                <ul class="system-version-detail-page__tree-list system-version-detail-page__iteration-group-list" role="group">
+                  <li v-for="story in iterationGroup.stories" :key="`iteration-story-${story.id}`" class="system-version-detail-page__tree-item" role="treeitem" aria-level="4">
+                    <div class="system-version-detail-page__tree-node">
+                      <span class="system-version-detail-page__tree-icon"><FileTextOutlined /></span>
+                      <button type="button" class="system-version-detail-page__tree-link" @click="openRelatedItem('story', story.id)">{{ story.title }}</button>
+                      <a-tag :color="relatedStatusColor(story.status)">{{ relatedStatusLabel(story.status) }}</a-tag>
+                      <span class="system-version-detail-page__tree-meta">{{ story.ownerName || t('common.unset') }} · {{ story.progress ?? 0 }}%<template v-if="iterationRange(story.startDate, story.dueDate)"> · {{ iterationRange(story.startDate, story.dueDate) }}</template></span>
+                    </div>
+                    <span class="system-version-detail-page__story-context">{{ t('systemVersionView.detailView.sourceTopic') }}：{{ storyTopicLabel(story, project.topics || []) }}</span>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+          <li v-if="unboundStories().length" class="system-version-detail-page__tree-item system-version-detail-page__tree-item--group" role="treeitem" aria-level="2">
+            <div class="system-version-detail-page__tree-node"><span class="system-version-detail-page__tree-icon"><FileTextOutlined /></span><strong>{{ t('systemVersionView.detailView.unboundProject') }}</strong></div>
+            <ul class="system-version-detail-page__tree-list" role="group">
+              <li v-for="iterationGroup in groupStoriesByIteration(unboundStories())" :key="`iteration-unbound-${iterationGroup.key}`" class="system-version-detail-page__tree-item system-version-detail-page__iteration-group" role="treeitem" aria-level="3">
+                <div class="system-version-detail-page__tree-node system-version-detail-page__iteration-group-header">
+                  <span class="system-version-detail-page__tree-icon"><CalendarOutlined /></span>
+                  <strong>{{ iterationGroup.iteration?.name || t('systemVersionView.detailView.unassignedIteration') }}</strong>
+                  <span class="system-version-detail-page__tree-meta">{{ t('systemVersionView.detailView.sourceIteration') }}<template v-if="iterationGroup.iteration && iterationRange(iterationGroup.iteration.startDate, iterationGroup.iteration.dueDate)"> · {{ iterationRange(iterationGroup.iteration.startDate, iterationGroup.iteration.dueDate) }}</template></span>
+                </div>
+                <ul class="system-version-detail-page__tree-list system-version-detail-page__iteration-group-list" role="group">
+                  <li v-for="story in iterationGroup.stories" :key="`iteration-unbound-story-${story.id}`" class="system-version-detail-page__tree-item" role="treeitem" aria-level="4">
+                    <div class="system-version-detail-page__tree-node">
+                      <span class="system-version-detail-page__tree-icon"><FileTextOutlined /></span>
+                      <button type="button" class="system-version-detail-page__tree-link" @click="openRelatedItem('story', story.id)">{{ story.title }}</button>
+                      <a-tag :color="relatedStatusColor(story.status)">{{ relatedStatusLabel(story.status) }}</a-tag>
+                      <span class="system-version-detail-page__tree-meta">{{ story.ownerName || t('common.unset') }} · {{ story.progress ?? 0 }}%<template v-if="iterationRange(story.startDate, story.dueDate)"> · {{ iterationRange(story.startDate, story.dueDate) }}</template></span>
+                    </div>
+                    <span class="system-version-detail-page__story-context">{{ t('systemVersionView.detailView.sourceTopic') }}：{{ storyTopicLabel(story, detail.relatedItems?.unboundTopics || []) }}</span>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+        </ul>
       </div>
     </section>
 
@@ -190,7 +453,12 @@ watch(() => route.params.id, () => { void loadData() })
         <a-table :data-source="detail.history || []" :columns="historyColumns" :pagination="false" row-key="id">
           <template #emptyText><div class="system-version-detail-page__empty-copy">{{ t('systemVersionView.detailView.noHistory') }}</div></template>
           <template #bodyCell="{ column, record }">
-             <template v-if="column.key === 'action'"><strong>{{ historyAction(record) }}</strong><span v-if="record.fromStatus && record.toStatus" class="pms-table-subtext">{{ statusLabel(record.fromStatus) }} → {{ statusLabel(record.toStatus) }}</span></template>
+             <template v-if="column.key === 'action'">
+                <div class="system-version-detail-page__history-action">
+                  <strong>{{ historyAction(record) }}</strong>
+                  <span v-if="record.fromStatus && record.toStatus" class="system-version-detail-page__history-status">{{ statusLabel(record.fromStatus) }} → {{ statusLabel(record.toStatus) }}</span>
+                </div>
+              </template>
             <template v-else-if="column.key === 'operator'">{{ record.operatorName || t('common.system') }}</template>
             <template v-else-if="column.key === 'createdAt'">{{ formatDateTime(record.createdAt) }}</template>
             <template v-else-if="column.key === 'reason'"><span class="system-version-detail-page__reason">{{ record.reason || t('common.unset') }}</span></template>
@@ -240,6 +508,39 @@ watch(() => route.params.id, () => { void loadData() })
 .system-version-detail-page__meta-grid strong, .system-version-detail-page__date-grid strong { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; color: var(--pms-text); font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .system-version-detail-page__date-grid { padding-top: 20px; border-top: 1px solid var(--pms-border); }
 .system-version-detail-page__section { min-width: 0; }
+.system-version-detail-page__related-items { overflow: hidden; }
+.system-version-detail-page__related-items :deep(.pms-section-heading__hint) { margin: 6px 0 0; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); line-height: 1.5; }
+.system-version-detail-page__related-heading-actions { display: flex; align-items: center; gap: 12px; }
+.system-version-detail-page__related-count { padding: 5px 9px; color: var(--pms-text-muted); font-size: var(--pms-font-size-compact); border: 1px solid var(--pms-border); border-radius: 999px; background: var(--pms-surface-muted); white-space: nowrap; }
+.system-version-detail-page__related-view-switch { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid var(--pms-border); border-radius: 8px; background: var(--pms-surface-muted); }
+.system-version-detail-page__related-view-switch button { padding: 6px 12px; color: var(--pms-text-muted); font: inherit; font-size: var(--pms-font-size-compact); border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
+.system-version-detail-page__related-view-switch button:hover { color: var(--pms-primary); }
+.system-version-detail-page__related-view-switch button.is-active { color: var(--pms-primary); font-weight: 700; background: var(--pms-surface, #fff); box-shadow: 0 1px 3px rgb(16 34 63 / 8%); }
+.system-version-detail-page__related-tree { margin-top: 16px; padding: 0; overflow-x: auto; }
+.system-version-detail-page__tree-node { display: flex; align-items: center; gap: 9px; min-width: 0; min-height: 34px; }
+.system-version-detail-page__tree-copy { display: grid; gap: 2px; min-width: 0; }
+.system-version-detail-page__tree-copy strong { color: var(--pms-text); }
+.system-version-detail-page__tree-copy span, .system-version-detail-page__tree-meta { color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); white-space: nowrap; }
+.system-version-detail-page__tree-list { position: relative; display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.system-version-detail-page__tree-list .system-version-detail-page__tree-list { margin-top: 7px; padding: 0 0 0 22px; border-left: 1px solid var(--pms-border); }
+.system-version-detail-page__tree-list > .system-version-detail-page__tree-item { position: relative; }
+.system-version-detail-page__tree-icon { display: inline-grid; flex: 0 0 auto; width: 24px; height: 24px; place-items: center; color: var(--pms-primary); border-radius: 6px; background: var(--pms-primary-soft, #eaf2ff); }
+.system-version-detail-page__tree-link { max-width: min(360px, 45vw); padding: 0; overflow: hidden; color: var(--pms-text); font: inherit; font-weight: 650; text-align: left; text-overflow: ellipsis; white-space: nowrap; background: transparent; border: 0; cursor: pointer; }
+.system-version-detail-page__tree-link:hover { color: var(--pms-primary); }
+.system-version-detail-page__tree-meta { overflow: hidden; text-overflow: ellipsis; }
+.system-version-detail-page__tree-list > .system-version-detail-page__tree-item[aria-level="2"] { padding: 14px; border: 1px solid var(--pms-border); border-radius: 9px; background: var(--pms-surface); box-shadow: var(--pms-shadow-sm); }
+.system-version-detail-page__tree-list > .system-version-detail-page__tree-item[aria-level="2"] > .system-version-detail-page__tree-node { min-height: 38px; }
+.system-version-detail-page__tree-list > .system-version-detail-page__tree-item[aria-level="3"] > .system-version-detail-page__tree-node { padding: 5px 2px; }
+.system-version-detail-page__tree-item[aria-level="4"] > .system-version-detail-page__tree-node { padding: 7px 8px; border-radius: 6px; background: var(--pms-surface-muted); }
+.system-version-detail-page__tree-item--group > .system-version-detail-page__tree-node { padding: 5px 2px; color: var(--pms-text-muted); }
+.system-version-detail-page__iteration-group-header { padding: 8px 10px; border: 1px solid var(--pms-border); border-radius: 7px; background: var(--pms-surface-muted); }
+.system-version-detail-page__iteration-group-header strong { color: var(--pms-text); font-size: var(--pms-font-size-compact); }
+.system-version-detail-page__iteration-group-header .system-version-detail-page__tree-meta { margin-left: auto; }
+.system-version-detail-page__iteration-group-list { padding-left: 14px !important; border-left-color: var(--pms-border-strong) !important; }
+.system-version-detail-page__iteration-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 1px 0 2px 33px; color: var(--pms-text-faint); font-size: var(--pms-font-size-compact); }
+.system-version-detail-page__iteration-tag, .system-version-detail-page__story-context { display: inline-flex; align-items: center; padding: 3px 7px; color: var(--pms-text-muted); border: 1px solid var(--pms-border); border-radius: 999px; background: var(--pms-surface-muted); }
+.system-version-detail-page__iteration-tag small { color: var(--pms-text-faint); }
+.system-version-detail-page__story-context { margin: 1px 0 2px 33px; font-size: var(--pms-font-size-compact); }
 .system-version-detail-page__notes { margin: 16px 0 0; color: var(--pms-text); line-height: 1.7; white-space: pre-wrap; }
 .system-version-detail-page__empty-copy { margin: 16px 0 0; color: var(--pms-text-faint); }
 .system-version-detail-page__alert { margin: 14px 0; }
@@ -247,10 +548,24 @@ watch(() => route.params.id, () => { void loadData() })
 .system-version-detail-page__history-scroll :deep(.ant-table-wrapper) { min-width: 780px; }
 .system-version-detail-page__history-scroll :deep(.ant-table-tbody > tr > td) { white-space: normal; }
 .system-version-detail-page__reason { white-space: pre-wrap; }
+.system-version-detail-page__title-row { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; }
+.system-version-detail-page__header-status { flex: 0 0 auto; margin: 0; padding-inline: 8px; vertical-align: middle; }
+.system-version-detail-page__summary-status { justify-self: start; width: fit-content; max-width: 100%; margin: 0; }
+.system-version-detail-page__history-action { display: grid; gap: 3px; min-width: 0; line-height: 1.35; }
+.system-version-detail-page__history-action strong { display: block; color: var(--pms-text); font-weight: 700; }
+.system-version-detail-page__history-status { display: block; color: var(--pms-text-faint); font-size: var(--pms-font-size-caption); line-height: 1.45; white-space: nowrap; }
 .system-version-detail-page__status-select { width: 150px; }
 .system-version-status-modal__hint { margin: 0 0 16px; color: var(--pms-text-muted); line-height: 1.6; }
 @media (max-width: 760px) {
   .system-version-detail-page__meta-grid, .system-version-detail-page__date-grid { grid-template-columns: 1fr; }
   .system-version-detail-page__status-select { width: 100%; }
+  .system-version-detail-page__related-heading-actions { align-items: stretch; flex-direction: column; gap: 8px; }
+  .system-version-detail-page__related-count { align-self: flex-start; }
+  .system-version-detail-page__related-view-switch { display: flex; width: 100%; }
+  .system-version-detail-page__related-view-switch button { flex: 1; }
+  .system-version-detail-page__related-tree { padding: 14px; }
+  .system-version-detail-page__tree-node { align-items: flex-start; flex-wrap: wrap; }
+  .system-version-detail-page__tree-link { max-width: calc(100vw - 150px); }
+  .system-version-detail-page__tree-meta { width: 100%; margin-left: 33px; }
 }
 </style>
