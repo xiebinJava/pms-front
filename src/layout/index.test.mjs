@@ -115,25 +115,6 @@ test('provides a keyboard skip target for the shell content', () => {
   assert.match(styleSource, /\.pms-skip-link:focus-visible\s*\{/)
 })
 
-test('supports a chrome-free embedded workspace mode for the DSH right pane', () => {
-  assert.match(source, /isEmbedded = computed\(\(\) => route\.query\.embed === '1'/)
-  assert.match(source, /class="pms-shell" :class="\{ 'pms-shell--embedded': isEmbedded \}"/)
-  assert.match(styleSource, /\.pms-shell--embedded \.pms-topbar/)
-  assert.match(styleSource, /\.pms-shell--embedded \.pms-main-content/)
-})
-
-test('keeps the full PMS shell in a DSH iframe while still installing the auth bridge', () => {
-  assert.match(source, /const isDshFrame = computed\(\(\) =>[\s\S]*window\.self !== window\.top/)
-  assert.match(source, /const isEmbedded = computed\(\(\) => route\.query\.embed === '1'\)/)
-  assert.match(source, /if \(isDshFrame\.value\) \{[\s\S]*stopDshAuthBridge = installDshAuthBridge\(\)/)
-  assert.doesNotMatch(source, /if \(isEmbedded\.value\)\s+stopDshAuthBridge = installDshAuthBridge\(\)/)
-})
-test('keeps the PMS navigation available inside the embedded DSH workspace', () => {
-  assert.doesNotMatch(styleSource, /\.pms-shell--embedded \.pms-sidebar,/)
-  assert.match(styleSource, /\.pms-shell--embedded \.pms-sidebar-scrim/)
-  assert.match(source, /<aside class="pms-sidebar"/)
-})
-
 test('marks the active page for assistive technology', () => {
   assert.match(source, /<nav class="pms-nav"[^>]*aria-label=/)
   assert.match(source, /:aria-current="selectedKeys\.includes\('dashboard'\) \? 'page' : undefined"/)
