@@ -148,6 +148,9 @@ const zhCN = {
     oidcFailed: '单点登录失败，请重试或使用邮箱登录',
   },
   auth: {
+    firstPasswordTitle: '设置管理员新密码',
+    firstPasswordHint: '首次登录请填写领取的初始密码，再设置新密码。保存后请重新登录。',
+    changeFailed: '修改失败，请检查当前密码',
     activateTitle: '激活账号',
     activateHint: '设置至少 12 位登录密码后，使用邀请中的邮箱登录 PMS。',
     activateSubmit: '完成激活',

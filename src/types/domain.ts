@@ -11,6 +11,7 @@ export interface User {
   avatar?: string
   systemRole?: number
   status?: string
+  mustChangePassword?: boolean
   permissionCodes?: string[]
 }
 

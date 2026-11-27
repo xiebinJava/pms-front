@@ -40,6 +40,10 @@ onMounted(async () => {
       return
     }
   }
+  if (userStore.user?.mustChangePassword) {
+    await router.replace({ name: 'first-password' })
+    return
+  }
   ready.value = true
 })
 

@@ -149,6 +149,9 @@ const enUS: MessageSchema = {
     oidcFailed: 'Single sign-on failed. Try again or use email',
   },
   auth: {
+    firstPasswordTitle: 'Set your administrator password',
+    firstPasswordHint: 'Enter the initial password from your installation, then choose a new password. Sign in again after saving.',
+    changeFailed: 'Password change failed. Check your current password.',
     activateTitle: 'Activate account',
     activateHint: 'Set a password of at least 12 characters, then sign in to PMS with the invited email.',
     activateSubmit: 'Activate',
