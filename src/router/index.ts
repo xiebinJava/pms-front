@@ -25,6 +25,13 @@ const router = createRouter({
       meta: { titleKey: 'route.activate' },
     },
     {
+      path: '/auth/first-password',
+      name: 'first-password',
+      component: () => import('/@/views/auth/reset-password.vue'),
+      props: { firstLogin: true },
+      meta: { titleKey: 'auth.firstPasswordTitle' },
+    },
+    {
       path: '/auth/reset-password',
       name: 'reset-password',
       component: () => import('/@/views/auth/reset-password.vue'),
@@ -177,6 +184,12 @@ router.beforeEach(async (to) => {
     } catch {
       return { path: '/login', query: { redirect: to.fullPath } }
     }
+  }
+  if (store.user?.mustChangePassword && to.name !== 'first-password') {
+    return { name: 'first-password' }
+  }
+  if (to.name === 'first-password' && !store.user?.mustChangePassword) {
+    return '/'
   }
   if (to.path === '/login' && store.isLogin) {
     return '/'

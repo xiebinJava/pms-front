@@ -52,7 +52,7 @@ pnpm dev
 
 打开 <http://localhost:5173>。开发服务器会把浏览器的 `/api` 请求代理到 `VITE_PROXY_TARGET`（默认 `http://localhost:8080`），因此浏览器不需要直接配置跨域。
 
-本地 / 发行包默认初始管理员：`admin@example.com` / `PmsAdmin123!`（由后端 `PMS_BOOTSTRAP_*` 注入；空库首次启动创建，登录后请立刻改密）。登录使用邮箱，不区分大小写；姓名缺失时页面回退展示邮箱。
+空库初始管理员默认邮箱为 `admin@example.com`。发行安装脚本会提示私有凭据文件的位置。首次登录后按提示改密。登录使用邮箱，不区分大小写；姓名缺失时页面回退展示邮箱。
 
 ## 推荐启动方式：发行仓库
 
@@ -62,7 +62,7 @@ cd pms-distribution
 ./scripts/bootstrap.sh
 ```
 
-访问 <http://localhost:5173>，使用 `admin@example.com` / `PmsAdmin123!` 登录。发行 Compose 使用固定版本的前端和后端镜像，不需要在本仓库重复维护部署文件。
+访问 <http://localhost:5173>，使用管理员邮箱和本次安装的专属密码登录。发行 Compose 使用固定版本的前端和后端镜像，不需要在本仓库重复维护部署文件。
 
 从源码联调时，仍可用后端仓库的 `docker-compose.example.yml` 本地构建。生产部署、升级和备份请看 [`pms-distribution`](https://github.com/xiebinJava/pms-distribution) 与后端的 [发布验收清单](https://github.com/xiebinJava/pms-backend/blob/main/docs/operations/release-checklist.md)。
 
